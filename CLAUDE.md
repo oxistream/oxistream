@@ -82,9 +82,12 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 ### Stream proxy
 
 - All video, audio, thumbnail and subtitle traffic goes through our own proxy. Stream URLs are bound to the egress IP that fetched them; deployments should use a single egress IP.
-- URLs: `/proxy/{kind}/{id}`. `id` is a short cache ID, HMAC-signed with expiry; the key comes from ENV and is shared across replicas.
-- Upstream host allowlist: `*.googlevideo.com`, `i.ytimg.com`, `yt3.ggpht.com`, youtube.com (subtitles only).
-- Range requests are passed through and streamed without buffering. Rate limiting via `tower_governor`.
+- URLs are stateless, HMAC-SHA256-signed tokens (`exp` + `sig` query params) so any replica serves any request. Key from `OXISTREAM_PROXY_SECRET` (≥ 32 chars, e.g. `openssl rand -base64 48`), shared across replicas.
+  - `/proxy/stream/{video_id}/{itag}?track=`, `/proxy/subtitle/{video_id}/{id}`: resolved against the replica's own player cache, so googlevideo URLs are only used from the IP that fetched them. Expire after hours.
+  - `/proxy/image/{base64url(upstream)}`: expiry rounded up to the day so browsers can cache.
+- Upstream host allowlist, also checked on redirects: `*.googlevideo.com` (streams), `*.ytimg.com`, `*.ggpht.com`, `yt3.googleusercontent.com` (images), `*.youtube.com` (subtitles).
+- Range requests are passed through and streamed without buffering. No client cookies or IP headers upstream.
+- Rate limiting via `tower_governor` on `/api` and `/proxy`, per client IP (trusted proxy header opt-in).
 
 ### DASH manifests
 
