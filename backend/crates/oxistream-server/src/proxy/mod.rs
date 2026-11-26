@@ -182,7 +182,7 @@ impl Proxy {
     }
 }
 
-fn tls_config() -> anyhow::Result<rustls::ClientConfig> {
+pub(crate) fn tls_config() -> anyhow::Result<rustls::ClientConfig> {
     let roots = rustls::RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
     };

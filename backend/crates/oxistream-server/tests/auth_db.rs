@@ -156,7 +156,8 @@ async fn register_login_me_logout() {
         Some(&new_token),
     )
     .await;
-    assert_eq!(logout.status, StatusCode::NO_CONTENT);
+    assert_eq!(logout.status, StatusCode::OK);
+    assert_eq!(logout.json, json!({ "end_session_url": null }));
     assert!(logout.set_cookie.unwrap().contains("Max-Age=0"));
     let after = send(&app, Method::GET, "/api/v0/auth/me", None, Some(&new_token)).await;
     assert_eq!(after.status, StatusCode::UNAUTHORIZED);
@@ -354,6 +355,7 @@ async fn expired_sessions_are_rejected_and_cleaned_up() {
             user_agent: None,
             ip: Some("192.0.2.1".parse().unwrap()),
             oidc_sid: None,
+            oidc_id_token: None,
         })
         .await
         .unwrap();
@@ -500,6 +502,7 @@ async fn disabled_registration_and_local_auth() {
             "registration_enabled": false,
             "require_login": false,
             "oidc_enabled": false,
+            "oidc_name": null,
         })
     );
 }

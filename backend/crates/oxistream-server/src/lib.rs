@@ -106,6 +106,9 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         config.rate_limit.as_ref(),
     );
     auth.spawn_cleanup();
+    if let Some(oidc) = auth.oidc() {
+        oidc.spawn_discovery();
+    }
     if !config.auth.cookie_secure {
         tracing::warn!("session cookies are sent without the Secure flag");
     }

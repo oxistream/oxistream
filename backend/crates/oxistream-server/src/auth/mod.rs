@@ -1,4 +1,4 @@
-//! Local accounts and server-side sessions.
+//! Local accounts, single sign-on and server-side sessions.
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -19,6 +19,7 @@ use crate::rate_limit::{ClientIp, LoginLimiter};
 
 pub mod cookie;
 pub mod csrf;
+pub mod oidc;
 pub mod password;
 
 pub use password::PasswordHasher;
@@ -41,6 +42,7 @@ struct Inner {
     client_ip: ClientIp,
     /// `None` when rate limiting is disabled.
     login_limiter: Option<LoginLimiter>,
+    oidc: Option<oidc::Oidc>,
 }
 
 impl Auth {
@@ -50,8 +52,10 @@ impl Auth {
         sessions: Arc<dyn SessionRepository>,
         rate_limit: Option<&RateLimitConfig>,
     ) -> Self {
+        let oidc = config.oidc.clone().map(oidc::Oidc::new);
         Self {
             inner: Arc::new(Inner {
+                oidc,
                 config,
                 users,
                 sessions,
@@ -74,6 +78,11 @@ impl Auth {
         self.inner.sessions.as_ref()
     }
 
+    /// `None` when single sign-on is not configured.
+    pub fn oidc(&self) -> Option<&oidc::Oidc> {
+        self.inner.oidc.as_ref()
+    }
+
     pub fn hasher(&self) -> &PasswordHasher {
         &self.inner.hasher
     }
@@ -93,6 +102,18 @@ impl Auth {
         headers: &HeaderMap,
         ip: Option<IpAddr>,
     ) -> Result<HeaderValue, ApiError> {
+        self.start_oidc_session(user, headers, ip, None, None).await
+    }
+
+    /// Like [`Self::start_session`], remembering the provider's session ID and ID token.
+    pub async fn start_oidc_session(
+        &self,
+        user: &User,
+        headers: &HeaderMap,
+        ip: Option<IpAddr>,
+        oidc_sid: Option<String>,
+        oidc_id_token: Option<String>,
+    ) -> Result<HeaderValue, ApiError> {
         if let Some(old) = cookie::session_token(headers).and_then(cookie::hash_token) {
             self.sessions().delete(&old).await?;
         }
@@ -108,7 +129,8 @@ impl Auth {
                 expires_at: self.expiry_from_now(),
                 user_agent,
                 ip,
-                oidc_sid: None,
+                oidc_sid,
+                oidc_id_token,
             })
             .await?;
         Ok(self.session_cookie(&token))

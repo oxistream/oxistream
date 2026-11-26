@@ -13,7 +13,10 @@ mod videos;
 pub use sessions::{
     ActiveSession, NewSession, PgSessionRepository, Session, SessionRepository, TokenHash,
 };
-pub use users::{NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository};
+pub use users::{
+    Identity, NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository,
+    UsernameCandidates,
+};
 pub use uuid::Uuid;
 pub use videos::{PgVideoRepository, Video, VideoRepository, VideoUpsert};
 

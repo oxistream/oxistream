@@ -94,6 +94,7 @@ async fn instance_reports_auth_capabilities() {
             "registration_enabled": true,
             "require_login": false,
             "oidc_enabled": false,
+            "oidc_name": null,
         })
     );
 }
@@ -122,7 +123,7 @@ async fn state_changing_requests_need_a_matching_origin() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]

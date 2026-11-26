@@ -26,6 +26,7 @@ metrics.workspace = true
 moka.workspace = true
 metrics-exporter-prometheus.workspace = true
 oxistream-dash.workspace = true
+openidconnect.workspace = true
 oxistream-db.workspace = true
 reqwest.workspace = true
 rust-embed = { workspace = true, optional = true }
@@ -49,6 +50,7 @@ webpki-roots.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+rsa.workspace = true
 sqlx.workspace = true
 testcontainers-modules.workspace = true
 tower.workspace = true

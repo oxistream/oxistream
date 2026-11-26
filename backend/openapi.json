@@ -97,7 +97,7 @@
         "summary": "End the current session. Succeeds without a session, too.",
         "operationId": "logout",
         "responses": {
-          "204": {
+          "200": {
             "description": "Signed out, session cookie cleared",
             "headers": {
               "set-cookie": {
@@ -105,6 +105,13 @@
                   "type": "string"
                 },
                 "description": "Expired `oxistream_session` cookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedOut"
+                }
               }
             }
           },
@@ -154,6 +161,118 @@
             "session": []
           }
         ]
+      }
+    },
+    "/api/v0/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Where the provider sends the browser back after sign-in.",
+        "description": "On success, starts a session and redirects to the target given to `/auth/oidc/login`.\nUnknown identities get a new account; the first account of an instance becomes an admin.\nFailures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,\n`oidc_disabled` or `account_disabled`.",
+        "operationId": "oidc_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "Authorization code.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "description": "Error code if the provider did not authorize the request.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error_description",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "iss",
+            "in": "query",
+            "description": "Issuer identifier (RFC 9207), checked if present.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "To the sign-in target, or to `/login?error=`",
+            "headers": {
+              "location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`oxistream_session` cookie; clears `oxistream_oidc`"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/auth/oidc/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start single sign-on with the configured provider.",
+        "description": "Redirects the browser to the provider. Failures redirect to `/login?error=` with\n`oidc_disabled` or `oidc_unavailable`.",
+        "operationId": "oidc_login",
+        "parameters": [
+          {
+            "name": "redirect",
+            "in": "query",
+            "description": "Same-origin path to continue to after signing in.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "To the provider's authorization endpoint, or to `/login?error=`",
+            "headers": {
+              "location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Short-lived `oxistream_oidc` cookie holding the login state"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v0/auth/register": {
@@ -860,7 +979,14 @@
           },
           "oidc_enabled": {
             "type": "boolean",
-            "description": "Single sign-on via `OpenID` Connect."
+            "description": "Single sign-on via `OpenID` Connect, started at `/api/v0/auth/oidc/login`."
+          },
+          "oidc_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Label of the single sign-on button; `null` without single sign-on."
           },
           "registration_enabled": {
             "type": "boolean",
@@ -1121,6 +1247,18 @@
           "version": {
             "type": "string",
             "description": "Server version."
+          }
+        }
+      },
+      "LoggedOut": {
+        "type": "object",
+        "properties": {
+          "end_session_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For sessions started via single sign-on: the provider's end-session URL to navigate\nto, which signs out there, too (RP-initiated logout). `null` otherwise."
           }
         }
       },

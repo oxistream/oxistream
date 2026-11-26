@@ -24,6 +24,12 @@ async fn healthz() -> &'static str {
 }
 
 async fn readyz(State(state): State<AppState>) -> (StatusCode, &'static str) {
+    if state.auth.oidc().is_some_and(|oidc| !oidc.is_ready()) {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC provider not discovered",
+        );
+    }
     match tokio::time::timeout(READY_TIMEOUT, oxistream_db::ping(&state.db)).await {
         Ok(Ok(())) => (StatusCode::OK, "ok"),
         Ok(Err(err)) => {

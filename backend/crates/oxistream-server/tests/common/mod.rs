@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod idp;
+
 use std::time::Duration;
 
 use axum::Router;

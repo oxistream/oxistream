@@ -17,7 +17,10 @@ pub struct NewSession {
     pub expires_at: OffsetDateTime,
     pub user_agent: Option<String>,
     pub ip: Option<IpAddr>,
+    /// The provider's session ID (`sid` claim), for back-channel logout.
     pub oidc_sid: Option<String>,
+    /// The raw ID token, sent as `id_token_hint` on logout.
+    pub oidc_id_token: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +50,12 @@ pub trait SessionRepository: Send + Sync {
 
     async fn delete(&self, token_hash: &TokenHash) -> Result<(), Error>;
 
+    /// Deletes the session and returns its stored OIDC ID token, if any.
+    async fn delete_returning_id_token(
+        &self,
+        token_hash: &TokenHash,
+    ) -> Result<Option<String>, Error>;
+
     /// Deletes expired sessions and returns how many were removed.
     async fn delete_expired(&self) -> Result<u64, Error>;
 }
@@ -66,8 +75,8 @@ impl PgSessionRepository {
 impl SessionRepository for PgSessionRepository {
     async fn create(&self, session: &NewSession) -> Result<(), Error> {
         sqlx::query(
-            "INSERT INTO sessions (id, user_id, expires_at, user_agent, ip, oidc_sid) \
-             VALUES ($1, $2, $3, $4, $5::inet, $6)",
+            "INSERT INTO sessions (id, user_id, expires_at, user_agent, ip, oidc_sid, oidc_id_token) \
+             VALUES ($1, $2, $3, $4, $5::inet, $6, $7)",
         )
         .bind(session.token_hash.as_slice())
         .bind(session.user_id)
@@ -75,6 +84,7 @@ impl SessionRepository for PgSessionRepository {
         .bind(&session.user_agent)
         .bind(session.ip.map(|ip| ip.to_string()))
         .bind(&session.oidc_sid)
+        .bind(&session.oidc_id_token)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -120,6 +130,18 @@ impl SessionRepository for PgSessionRepository {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn delete_returning_id_token(
+        &self,
+        token_hash: &TokenHash,
+    ) -> Result<Option<String>, Error> {
+        let token: Option<Option<String>> =
+            sqlx::query_scalar("DELETE FROM sessions WHERE id = $1 RETURNING oidc_id_token")
+                .bind(token_hash.as_slice())
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(token.flatten())
     }
 
     async fn delete_expired(&self) -> Result<u64, Error> {
