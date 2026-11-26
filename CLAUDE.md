@@ -66,6 +66,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
   - `playlists`, `playlist_items` (ordered)
   - `youtube_playlists`, `playlist_follows`, `youtube_playlist_items` (followed YouTube playlists)
   - `watch_progress`: user, video, position, duration, finished, updated_at; doubles as history and resume point
+  - `watch_rooms`, `watch_room_queue`, `watch_room_participants` (watch together)
 
 ### Auth
 
@@ -128,6 +129,15 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 - Player: markers on the progress bar, category label on hover/scrub, auto-skip with undo, skip button inside `button` segments, "jump to highlight" button in the control bar; a segment the user seeks into or undoes is not auto-skipped again. Shorts only auto-skip.
 - Smooth skips: ~8 s before an auto-skip (and while a skip button shows), the fragments dash.js will request at the target (from its parsed sidx/WebM cues, current video and audio representation) are fetched and handed to dash.js as blob URLs via a request interceptor; any mismatch goes to the network. No Service Worker.
 - ENV: `OXISTREAM_SPONSORBLOCK_ENABLED` (default `true`), `OXISTREAM_SPONSORBLOCK_API_URL` (default `https://sponsor.ajay.app`). `GET /api/v0/instance` reports `sponsorblock`.
+
+### Watch together
+
+- Rooms at `/together/{id}`, ids are 128-bit random. Only signed-in users create rooms; anyone with the link joins. Guests pick a name (kept in localStorage) and send a random guest key so kicks stick; with `OXISTREAM_REQUIRE_LOGIN` guests cannot join.
+- Everyone can play, pause, seek, skip and queue videos; the queue autoplays. Only the creator kicks and closes. No watch progress is recorded and no SponsorBlock segments are skipped in rooms.
+- Server-authoritative state in Postgres: current entry, `playing`, `position_ms` + `position_at`, `revision`. Clients estimate the server clock via ping/pong, seek when drift exceeds 1.5 s (0.25 s paused), and ignore states with an older revision. `ended` is compare-and-set on the entry, so the queue advances once.
+- WebSocket `GET /api/v0/rooms/{id}/ws`: Origin check, join within 10 s, 4 KiB messages, per-connection token buckets, video ids validated. Limits: 10 rooms per user, 50 participants, 100 queue entries.
+- Replicas sync via `LISTEN watch_rooms` (triggers notify the room id on every revision bump and delete) and reload the snapshot; a listener reconnect reloads all local rooms.
+- Participants heartbeat every 30 s and are dropped after 2 min; rooms expire after 24 h without activity. Cleanup runs every 5 min on any replica.
 
 ## Frontend
 
