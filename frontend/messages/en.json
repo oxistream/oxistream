@@ -20,11 +20,80 @@
 	"theme_light": "Light",
 	"theme_dark": "Dark",
 	"theme_system": "System",
-	"page_placeholder": "Nothing here yet.",
+	"page_placeholder": "This page arrives in a later release.",
 	"error_not_found": "Page not found",
 	"error_generic": "Something went wrong",
 	"error_back_home": "Back to home",
 	"search_results_title": "Results for “{query}”",
 	"sidebar_description": "Main navigation",
-	"close": "Close"
+	"close": "Close",
+	"skip_to_content": "Skip to content",
+	"nav_library": "Library",
+	"search_shortcut": "Press / to search",
+	"user_menu_label": "Account menu",
+	"user_register": "Register",
+	"user_sign_out": "Sign out",
+	"home_continue_watching": "Continue watching",
+	"home_recent": "Recent videos",
+	"video_views": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} view",
+				"countPlural=*": "{formatted} views"
+			}
+		}
+	],
+	"video_watched": "{percent} watched",
+	"video_duration": "Duration {duration}",
+	"video_loading": "Loading videos",
+	"empty_subscriptions_title": "No subscriptions yet",
+	"empty_subscriptions_body": "Follow channels and their new videos show up here, newest first.",
+	"empty_playlists_title": "No playlists yet",
+	"empty_playlists_body": "Save videos to a playlist to watch later, or share it by link.",
+	"empty_history_title": "Your history is empty",
+	"empty_history_body": "Videos you watch are listed here, so you can pick up where you left off.",
+	"empty_sign_in_hint": "Sign in to keep subscriptions, playlists and history on this server.",
+	"error_load_title": "Videos could not be loaded",
+	"error_load_body": "The server did not answer. Check your connection and try again.",
+	"action_retry": "Try again",
+	"settings_appearance": "Appearance",
+	"settings_appearance_hint": "Follows your system until you pick a theme.",
+	"settings_language_hint": "Used for menus, dates and numbers.",
+	"settings_more": "Playback and account settings arrive with sign-in.",
+	"auth_login_title": "Sign in to Oxistream",
+	"auth_login_subtitle": "Subscriptions, playlists and history are kept on this server.",
+	"auth_register_title": "Create your account",
+	"auth_register_subtitle": "Your data stays on this server. No YouTube account needed.",
+	"auth_username": "Username",
+	"auth_password": "Password",
+	"auth_password_confirm": "Confirm password",
+	"auth_password_hint": "At least {min} characters.",
+	"auth_sign_in_submit": "Sign in",
+	"auth_register_submit": "Create account",
+	"auth_sso": "Sign in with SSO",
+	"auth_or": "or",
+	"auth_no_account": "No account yet?",
+	"auth_register_link": "Create one",
+	"auth_have_account": "Already registered?",
+	"auth_login_link": "Sign in",
+	"auth_error_username_required": "Enter your username.",
+	"auth_error_username_format": "Use 3 to 32 letters, digits, dots, dashes or underscores.",
+	"auth_error_password_required": "Enter your password.",
+	"auth_error_password_length": "Use at least {min} characters.",
+	"auth_error_password_mismatch": "The passwords do not match.",
+	"auth_error_summary": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} field needs attention.",
+				"countPlural=*": "{formatted} fields need attention."
+			}
+		}
+	],
+	"auth_not_connected": "Accounts are not connected yet, so nothing was sent. They arrive in a later release.",
+	"watch_title": "Watch",
+	"channel_title": "Channel"
 }

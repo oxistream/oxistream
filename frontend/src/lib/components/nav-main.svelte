@@ -3,7 +3,7 @@
 	import type { RouteId } from '$app/types';
 
 	export type NavItem = {
-		href: RouteId;
+		href: Exclude<RouteId, `${string}[${string}`>;
 		label: () => string;
 		icon: Component;
 	};
@@ -14,22 +14,31 @@
 	import { page } from '$app/state';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { isActive } from '#lib/navigation.js';
-	import { m } from '#lib/paraglide/messages.js';
+	import { cn } from '#lib/utils.js';
 
-	let { items }: { items: NavItem[] } = $props();
+	let {
+		items,
+		label,
+		class: className
+	}: { items: NavItem[]; label?: string; class?: string } = $props();
 </script>
 
-<Sidebar.Group>
-	<Sidebar.GroupLabel>{m.nav_label()}</Sidebar.GroupLabel>
+<Sidebar.Group class={cn(className)}>
+	{#if label}
+		<Sidebar.GroupLabel>{label}</Sidebar.GroupLabel>
+	{/if}
 	<Sidebar.Menu>
 		{#each items as item (item.href)}
+			{@const active = isActive(page.url.pathname, item.href)}
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton
-					isActive={isActive(page.url.pathname, item.href)}
-					tooltipContent={item.label()}
-				>
+				<Sidebar.MenuButton isActive={active} tooltipContent={item.label()}>
 					{#snippet child({ props })}
-						<a href={resolve(item.href)} {...props}>
+						<a
+							href={resolve(item.href)}
+							aria-current={active ? 'page' : undefined}
+							{...props}
+							class={cn(props.class as string, 'data-active:[&>svg]:text-sidebar-primary')}
+						>
 							<item.icon />
 							<span>{item.label()}</span>
 						</a>
