@@ -11,6 +11,7 @@ repository = "https://github.com/oxistream/oxistream"
 publish = false
 
 [workspace.dependencies]
+oxistream-dash = { path = "crates/oxistream-dash" }
 oxistream-db = { path = "crates/oxistream-db" }
 
 anyhow = "1.0.105"

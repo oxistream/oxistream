@@ -6,12 +6,14 @@ use utoipa_axum::routes;
 
 use crate::AppState;
 
+mod manifest;
 mod youtube;
 
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(instance))
         .merge(youtube::router())
+        .merge(manifest::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]

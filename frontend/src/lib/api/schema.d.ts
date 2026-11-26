@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/videos/{id}/manifest.mpd": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DASH manifest of a video, with all stream URLs pointing to the proxy. */
+        get: operations["manifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -210,6 +227,17 @@ export interface components {
             corrected_query?: string | null;
             items: components["schemas"]["SearchItem"][];
         };
+        Subtitle: {
+            auto_generated: boolean;
+            /** @description Unique per video: the language code, prefixed with `a.` if auto-generated. */
+            id: string;
+            /** @description Human-readable language name. */
+            label: string;
+            /** @description Language code, e.g. `en` or `pt-BR`. */
+            lang: string;
+            /** @description `WebVTT` file via the proxy. */
+            url: string;
+        };
         Thumbnail: {
             /** Format: int32 */
             height: number;
@@ -236,6 +264,8 @@ export interface components {
             /** @description Localized, human-readable publish date as shown by YouTube. */
             published_text?: string | null;
             related: components["schemas"]["VideoSummary"][];
+            /** @description Empty when the player data could not be fetched. */
+            subtitles: components["schemas"]["Subtitle"][];
             thumbnails: components["schemas"]["Thumbnail"][];
             title: string;
             /** Format: int64 */
@@ -604,6 +634,65 @@ export interface operations {
                 };
             };
             /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    manifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Static MPD */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/dash+xml": string;
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, unavailable, live or without playable streams */
             404: {
                 headers: {
                     [name: string]: unknown;

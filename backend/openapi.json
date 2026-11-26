@@ -507,6 +507,78 @@
           }
         }
       }
+    },
+    "/api/v0/videos/{id}/manifest.mpd": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "DASH manifest of a video, with all stream URLs pointing to the proxy.",
+        "operationId": "manifest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Static MPD",
+            "content": {
+              "application/dash+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, unavailable, live or without playable streams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -876,6 +948,37 @@
           }
         }
       },
+      "Subtitle": {
+        "type": "object",
+        "required": [
+          "id",
+          "lang",
+          "label",
+          "auto_generated",
+          "url"
+        ],
+        "properties": {
+          "auto_generated": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique per video: the language code, prefixed with `a.` if auto-generated."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable language name."
+          },
+          "lang": {
+            "type": "string",
+            "description": "Language code, e.g. `en` or `pt-BR`."
+          },
+          "url": {
+            "type": "string",
+            "description": "`WebVTT` file via the proxy."
+          }
+        }
+      },
       "Thumbnail": {
         "type": "object",
         "required": [
@@ -910,6 +1013,7 @@
           "thumbnails",
           "is_live",
           "keywords",
+          "subtitles",
           "related"
         ],
         "properties": {
@@ -968,6 +1072,13 @@
             "items": {
               "$ref": "#/components/schemas/VideoSummary"
             }
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtitle"
+            },
+            "description": "Empty when the player data could not be fetched."
           },
           "thumbnails": {
             "type": "array",
