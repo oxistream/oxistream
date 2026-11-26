@@ -1,6 +1,10 @@
 <script lang="ts">
-	import PagePlaceholder from '#lib/components/page-placeholder.svelte';
-	import { m } from '#lib/paraglide/messages.js';
+	import { page } from '$app/state';
+	import ChannelView from '#lib/components/channel/channel-view.svelte';
+
+	const id = $derived(page.params.id ?? '');
 </script>
 
-<PagePlaceholder title={m.channel_title()} />
+{#key id}
+	<ChannelView {id} />
+{/key}

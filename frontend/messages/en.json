@@ -95,5 +95,64 @@
 	],
 	"auth_not_connected": "Accounts are not connected yet, so nothing was sent. They arrive in a later release.",
 	"watch_title": "Watch",
-	"channel_title": "Channel"
+	"channel_title": "Channel",
+	"search_suggestions_label": "Search suggestions",
+	"search_resolving": "Opening link…",
+	"search_corrected": "Showing results for “{query}”",
+	"search_prompt_title": "Search videos, channels and playlists",
+	"search_prompt_body": "Type in the search box, or paste a YouTube link to open it directly.",
+	"search_empty_title": "No results for “{query}”",
+	"search_empty_body": "Check the spelling or try fewer, broader words.",
+	"search_error_title": "Search failed",
+	"search_error_body": "The server could not get results from YouTube. Try again in a moment.",
+	"search_loading": "Loading results",
+	"search_results_label": "Search results",
+	"search_load_more": "Load more",
+	"search_loading_more": "Loading more…",
+	"search_end": "End of results",
+	"search_live": "Live",
+	"search_verified": "Verified",
+	"search_playlist": "Playlist",
+	"search_playlist_videos": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} video",
+				"countPlural=*": "{formatted} videos"
+			}
+		}
+	],
+	"search_playlist_soon": "Playlists from YouTube arrive in a later release.",
+	"channel_subscribers": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} subscriber",
+				"countPlural=*": "{formatted} subscribers"
+			}
+		}
+	],
+	"channel_video_count": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} video",
+				"countPlural=*": "{formatted} videos"
+			}
+		}
+	],
+	"channel_subscribe": "Subscribe",
+	"channel_subscribe_soon": "Subscriptions arrive in a later release.",
+	"channel_videos": "Videos",
+	"channel_loading": "Loading channel",
+	"channel_more": "More",
+	"channel_less": "Less",
+	"channel_not_found_title": "Channel not found",
+	"channel_not_found_body": "This channel does not exist or is no longer available.",
+	"channel_error_title": "Channel could not be loaded",
+	"channel_no_videos_title": "No videos yet",
+	"channel_no_videos_body": "This channel has not published any videos."
 }
