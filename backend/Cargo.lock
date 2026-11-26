@@ -2098,6 +2098,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "moka",
+ "oxistream-dash",
  "oxistream-db",
  "reqwest 0.13.5",
  "rust-embed",

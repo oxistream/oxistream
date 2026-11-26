@@ -7,6 +7,8 @@ use serde::Serialize;
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 
+use crate::proxy::subtitle_id;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Thumbnail {
     pub url: String,
@@ -41,7 +43,22 @@ pub struct VideoDetails {
     pub thumbnails: Vec<Thumbnail>,
     pub is_live: bool,
     pub keywords: Vec<String>,
+    /// Empty when the player data could not be fetched.
+    pub subtitles: Vec<Subtitle>,
     pub related: Vec<VideoSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Subtitle {
+    /// Unique per video: the language code, prefixed with `a.` if auto-generated.
+    pub id: String,
+    /// Language code, e.g. `en` or `pt-BR`.
+    pub lang: String,
+    /// Human-readable language name.
+    pub label: String,
+    pub auto_generated: bool,
+    /// `WebVTT` file via the proxy.
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -189,10 +206,12 @@ impl ChannelRef {
 }
 
 impl VideoDetails {
+    /// `subtitle_url` maps a [`Subtitle::id`] to its URL.
     pub fn from_rp(
         details: rp::VideoDetails,
         player: Option<&rp::VideoPlayer>,
         img: &impl Fn(&str) -> String,
+        subtitle_url: &impl Fn(&str) -> String,
     ) -> Self {
         let thumbnails = match player {
             Some(player) if !player.details.thumbnail.is_empty() => {
@@ -213,6 +232,14 @@ impl VideoDetails {
             keywords: player
                 .map(|p| p.details.keywords.clone())
                 .unwrap_or_default(),
+            subtitles: player
+                .map(|p| {
+                    p.subtitles
+                        .iter()
+                        .map(|s| Subtitle::from_rp(s, subtitle_url))
+                        .collect()
+                })
+                .unwrap_or_default(),
             related: details
                 .recommended
                 .items
@@ -221,6 +248,19 @@ impl VideoDetails {
                 .collect(),
             id: details.id,
             title: details.name,
+        }
+    }
+}
+
+impl Subtitle {
+    pub fn from_rp(subtitle: &rp::Subtitle, url: &impl Fn(&str) -> String) -> Self {
+        let id = subtitle_id(&subtitle.lang, subtitle.auto_generated);
+        Self {
+            url: url(&id),
+            id,
+            lang: subtitle.lang.clone(),
+            label: subtitle.lang_name.clone(),
+            auto_generated: subtitle.auto_generated,
         }
     }
 }
@@ -332,6 +372,10 @@ mod tests {
         format!("proxy:{url}")
     }
 
+    fn sub(id: &str) -> String {
+        format!("proxy:subtitle/{id}")
+    }
+
     fn from_json<T: DeserializeOwned>(value: Value) -> T {
         serde_json::from_value(value).unwrap()
     }
@@ -412,7 +456,12 @@ mod tests {
             "video_streams": [],
             "video_only_streams": [],
             "audio_streams": [],
-            "subtitles": [],
+            "subtitles": [
+                { "url": "https://www.youtube.com/api/timedtext?lang=de", "lang": "de",
+                  "lang_name": "German", "auto_generated": false },
+                { "url": "https://www.youtube.com/api/timedtext?lang=en&kind=asr", "lang": "en",
+                  "lang_name": "English (auto-generated)", "auto_generated": true },
+            ],
             "expires_in_seconds": 21_540,
             "valid_until": "2026-01-01T18:00:00Z",
             "hls_manifest_url": null,
@@ -449,7 +498,7 @@ mod tests {
     #[test]
     fn maps_video_details_with_player() {
         let player = player();
-        let dto = VideoDetails::from_rp(video_details(), Some(&player), &img);
+        let dto = VideoDetails::from_rp(video_details(), Some(&player), &img, &sub);
 
         assert_eq!(dto.title, "Never Gonna Give You Up");
         assert_eq!(dto.description, "Listen: https://example.com");
@@ -466,13 +515,33 @@ mod tests {
         );
         assert_eq!(dto.related.len(), 1);
         assert_eq!(dto.related[0].duration_seconds, Some(212));
+        assert_eq!(
+            dto.subtitles,
+            [
+                Subtitle {
+                    id: "de".into(),
+                    lang: "de".into(),
+                    label: "German".into(),
+                    auto_generated: false,
+                    url: "proxy:subtitle/de".into(),
+                },
+                Subtitle {
+                    id: "a.en".into(),
+                    lang: "en".into(),
+                    label: "English (auto-generated)".into(),
+                    auto_generated: true,
+                    url: "proxy:subtitle/a.en".into(),
+                },
+            ]
+        );
         assert_images_mapped(&dto);
     }
 
     #[test]
     fn maps_video_details_without_player() {
-        let dto = VideoDetails::from_rp(video_details(), None, &img);
+        let dto = VideoDetails::from_rp(video_details(), None, &img, &sub);
         assert_eq!(dto.duration_seconds, None);
+        assert_eq!(dto.subtitles.len(), 0);
         assert_eq!(dto.keywords.len(), 0);
         assert_eq!(
             dto.thumbnails[1].url,

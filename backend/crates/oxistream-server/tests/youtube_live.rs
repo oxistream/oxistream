@@ -198,3 +198,69 @@ async fn proxies_stream_range() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(body.len(), 1024);
 }
+
+#[tokio::test]
+#[ignore = "network"]
+async fn manifest_points_to_proxy() {
+    let router = oxistream_server::app(state_without_db());
+    let response = fetch(
+        router.clone(),
+        &format!("/api/v0/videos/{VIDEO_ID}/manifest.mpd"),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/dash+xml"
+    );
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let mpd = String::from_utf8(body.to_vec()).unwrap();
+
+    let urls: Vec<String> = mpd
+        .split("<BaseURL>")
+        .skip(1)
+        .map(|rest| {
+            rest.split("</BaseURL>")
+                .next()
+                .unwrap()
+                .replace("&amp;", "&")
+        })
+        .collect();
+    assert!(urls.len() > 2, "{mpd}");
+    for url in &urls {
+        assert!(
+            url.starts_with(&format!("/proxy/stream/{VIDEO_ID}/")),
+            "{url}"
+        );
+        assert!(url.contains("exp=") && url.contains("&sig="), "{url}");
+    }
+
+    let response = fetch(router, &urls[0], Some("bytes=0-499")).await;
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(body.len(), 500);
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn video_details_list_proxied_subtitles() {
+    let (status, json) = get_json(&format!("/api/v0/videos/{VIDEO_ID}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let subtitles = json["subtitles"].as_array().unwrap();
+    assert_ne!(subtitles.len(), 0);
+    let url = subtitles[0]["url"].as_str().unwrap();
+    assert!(
+        url.starts_with(&format!("/proxy/subtitle/{VIDEO_ID}/")),
+        "{url}"
+    );
+
+    let response = fetch(app_without_db(), url, None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(
+        body.starts_with(b"WEBVTT"),
+        "{}",
+        String::from_utf8_lossy(&body)
+    );
+}

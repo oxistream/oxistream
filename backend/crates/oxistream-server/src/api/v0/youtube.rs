@@ -65,6 +65,7 @@ async fn video(
         details,
         player.as_deref(),
         &|url| state.image_url(url),
+        &|subtitle| state.subtitle_url(&id, subtitle),
     )))
 }
 
