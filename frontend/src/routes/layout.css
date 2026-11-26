@@ -182,6 +182,59 @@
 	}
 }
 
+/* Video lists share one column count, taken from the width of their container. */
+@layer components {
+	.video-list {
+		--cols: 1;
+		--gap: 1rem;
+	}
+	@container (min-width: 34rem) {
+		.video-list {
+			--cols: 2;
+		}
+	}
+	@container (min-width: 52rem) {
+		.video-list {
+			--cols: 3;
+		}
+	}
+	@container (min-width: 70rem) {
+		.video-list {
+			--cols: 4;
+		}
+	}
+	@container (min-width: 92rem) {
+		.video-list {
+			--cols: 5;
+		}
+	}
+	.video-list[data-layout='grid'] {
+		display: grid;
+		grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+		gap: 1.75rem var(--gap);
+	}
+	.video-list[data-layout='row'] {
+		display: flex;
+		gap: var(--gap);
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		scroll-padding-inline: var(--page-gutter);
+		scrollbar-width: thin;
+		margin-inline: calc(var(--page-gutter) * -1);
+		margin-block-start: -0.375rem;
+		padding: 0.375rem var(--page-gutter) 0.75rem;
+	}
+	.video-list[data-layout='row'] > * {
+		flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+		scroll-snap-align: start;
+	}
+	@container (max-width: 34rem) {
+		.video-list[data-layout='row'] > * {
+			flex-basis: 82%;
+		}
+	}
+}
+
 @utility tabular {
 	font-variant-numeric: tabular-nums;
 }
