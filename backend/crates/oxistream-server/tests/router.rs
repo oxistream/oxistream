@@ -77,6 +77,8 @@ async fn youtube_endpoints_validate_input_without_upstream() {
         "/api/v0/channels/UCXuqSBlHAE6Xw-yeJA0Tunw/search?q=%20",
         "/api/v0/search",
         "/api/v0/search?q=%20",
+        "/api/v0/search?q=x&type=movies",
+        "/api/v0/search?continuation=x&type=Videos",
         "/api/v0/resolve",
         "/api/v0/resolve?url=https%3A%2F%2Fexample.com%2Fwatch%3Fv%3DdQw4w9WgXcQ",
         "/api/v0/trending?category=music",
