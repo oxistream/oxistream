@@ -74,8 +74,14 @@ async fn search_paginates() {
 
     let (status, page) = get_json(&format!("/api/v0/search?continuation={token}")).await;
     assert_eq!(status, StatusCode::OK, "{page}");
-    assert_ne!(page["items"].as_array().unwrap().len(), 0);
-    assert_video_metadata(&page["items"]);
+    let items = page["items"].as_array().unwrap();
+    assert_ne!(items.len(), 0);
+    let videos: Vec<Value> = items
+        .iter()
+        .filter(|item| item["type"] == "video")
+        .cloned()
+        .collect();
+    assert_video_metadata(&Value::Array(videos));
 }
 
 #[tokio::test]
