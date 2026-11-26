@@ -2,6 +2,7 @@
 	import { pickImage, toChannel } from '#lib/api/mapping.js';
 	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
+	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
 	import Player from '#lib/components/player/player.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
@@ -58,6 +59,7 @@
 	});
 
 	let player = $state<Player>();
+	const settings = createSettingsQuery();
 
 	$effect(() => {
 		if (!player) return;
@@ -93,6 +95,7 @@
 			{poster}
 			variant="short"
 			{segments}
+			playback={playbackPreferences(settings.data)}
 			loop
 			autoplay={active}
 			globalHotkeys={active}

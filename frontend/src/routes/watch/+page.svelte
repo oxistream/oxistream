@@ -37,6 +37,7 @@
 	import RelatedVideos from '#lib/components/watch/related-videos.svelte';
 	import VideoDetailsSkeleton from '#lib/components/watch/video-details-skeleton.svelte';
 	import VideoDetails from '#lib/components/watch/video-details.svelte';
+	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
@@ -71,6 +72,7 @@
 		if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
 		sponsorBlockOpen = true;
 	}
+	const settings = createSettingsQuery();
 
 	let theater = $state(readJson(THEATER_KEY, (v): v is boolean => typeof v === 'boolean') ?? false);
 	let player = $state<ReturnType<typeof Player>>();
@@ -154,6 +156,8 @@
 		explicitStart !== null ||
 			(session.ready && (!session.user || !savedProgress.isPending || !videoId))
 	);
+	// Playback preferences are read once, too.
+	const settingsKnown = $derived(session.ready && (!session.user || !settings.isPending));
 
 	// An explicit ?t= wins over where the user left off.
 	const startTime = $derived.by(() => {
@@ -238,7 +242,7 @@
 						onretry={problem.retry ? retry : undefined}
 						class="watch-frame"
 					/>
-				{:else if details && startKnown}
+				{:else if details && startKnown && settingsKnown}
 					{#key videoId}
 						<Player
 							bind:this={player}
@@ -247,6 +251,7 @@
 							{subtitles}
 							storyboard={details.storyboard_url ?? undefined}
 							{startTime}
+							playback={playbackPreferences(settings.data)}
 							{theater}
 							autoplay
 							{segments}

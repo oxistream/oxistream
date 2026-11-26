@@ -12,6 +12,7 @@ export const HOME_SECTIONS = [
 export type HomeSectionKey = (typeof HOME_SECTIONS)[number];
 export type Audience = 'user' | 'guest';
 
+/** Sections that need an account; signed-in users may also choose the others. */
 const AUDIENCE: Record<HomeSectionKey, Audience> = {
 	'continue-watching': 'user',
 	subscriptions: 'user',
@@ -31,16 +32,40 @@ function isSectionKey(value: string): value is HomeSectionKey {
 }
 
 /**
- * Sections to render, in order. A user's own choice wins over the default; unknown keys,
- * duplicates and sections of the other audience are dropped.
+ * Sections to render, in order. A user's own choice wins over the default; unknown keys and
+ * duplicates are dropped. Guests always get their default, without account-only sections.
  */
-export function homeSections(audience: Audience, preferred?: readonly string[]): HomeSectionKey[] {
+export function homeSections(
+	audience: Audience,
+	preferred?: readonly string[] | null
+): HomeSectionKey[] {
 	const seen = new Set<HomeSectionKey>();
-	return (preferred ?? DEFAULT_SECTIONS[audience]).filter((value): value is HomeSectionKey => {
-		if (!isSectionKey(value) || AUDIENCE[value] !== audience || seen.has(value)) return false;
+	const keys = audience === 'user' ? (preferred ?? DEFAULT_SECTIONS.user) : DEFAULT_SECTIONS.guest;
+	return keys.filter((value): value is HomeSectionKey => {
+		if (!isSectionKey(value) || seen.has(value)) return false;
+		if (audience === 'guest' && AUDIENCE[value] === 'user') return false;
 		seen.add(value);
 		return true;
 	});
+}
+
+export type EditableSection = { key: HomeSectionKey; enabled: boolean };
+
+/** Every section for the settings: the enabled ones in their order, then the rest, disabled. */
+export function editableSections(preferred?: readonly string[] | null): EditableSection[] {
+	const enabled = homeSections('user', preferred);
+	return [
+		...enabled.map((key) => ({ key, enabled: true })),
+		...HOME_SECTIONS.filter((key) => !enabled.includes(key)).map((key) => ({
+			key,
+			enabled: false
+		}))
+	];
+}
+
+/** What gets stored: the enabled keys in order. */
+export function enabledSections(sections: readonly EditableSection[]): HomeSectionKey[] {
+	return sections.filter((section) => section.enabled).map((section) => section.key);
 }
 
 export function trendingCategory(key: HomeSectionKey): TrendingCategory | undefined {

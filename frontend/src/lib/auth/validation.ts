@@ -4,7 +4,8 @@ export const PASSWORD_MAX_LENGTH = 256;
 
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,32}$/;
 
-export type FieldError = 'required' | 'format' | 'length' | 'too_long' | 'taken' | 'mismatch';
+export type FieldError =
+	'required' | 'format' | 'length' | 'too_long' | 'taken' | 'mismatch' | 'invalid';
 
 export type LoginInput = { username: string; password: string };
 export type RegisterInput = LoginInput & { confirmPassword: string };
