@@ -14,13 +14,18 @@ publish = false
 oxistream-db = { path = "crates/oxistream-db" }
 
 anyhow = "1.0.105"
+async-trait = "0.1.92"
 axum = "0.8.9"
 http-body-util = "0.1.5"
 insta = "1.49.0"
 metrics = "0.24.6"
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+moka = { version = "0.12.16", features = ["future"] }
 quick-xml = "0.42.0"
 rust-embed = { version = "8.14.0", features = ["mime-guess"] }
+rustypipe = { version = "0.11.4", default-features = false, features = [
+  "rustls-tls-webpki-roots",
+] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sqlx = { version = "0.9.1", default-features = false, features = [
@@ -33,12 +38,13 @@ sqlx = { version = "0.9.1", default-features = false, features = [
 ] }
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["macros", "serde-well-known"] }
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "signal", "net", "time"] }
 tower = { version = "0.5.3", features = ["util"] }
 tower-http = { version = "0.7.1", features = ["trace", "compression-full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
-utoipa = "6.0.0"
+utoipa = { version = "6.0.0", features = ["time"] }
 utoipa-axum = "0.3.0"
 utoipa-scalar = { version = "0.4.0", features = ["axum"] }
 
