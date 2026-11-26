@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
-use oxistream_db::{PgPool, PgVideoRepository, VideoRepository};
+use oxistream_db::{
+    PgPool, PgSessionRepository, PgUserRepository, PgVideoRepository, VideoRepository,
+};
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
 use tower_http::compression::predicate::{DefaultPredicate, NotForContentType, Predicate};
@@ -13,6 +15,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
 pub mod api;
+pub mod auth;
 pub mod config;
 mod ops;
 pub mod proxy;
@@ -32,6 +35,7 @@ pub struct AppState {
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
     pub rate_limit: Option<rate_limit::RateLimit>,
+    pub auth: auth::Auth,
 }
 
 impl AppState {
@@ -52,8 +56,9 @@ impl AppState {
 }
 
 pub fn app(state: AppState) -> Router {
-    let mut api = api::router();
-    let mut proxy = proxy::router();
+    let session = axum::middleware::from_fn_with_state(state.clone(), auth::middleware);
+    let mut api = api::router().layer(session.clone());
+    let mut proxy = proxy::router().layer(session);
     if let Some(rate_limit) = &state.rate_limit {
         api = api.layer(rate_limit.layer());
         proxy = proxy.layer(rate_limit.layer());
@@ -94,6 +99,16 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     let youtube = youtube::YouTube::new(&config.youtube)?;
     let proxy = proxy::Proxy::new(&config.proxy)?;
     let rate_limit = config.rate_limit.as_ref().map(rate_limit::RateLimit::new);
+    let auth = auth::Auth::new(
+        config.auth.clone(),
+        Arc::new(PgUserRepository::new(db.clone())),
+        Arc::new(PgSessionRepository::new(db.clone())),
+        config.rate_limit.as_ref(),
+    );
+    auth.spawn_cleanup();
+    if !config.auth.cookie_secure {
+        tracing::warn!("session cookies are sent without the Secure flag");
+    }
     if let Some(rate_limit) = &rate_limit {
         rate_limit.spawn_cleanup();
     } else {
@@ -117,6 +132,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             youtube,
             proxy,
             rate_limit,
+            auth,
         })
         .into_make_service_with_connect_info::<SocketAddr>(),
     )

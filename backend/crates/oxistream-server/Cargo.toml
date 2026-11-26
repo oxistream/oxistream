@@ -14,10 +14,12 @@ embed-frontend = ["dep:rust-embed"]
 
 [dependencies]
 anyhow.workspace = true
+argon2.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 base64.workspace = true
 futures-util.workspace = true
+getrandom.workspace = true
 governor.workspace = true
 hmac.workspace = true
 metrics.workspace = true
@@ -42,10 +44,12 @@ tracing-subscriber.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
 utoipa-scalar.workspace = true
+uuid.workspace = true
 webpki-roots.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+sqlx.workspace = true
 testcontainers-modules.workspace = true
 tower.workspace = true
 
