@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 
 mod follows;
 mod history;
+mod likes;
 mod lock;
 mod playlists;
 mod sessions;
@@ -25,6 +26,7 @@ pub use history::{
     HistoryCursor, HistoryEntry, HistoryRepository, PgHistoryRepository, ProgressUpdate,
     WatchProgress,
 };
+pub use likes::{LikeCursor, LikeRepository, LikedVideo, PgLikeRepository};
 pub use lock::{AdvisoryLock, LockKey};
 pub use playlists::{
     NewPlaylist, PgPlaylistRepository, Playlist, PlaylistItem, PlaylistRepository, PlaylistUpdate,
