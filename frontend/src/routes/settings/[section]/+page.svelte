@@ -17,6 +17,8 @@
 
 {#if !session.ready}
 	<Skeleton class="h-48 w-full rounded-xl" />
+{:else if section.available?.() === false}
+	<EmptyState icon={section.icon} title={m.error_not_found()} />
 {:else if section.account && !session.user}
 	<EmptyState
 		icon={section.icon}
