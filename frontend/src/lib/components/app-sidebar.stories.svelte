@@ -49,3 +49,7 @@
 <Story name="Collapsed" asChild>
 	{@render shell(false, mockUser)}
 </Story>
+
+<Story name="Collapsed with a channel being fetched" asChild>
+	{@render shell(false, mockUser, [...mockSubscriptions.slice(0, 3), mockPendingSubscription])}
+</Story>
