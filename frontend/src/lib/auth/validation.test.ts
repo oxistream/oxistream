@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PASSWORD_MIN_LENGTH, validateLogin, validateRegister } from './validation';
+import {
+	PASSWORD_MAX_LENGTH,
+	PASSWORD_MIN_LENGTH,
+	validateLogin,
+	validateRegister
+} from './validation';
 
 const strong = 'x'.repeat(PASSWORD_MIN_LENGTH);
 
@@ -31,6 +36,17 @@ describe('validateRegister', () => {
 		expect(
 			validateRegister({ username: 'mara', password: short, confirmPassword: short }).password
 		).toBe('length');
+	});
+
+	it('enforces the maximum password length in code points', () => {
+		const long = 'x'.repeat(PASSWORD_MAX_LENGTH + 1);
+		expect(
+			validateRegister({ username: 'mara', password: long, confirmPassword: long }).password
+		).toBe('too_long');
+		const emoji = '🦀'.repeat(PASSWORD_MAX_LENGTH);
+		expect(validateRegister({ username: 'mara', password: emoji, confirmPassword: emoji })).toEqual(
+			{}
+		);
 	});
 
 	it('requires matching passwords', () => {

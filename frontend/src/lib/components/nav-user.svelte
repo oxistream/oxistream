@@ -13,11 +13,16 @@
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '#lib/components/ui/sidebar/index.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { session } from '#lib/session.svelte.js';
 	import { initials, type User } from '#lib/video.js';
 
-	let { user = null, onsignout }: { user?: User | null; onsignout?: () => void } = $props();
+	let {
+		user = null,
+		onsignout = () => void session.signOut()
+	}: { user?: User | null; onsignout?: () => void } = $props();
 
 	const sidebar = useSidebar();
+	const canRegister = $derived(session.capabilities?.registration_enabled !== false);
 </script>
 
 {#snippet identity()}
@@ -78,7 +83,7 @@
 						</DropdownMenu.Item>
 					</DropdownMenu.Group>
 					<DropdownMenu.Separator />
-					<DropdownMenu.Item onSelect={() => onsignout?.()}>
+					<DropdownMenu.Item onSelect={onsignout} data-testid="sign-out">
 						<LogOutIcon />
 						{m.user_sign_out()}
 					</DropdownMenu.Item>
@@ -88,10 +93,12 @@
 							<LogInIcon />
 							{m.user_sign_in()}
 						</DropdownMenu.Item>
-						<DropdownMenu.Item onSelect={() => goto(resolve('/register'))}>
-							<UserPlusIcon />
-							{m.user_register()}
-						</DropdownMenu.Item>
+						{#if canRegister}
+							<DropdownMenu.Item onSelect={() => goto(resolve('/register'))}>
+								<UserPlusIcon />
+								{m.user_register()}
+							</DropdownMenu.Item>
+						{/if}
 					</DropdownMenu.Group>
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item onSelect={() => goto(resolve('/settings'))}>

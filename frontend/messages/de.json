@@ -93,7 +93,6 @@
 			}
 		}
 	],
-	"auth_not_connected": "Konten sind noch nicht angebunden, daher wurde nichts gesendet. Sie folgen in einer späteren Version.",
 	"watch_title": "Ansehen",
 	"channel_title": "Kanal",
 	"search_suggestions_label": "Suchvorschläge",
@@ -154,5 +153,18 @@
 	"channel_not_found_body": "Diesen Kanal gibt es nicht oder er ist nicht mehr verfügbar.",
 	"channel_error_title": "Kanal konnte nicht geladen werden",
 	"channel_no_videos_title": "Noch keine Videos",
-	"channel_no_videos_body": "Dieser Kanal hat noch keine Videos veröffentlicht."
+	"channel_no_videos_body": "Dieser Kanal hat noch keine Videos veröffentlicht.",
+	"auth_error_password_too_long": "Verwende höchstens {max} Zeichen.",
+	"auth_error_username_taken": "Dieser Benutzername ist bereits vergeben.",
+	"auth_error_invalid_credentials": "Benutzername oder Passwort ist falsch.",
+	"auth_error_account_disabled": "Dieses Konto ist deaktiviert. Wende dich an die Administration dieser Instanz.",
+	"auth_error_too_many_attempts": "Zu viele Versuche. Warte eine Minute und versuche es erneut.",
+	"auth_error_registration_disabled": "Die Registrierung ist auf dieser Instanz deaktiviert.",
+	"auth_error_generic": "Etwas ist schiefgelaufen. Versuche es erneut.",
+	"auth_local_disabled": "Diese Instanz bietet nur Single Sign-on an.",
+	"auth_sso_unavailable": "Single Sign-on ist auf dieser Instanz nicht eingerichtet.",
+	"auth_registration_closed_title": "Registrierung geschlossen",
+	"auth_registration_closed_body": "Auf dieser Instanz können keine neuen Konten erstellt werden. Frag die Administration nach einem Zugang.",
+	"auth_signing_in": "Wird angemeldet…",
+	"auth_registering": "Konto wird erstellt…"
 }

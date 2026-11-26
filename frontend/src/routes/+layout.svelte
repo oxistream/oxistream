@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { ModeWatcher } from 'mode-watcher';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import { createQueryClient } from '#lib/api/query-client.js';
 	import AppShell from '#lib/components/app-shell.svelte';
+	import { authHref } from '#lib/auth/links.js';
 	import AuthLayout from '#lib/components/auth/auth-layout.svelte';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, getTextDirection } from '#lib/paraglide/runtime.js';
@@ -15,12 +17,24 @@
 	let { children }: LayoutProps = $props();
 
 	const queryClient = createQueryClient();
+	session.connect(queryClient);
 
 	// No server hooks in the static build, so the document language is set on the client.
 	document.documentElement.lang = getLocale();
 	document.documentElement.dir = getTextDirection();
 
 	const authRoute = $derived(page.route.id === '/login' || page.route.id === '/register');
+	const locked = $derived(
+		!authRoute && session.capabilities?.require_login === true && !session.account
+	);
+
+	$effect(() => {
+		if (locked && session.ready) {
+			void goto(authHref('/login', page.url.pathname + page.url.search), {
+				replaceState: true
+			});
+		}
+	});
 </script>
 
 <svelte:head>
@@ -42,6 +56,8 @@
 		{@render children()}
 	{:else if authRoute}
 		<AuthLayout>{@render children()}</AuthLayout>
+	{:else if locked}
+		<!-- Redirecting to the sign-in page. -->
 	{:else}
 		<AppShell user={session.user}>{@render children()}</AppShell>
 	{/if}
