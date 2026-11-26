@@ -166,5 +166,71 @@
 	"auth_registration_closed_title": "Registrierung geschlossen",
 	"auth_registration_closed_body": "Auf dieser Instanz können keine neuen Konten erstellt werden. Frag die Administration nach einem Zugang.",
 	"auth_signing_in": "Wird angemeldet…",
-	"auth_registering": "Konto wird erstellt…"
+	"auth_registering": "Konto wird erstellt…",
+	"watch_loading": "Video wird geladen",
+	"watch_no_video_title": "Kein Video ausgewählt",
+	"watch_no_video_body": "Öffne ein Video aus der Suche, einem Kanal oder deinen Abos.",
+	"watch_subscribers": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Abonnent",
+				"countPlural=*": "{formatted} Abonnenten"
+			}
+		}
+	],
+	"watch_likes": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Like",
+				"countPlural=*": "{formatted} Likes"
+			}
+		}
+	],
+	"watch_subscribe": "Abonnieren",
+	"watch_subscribe_soon": "Abos kommen bald",
+	"watch_description": "Beschreibung",
+	"watch_show_more": "Mehr anzeigen",
+	"watch_show_less": "Weniger anzeigen",
+	"watch_no_description": "Keine Beschreibung",
+	"watch_seek_to": "Zu {time} springen",
+	"watch_related": "Ähnliche Videos",
+	"watch_related_empty": "Keine ähnlichen Videos",
+	"watch_open_youtube": "Auf YouTube öffnen",
+	"watch_live_title": "Livestreams werden noch nicht unterstützt",
+	"watch_live_body": "Oxistream spielt vorerst nur aufgezeichnete Videos. Schau wieder vorbei, wenn der Stream vorbei ist.",
+	"watch_error_not_found_title": "Dieses Video gibt es nicht",
+	"watch_error_not_found_body": "Prüfe den Link. Vielleicht wurde das Video entfernt.",
+	"watch_error_bad_request_title": "Das ist kein Videolink",
+	"watch_error_bad_request_body": "Video-IDs bestehen aus 11 Buchstaben, Ziffern, Binde- oder Unterstrichen.",
+	"watch_error_unavailable_title": "Dieses Video ist nicht verfügbar",
+	"watch_error_unavailable_body": "YouTube bietet dieses Video nicht zur Wiedergabe an.",
+	"watch_error_age_restricted_title": "Dieses Video hat eine Altersbeschränkung",
+	"watch_error_age_restricted_body": "YouTube spielt es nur für angemeldete Konten ab, und Oxistream meldet sich nie bei YouTube an.",
+	"watch_error_private_title": "Dieses Video ist privat",
+	"watch_error_private_body": "Nur eingeladene Personen können es ansehen.",
+	"watch_error_deleted_title": "Dieses Video wurde entfernt",
+	"watch_error_deleted_body": "Der Kanal oder YouTube hat es gelöscht.",
+	"watch_error_geoblocked_title": "In der Region dieses Servers nicht verfügbar",
+	"watch_error_geoblocked_body": "YouTube sperrt dieses Video in dem Land, aus dem diese Instanz zugreift.",
+	"watch_error_members_only_title": "Dieses Video ist für Kanalmitglieder",
+	"watch_error_members_only_body": "Es braucht eine bezahlte Kanalmitgliedschaft, die Oxistream nicht nutzen kann.",
+	"watch_error_premium_title": "Dieses Video braucht YouTube Premium",
+	"watch_error_premium_body": "Premium-Videos laufen nur für zahlende, angemeldete Konten.",
+	"watch_error_paid_title": "Dieses Video ist kostenpflichtig",
+	"watch_error_paid_body": "Kostenpflichtige und kopiergeschützte Videos laufen nicht in Oxistream.",
+	"watch_error_offline_stream_title": "Dieser Stream ist beendet",
+	"watch_error_offline_stream_body": "Der Livestream ist offline und noch keine Aufzeichnung verfügbar.",
+	"watch_error_no_streams_title": "Dieses Video lässt sich nicht abspielen",
+	"watch_error_no_streams_body": "YouTube hat keine Streams geliefert, die Oxistream abspielen kann. Versuch es später noch einmal.",
+	"watch_error_rate_limited_title": "YouTube bremst diesen Server aus",
+	"watch_error_rate_limited_body": "Diese Instanz hat zu viele Anfragen gestellt. Warte ein paar Minuten und versuch es noch einmal.",
+	"watch_error_upstream_title": "YouTube hat nicht geantwortet",
+	"watch_error_upstream_body": "Die Anfrage an YouTube ist fehlgeschlagen. Versuch es gleich noch einmal.",
+	"player_theater_enter": "Kinomodus",
+	"player_theater_exit": "Standardansicht",
+	"player_auto_generated": "{label} (automatisch erstellt)"
 }

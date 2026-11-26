@@ -166,5 +166,71 @@
 	"auth_registration_closed_title": "Registration is closed",
 	"auth_registration_closed_body": "New accounts cannot be created on this instance. Ask its administrator for access.",
 	"auth_signing_in": "Signing in…",
-	"auth_registering": "Creating account…"
+	"auth_registering": "Creating account…",
+	"watch_loading": "Loading video",
+	"watch_no_video_title": "No video selected",
+	"watch_no_video_body": "Open a video from search, a channel or your subscriptions.",
+	"watch_subscribers": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} subscriber",
+				"countPlural=*": "{formatted} subscribers"
+			}
+		}
+	],
+	"watch_likes": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} like",
+				"countPlural=*": "{formatted} likes"
+			}
+		}
+	],
+	"watch_subscribe": "Subscribe",
+	"watch_subscribe_soon": "Subscriptions are coming soon",
+	"watch_description": "Description",
+	"watch_show_more": "Show more",
+	"watch_show_less": "Show less",
+	"watch_no_description": "No description",
+	"watch_seek_to": "Jump to {time}",
+	"watch_related": "Related videos",
+	"watch_related_empty": "No related videos",
+	"watch_open_youtube": "Open on YouTube",
+	"watch_live_title": "Livestreams are not supported yet",
+	"watch_live_body": "Oxistream plays recorded videos for now. Come back once the stream has ended.",
+	"watch_error_not_found_title": "This video does not exist",
+	"watch_error_not_found_body": "Check the link. The video may have been removed.",
+	"watch_error_bad_request_title": "This is not a video link",
+	"watch_error_bad_request_body": "Video IDs are 11 letters, digits, dashes or underscores.",
+	"watch_error_unavailable_title": "This video is unavailable",
+	"watch_error_unavailable_body": "YouTube does not offer this video for playback.",
+	"watch_error_age_restricted_title": "This video is age-restricted",
+	"watch_error_age_restricted_body": "YouTube only plays it for signed-in accounts, and Oxistream never signs in to YouTube.",
+	"watch_error_private_title": "This video is private",
+	"watch_error_private_body": "Only people the uploader invited can watch it.",
+	"watch_error_deleted_title": "This video was removed",
+	"watch_error_deleted_body": "The uploader or YouTube took it down.",
+	"watch_error_geoblocked_title": "Not available in this server's region",
+	"watch_error_geoblocked_body": "YouTube blocks this video in the country this instance connects from.",
+	"watch_error_members_only_title": "This video is for channel members",
+	"watch_error_members_only_body": "It needs a paid channel membership, which Oxistream cannot use.",
+	"watch_error_premium_title": "This video needs YouTube Premium",
+	"watch_error_premium_body": "Premium videos only play for paying, signed-in accounts.",
+	"watch_error_paid_title": "This video has to be bought",
+	"watch_error_paid_body": "Paid and copy-protected videos do not play in Oxistream.",
+	"watch_error_offline_stream_title": "This stream has ended",
+	"watch_error_offline_stream_body": "The livestream is offline and no recording is available yet.",
+	"watch_error_no_streams_title": "This video cannot be played",
+	"watch_error_no_streams_body": "YouTube sent no streams Oxistream can play. Try again later.",
+	"watch_error_rate_limited_title": "YouTube is slowing this server down",
+	"watch_error_rate_limited_body": "Too many requests left this instance. Wait a few minutes and try again.",
+	"watch_error_upstream_title": "YouTube did not answer",
+	"watch_error_upstream_body": "The request to YouTube failed. Try again in a moment.",
+	"player_theater_enter": "Theater mode",
+	"player_theater_exit": "Default view",
+	"player_auto_generated": "{label} (auto-generated)"
 }
