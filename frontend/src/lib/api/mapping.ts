@@ -71,6 +71,7 @@ export function toVideo(
 		channel: video.channel ? toChannel(video.channel) : (fallbackChannel ?? { id: '', name: '' }),
 		durationSeconds: video.is_live ? undefined : (video.duration_seconds ?? undefined),
 		viewCount: video.view_count ?? undefined,
+		viewers: video.viewers ?? undefined,
 		publishedAt: video.published_at ?? undefined,
 		publishedText: video.published_text ?? undefined,
 		isLive: video.is_live,

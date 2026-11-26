@@ -10,24 +10,30 @@
 		now,
 		class: className
 	}: {
-		video: Pick<VideoSummary, 'viewCount' | 'publishedAt' | 'publishedText'>;
+		video: Pick<VideoSummary, 'viewCount' | 'viewers' | 'publishedAt' | 'publishedText'>;
 		now?: Date;
 		class?: string;
 	} = $props();
 
 	const locale = getLocale();
 	const hasDate = $derived(Boolean(video.publishedAt || video.publishedText));
+	const hasCount = $derived(video.viewCount !== undefined || video.viewers !== undefined);
 </script>
 
-{#if video.viewCount !== undefined || hasDate}
+{#if hasCount || hasDate}
 	<p class={cn('truncate text-xs text-muted-foreground tabular', className)}>
-		{#if video.viewCount !== undefined}
+		{#if video.viewers !== undefined}
+			{m.video_watching({
+				count: video.viewers,
+				formatted: formatCompactNumber(video.viewers, locale)
+			})}
+		{:else if video.viewCount !== undefined}
 			{m.video_views({
 				count: video.viewCount,
 				formatted: formatCompactNumber(video.viewCount, locale)
 			})}
 		{/if}
-		{#if video.viewCount !== undefined && hasDate}
+		{#if hasCount && hasDate}
 			<span aria-hidden="true">·</span>
 		{/if}
 		{#if video.publishedAt}

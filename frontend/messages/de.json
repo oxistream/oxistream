@@ -45,6 +45,16 @@
 			}
 		}
 	],
+	"video_watching": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} aktiver Zuschauer",
+				"countPlural=*": "{formatted} aktive Zuschauer"
+			}
+		}
+	],
 	"video_watched": "{percent} angesehen",
 	"video_duration": "Dauer {duration}",
 	"video_loading": "Videos werden geladen",

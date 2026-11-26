@@ -36,6 +36,12 @@ describe('toVideo', () => {
 		expect(video.thumbnailUrl).toBe('/proxy/image/720');
 	});
 
+	it('keeps viewers of live streams apart from views', () => {
+		const video = toVideo({ ...base, is_live: true, view_count: null, viewers: 4189 });
+		expect(video.viewers).toBe(4189);
+		expect(video.viewCount).toBeUndefined();
+	});
+
 	it('drops the duration of live streams', () => {
 		expect(
 			toVideo({ ...base, is_live: true, duration_seconds: 0 }).durationSeconds

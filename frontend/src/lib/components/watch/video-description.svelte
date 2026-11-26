@@ -9,6 +9,7 @@
 	let {
 		description,
 		viewCount,
+		viewers,
 		publishedAt,
 		publishedText,
 		durationSeconds,
@@ -18,7 +19,9 @@
 		class: className
 	}: {
 		description: string;
-		viewCount: number;
+		viewCount?: number | null;
+		/** Current viewers of a live stream, shown instead of the view count. */
+		viewers?: number | null;
 		publishedAt?: string | null;
 		publishedText?: string | null;
 		durationSeconds?: number | null;
@@ -45,14 +48,22 @@
 >
 	<h2 id="{uid}-heading" class="sr-only">{m.watch_description()}</h2>
 	<p class="font-medium tabular">
-		{m.video_views({ count: viewCount, formatted: formatNumber(viewCount, locale) })}
+		{#if viewers != null}
+			{m.video_watching({ count: viewers, formatted: formatNumber(viewers, locale) })}
+		{:else if viewCount != null}
+			{m.video_views({ count: viewCount, formatted: formatNumber(viewCount, locale) })}
+		{/if}
 		{#if publishedAt}
-			<span aria-hidden="true" class="mx-0.5 text-muted-foreground">·</span>
+			{#if viewers != null || viewCount != null}
+				<span aria-hidden="true" class="mx-0.5 text-muted-foreground">·</span>
+			{/if}
 			<time datetime={publishedAt} title={formatDate(publishedAt, locale)}>
 				{open ? formatDate(publishedAt, locale) : formatRelativeTime(publishedAt, locale, now)}
 			</time>
 		{:else if publishedText}
-			<span aria-hidden="true" class="mx-0.5 text-muted-foreground">·</span>
+			{#if viewers != null || viewCount != null}
+				<span aria-hidden="true" class="mx-0.5 text-muted-foreground">·</span>
+			{/if}
 			{publishedText}
 		{/if}
 	</p>
