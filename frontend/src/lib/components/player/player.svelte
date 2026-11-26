@@ -767,6 +767,12 @@
 		border-color: transparent;
 	}
 
+	/* Center overlay buttons are white with dark icons; the accent stays elsewhere. */
+	.oxi-player :global(.video-controls-center) {
+		--media-primary: rgb(255 255 255);
+		--media-primary-foreground: oklch(0.21 0.006 286);
+	}
+
 	/* Video thumbnails often come as 4:3 with letterbox bars; cover crops exactly those bars. */
 	.oxi-player :global(.media-poster-image) {
 		object-fit: cover;
