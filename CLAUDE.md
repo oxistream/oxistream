@@ -96,6 +96,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.
 - Player responses cached in memory (`moka`) per instance. On an upstream 403 the proxy re-fetches player data.
 - Trending: YouTube dropped its trending page and YouTube Charts needs reCAPTCHA, so `GET /api/v0/trending?category=podcasts|gaming|news` (default `podcasts`) uses the destination pages of `OXISTREAM_TRENDING_REGION` (ISO country code, default `US`, validated at startup), cached in memory per instance for 30 min.
+- Shorts discovery: `GET /api/v0/shorts/discover` pages through the unauthenticated reel watch sequence (`reel/reel_watch_sequence`). Seeds: liked shorts and recent subscription shorts for signed-in users, plus trending; only seed video IDs reach YouTube. Each page continues the current sequence and starts the next seed, interleaved; blocked channels are left out. `GET /api/v0/shorts/{id}` (`reel/reel_item_watch`) returns the full video a short links to. The frontend skips shorts already shown in the browser session.
 - Feed worker: interval via `OXISTREAM_FEED_INTERVAL_MINUTES` (default 30); fetches only due channels on a 1 min tick. Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Followed YouTube playlists work the same way; only their first 500 items are stored, for "new videos" counts. Runs under a Postgres advisory lock so multiple replicas are safe.
 
 ### Stream proxy
