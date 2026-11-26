@@ -51,7 +51,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - API under `/api/v0` until first release, then `/api/v1`. OpenAPI via `utoipa`, Scalar UI at `/api/docs`.
 - Config exclusively via `OXISTREAM_*` environment variables. No config files.
 - Observability: `tracing` (JSON output via ENV), Prometheus `/metrics`, `/healthz`, `/readyz`.
-- Dates: `jiff` if sqlx supports everything needed, else `time`.
+- Dates: `time` (sqlx 0.9 has no native `jiff` support).
 
 ### Database
 
