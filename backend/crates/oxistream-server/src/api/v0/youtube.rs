@@ -3,6 +3,7 @@ use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path, Query, State};
 use oxistream_db::VideoUpsert;
 use rustypipe::model as rp;
+use rustypipe::param::search_filter::ItemType;
 use rustypipe::param::{ChannelOrder, ChannelVideoTab, Language};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
@@ -12,8 +13,8 @@ use utoipa_axum::routes;
 use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{
-    ChannelDetails, PlaylistPage, Resolved, SearchPage, TrendingCategory, TrendingVideos,
-    VideoDetails, VideoPage, YouTubePlaylist,
+    ChannelDetails, PlaylistPage, Resolved, SearchItem, SearchPage, TrendingCategory,
+    TrendingVideos, VideoDetails, VideoPage, YouTubePlaylist,
 };
 use crate::api::error::{ApiError, ErrorBody};
 use crate::api::lang::ContentLanguage;
@@ -147,16 +148,53 @@ pub(super) fn video_record(
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum SearchType {
+    #[default]
+    All,
+    Videos,
+    Shorts,
+    Channels,
+    Playlists,
+}
+
+impl SearchType {
+    fn item_type(self) -> Option<ItemType> {
+        match self {
+            Self::All => None,
+            Self::Videos => Some(ItemType::Video),
+            Self::Shorts => Some(ItemType::Short),
+            Self::Channels => Some(ItemType::Channel),
+            Self::Playlists => Some(ItemType::Playlist),
+        }
+    }
+
+    /// Typed searches may still return other kinds, which are dropped.
+    fn matches(self, item: &SearchItem) -> bool {
+        matches!(
+            (self, item),
+            (Self::All, _)
+                | (Self::Videos | Self::Shorts, SearchItem::Video(_))
+                | (Self::Channels, SearchItem::Channel(_))
+                | (Self::Playlists, SearchItem::Playlist(_))
+        )
+    }
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct SearchParams {
     /// Search query; required unless `continuation` is given.
     q: Option<String>,
+    /// Result type, defaults to `all`. Pass the same type with `continuation`.
+    #[param(inline)]
+    r#type: Option<SearchType>,
     /// Token from a previous page.
     continuation: Option<String>,
 }
 
-/// Search videos, channels and playlists.
+/// Search videos, shorts, channels and playlists.
 #[utoipa::path(
     get,
     path = "/search",
@@ -167,29 +205,32 @@ struct SearchParams {
     ),
     responses(
         (status = OK, body = SearchPage),
-        (status = BAD_REQUEST, description = "Missing query", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Missing query or unknown type", body = ErrorBody),
         (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
         (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
     )
 )]
 async fn search(
     State(state): State<AppState>,
-    Query(params): Query<SearchParams>,
+    params: Result<Query<SearchParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
 ) -> Result<Json<SearchPage>, ApiError> {
+    let Query(params) = params.map_err(|_| {
+        ApiError::bad_request("`type` must be `all`, `videos`, `shorts`, `channels` or `playlists`")
+    })?;
+    let kind = params.r#type.unwrap_or_default();
     let img = |url: &str| state.image_url(url);
-    if let Some(token) = non_empty(params.continuation.as_deref()) {
+    let mut page = if let Some(token) = non_empty(params.continuation.as_deref()) {
         let page = state.youtube.search_continuation(token, lang).await?;
-        return Ok(Json(SearchPage::from_rp(page, None, &img)));
-    }
-    let query = non_empty(params.q.as_deref())
-        .ok_or_else(|| ApiError::bad_request("query parameter `q` is required"))?;
-    let result = state.youtube.search(query, lang).await?;
-    Ok(Json(SearchPage::from_rp(
-        result.items,
-        result.corrected_query,
-        &img,
-    )))
+        SearchPage::from_rp(page, None, &img)
+    } else {
+        let query = non_empty(params.q.as_deref())
+            .ok_or_else(|| ApiError::bad_request("query parameter `q` is required"))?;
+        let result = state.youtube.search(query, kind.item_type(), lang).await?;
+        SearchPage::from_rp(result.items, result.corrected_query, &img)
+    };
+    page.items.retain(|item| kind.matches(item));
+    Ok(Json(page))
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

@@ -717,6 +717,22 @@
             }
           },
           {
+            "name": "type",
+            "in": "query",
+            "description": "Result type, defaults to `all`. Pass the same type with `continuation`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "videos",
+                "shorts",
+                "channels",
+                "playlists"
+              ]
+            }
+          },
+          {
             "name": "continuation",
             "in": "query",
             "description": "Token from a previous page.",
@@ -2362,7 +2378,7 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Search videos, channels and playlists.",
+        "summary": "Search videos, shorts, channels and playlists.",
         "operationId": "search",
         "parameters": [
           {
@@ -2372,6 +2388,22 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Result type, defaults to `all`. Pass the same type with `continuation`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "videos",
+                "shorts",
+                "channels",
+                "playlists"
+              ]
             }
           },
           {
@@ -2407,7 +2439,7 @@
             }
           },
           "400": {
-            "description": "Missing query",
+            "description": "Missing query or unknown type",
             "content": {
               "application/json": {
                 "schema": {

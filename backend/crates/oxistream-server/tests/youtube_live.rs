@@ -78,6 +78,34 @@ async fn search_paginates() {
     assert_video_metadata(&page["items"]);
 }
 
+#[tokio::test]
+#[ignore = "network"]
+async fn search_types_paginate() {
+    for (kind, item_type) in [
+        ("videos", "video"),
+        ("shorts", "video"),
+        ("channels", "channel"),
+        ("playlists", "playlist"),
+    ] {
+        let (status, json) = get_json(&format!("/api/v0/search?q=cats&type={kind}")).await;
+        assert_eq!(status, StatusCode::OK, "{kind}: {json}");
+        let items = json["items"].as_array().unwrap();
+        assert_ne!(items.len(), 0, "{kind}");
+        assert!(items.iter().all(|item| item["type"] == item_type), "{kind}");
+        if kind == "shorts" {
+            assert!(items.iter().all(|item| item["is_short"] == true), "{json}");
+        }
+
+        let token = json["continuation"].as_str().expect("continuation token");
+        let (status, page) =
+            get_json(&format!("/api/v0/search?continuation={token}&type={kind}")).await;
+        assert_eq!(status, StatusCode::OK, "{kind}: {page}");
+        let items = page["items"].as_array().unwrap();
+        assert_ne!(items.len(), 0, "{kind}");
+        assert!(items.iter().all(|item| item["type"] == item_type), "{kind}");
+    }
+}
+
 /// Most items carry duration, views and a date; single ones may legitimately lack them.
 fn assert_video_metadata(items: &Value) {
     let items = items.as_array().unwrap();
