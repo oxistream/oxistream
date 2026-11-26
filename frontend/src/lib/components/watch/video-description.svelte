@@ -72,7 +72,10 @@
 		id="{uid}-body"
 		data-testid="video-description"
 		data-expanded={open}
-		class={cn('mt-1.5 break-words whitespace-pre-line text-foreground/90', !open && 'line-clamp-3')}
+		class={cn(
+			'mt-1.5 break-words whitespace-pre-line text-foreground/90',
+			!open && 'line-clamp-3 @[60rem]:line-clamp-none'
+		)}
 	>
 		{#if segments.length === 0}
 			<span class="text-muted-foreground">{m.watch_no_description()}</span>
@@ -118,7 +121,7 @@
 			aria-expanded={expanded}
 			aria-controls="{uid}-body"
 			onclick={() => (expanded = !expanded)}
-			class="-ms-1 mt-1.5 rounded-md px-1 py-0.5 font-medium transition-colors duration-(--motion-in) ease-ui hover:bg-foreground/5"
+			class="-ms-1 mt-1.5 rounded-md px-1 py-0.5 font-medium transition-colors duration-(--motion-in) ease-ui hover:bg-foreground/5 @[60rem]:hidden"
 		>
 			{expanded ? m.watch_show_less() : m.watch_show_more()}
 		</button>

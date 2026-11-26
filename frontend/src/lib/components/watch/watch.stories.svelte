@@ -89,6 +89,18 @@
 	</div>
 </Story>
 
+<Story name="Description, wide layout" asChild>
+	<div class="@container max-w-5xl">
+		<VideoDescription
+			description={mockVideoDetails.description}
+			viewCount={482_310}
+			publishedAt="2026-11-21T09:30:00Z"
+			durationSeconds={1394}
+			now={mockNow}
+		/>
+	</div>
+</Story>
+
 <Story name="Related videos" asChild>
 	<div class="w-88"><RelatedVideos videos={mockRelated} now={mockNow} /></div>
 </Story>
