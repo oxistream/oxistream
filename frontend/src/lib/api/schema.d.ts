@@ -4,6 +4,44 @@
  */
 
 export interface paths {
+    "/api/v0/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete the signed-in account with everything it owns: subscriptions, playlists, history,
+         *     settings and sessions. The last admin can only delete their account once no other users
+         *     remain. Single sign-on users get a new, empty account on their next sign-in.
+         */
+        delete: operations["delete_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/account/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the password of a local account. Ends the account's other sessions. */
+        post: operations["change_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/auth/login": {
         parameters: {
             query?: never;
@@ -687,6 +725,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's preferences. */
+        get: operations["get_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change some of the signed-in user's preferences. */
+        patch: operations["update_settings"];
+        trace?: never;
+    };
     "/api/v0/settings/sponsorblock": {
         parameters: {
             query?: never;
@@ -911,9 +967,17 @@ export interface components {
         Account: {
             /** Format: date-time */
             created_at: string;
+            /** @description Local accounts have a password; single sign-on accounts do not. */
+            has_password: boolean;
             /** Format: uuid */
             id: string;
             role: components["schemas"]["UserRole"];
+            username: string;
+        };
+        AccountDeletion: {
+            /** @description The current password; required for accounts that have one. */
+            password?: string | null;
+            /** @description The account's username, typed as confirmation; compared ignoring case. */
             username: string;
         };
         /** @enum {string} */
@@ -1003,7 +1067,7 @@ export interface components {
             reason?: string | null;
         };
         /** @enum {string} */
-        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "limit_reached" | "internal";
+        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "limit_reached" | "no_password" | "last_admin" | "internal";
         FeedPage: {
             /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
             continuation?: string | null;
@@ -1014,7 +1078,7 @@ export interface components {
          * @description Why a request field was rejected.
          * @enum {string}
          */
-        FieldError: "required" | "format" | "length" | "too_long" | "taken";
+        FieldError: "required" | "format" | "length" | "too_long" | "taken" | "mismatch" | "invalid";
         FollowState: {
             following: boolean;
         };
@@ -1161,6 +1225,11 @@ export interface components {
             error: string;
             error_description: string;
         };
+        PasswordChange: {
+            current_password: string;
+            /** @description 12 to 256 characters. */
+            new_password: string;
+        };
         /** @description A local playlist. */
         Playlist: {
             /** @description Whether the playlist contains the video asked for with `video_id`; absent otherwise. */
@@ -1271,6 +1340,43 @@ export interface components {
              */
             start: number;
         };
+        /** @description The signed-in user's preferences. The watch history pause lives at `/history/settings`. */
+        Settings: {
+            /**
+             * Format: int32
+             * @description Video height to start with; `null` for adaptive quality.
+             */
+            default_quality: number | null;
+            /**
+             * @description Enabled home page section keys in order; `null` for the default layout. Clients ignore
+             *     keys they do not know.
+             */
+            home_sections: string[] | null;
+            /**
+             * Format: int32
+             * @description Highest video height the player may pick; `null` for no limit.
+             */
+            max_quality: number | null;
+            /** @description Video codecs by preference, most preferred first; empty lets the player choose. */
+            video_codecs: components["schemas"]["VideoCodec"][];
+        };
+        /** @description Fields to change. Absent fields are kept; `null` resets a field to its default. */
+        SettingsPatch: {
+            /**
+             * Format: int32
+             * @description One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.
+             */
+            default_quality?: number | null;
+            /** @description At most 32 distinct keys of lowercase letters, digits and dashes. */
+            home_sections?: string[] | null;
+            /**
+             * Format: int32
+             * @description One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.
+             */
+            max_quality?: number | null;
+            /** @description No duplicates. */
+            video_codecs?: components["schemas"]["VideoCodec"][];
+        };
         /** @description Behaviour per skippable category. */
         SkipCategories: {
             /** @default button */
@@ -1380,6 +1486,8 @@ export interface components {
         };
         /** @enum {string} */
         UserRole: "user" | "admin";
+        /** @enum {string} */
+        VideoCodec: "av1" | "vp9" | "h264";
         VideoDetails: {
             channel: components["schemas"]["ChannelRef"];
             /** @description Plain text; links are written out as URLs. */
@@ -1496,6 +1604,160 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDeletion"];
+            };
+        };
+        responses: {
+            /** @description Account deleted, session cookie cleared */
+            204: {
+                headers: {
+                    /** @description Expired `oxistream_session` cookie */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Last admin while other users remain (`last_admin`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Username or password does not match (`fields`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Password changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Local accounts disabled, or foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Single sign-on account without password (`no_password`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Wrong current password (`fields.current_password = mismatch`) or invalid new password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -4013,6 +4275,94 @@ export interface operations {
             };
             /** @description Rate limited by YouTube */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description All preferences after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            /** @description Malformed body or unknown field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid values, see `fields` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

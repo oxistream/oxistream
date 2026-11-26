@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { homeSections, rowState, showGuestFallback, trendingCategory } from './sections';
+import {
+	editableSections,
+	enabledSections,
+	homeSections,
+	rowState,
+	showGuestFallback,
+	trendingCategory
+} from './sections';
 
 describe('home sections', () => {
 	it('defaults per audience', () => {
@@ -15,15 +22,34 @@ describe('home sections', () => {
 		]);
 	});
 
-	it('keeps a chosen order and drops unknown, duplicate and foreign keys', () => {
+	it('keeps the chosen order and drops unknown and duplicate keys', () => {
 		expect(
 			homeSections('user', ['subscriptions', 'bogus', 'trending-news', 'subscriptions'])
-		).toEqual(['subscriptions']);
-		expect(homeSections('guest', ['trending-podcasts', 'trending-news'])).toEqual([
-			'trending-podcasts',
-			'trending-news'
-		]);
+		).toEqual(['subscriptions', 'trending-news']);
 		expect(homeSections('user', [])).toEqual([]);
+		expect(homeSections('user', null)).toEqual(homeSections('user'));
+	});
+
+	it('always gives guests their default', () => {
+		expect(homeSections('guest', ['subscriptions', 'trending-podcasts'])).toEqual([
+			'trending-news',
+			'trending-gaming',
+			'trending-podcasts'
+		]);
+	});
+
+	it('lists every section for editing, the disabled ones last', () => {
+		const sections = editableSections(['trending-gaming', 'continue-watching']);
+		expect(sections.map((s) => [s.key, s.enabled])).toEqual([
+			['trending-gaming', true],
+			['continue-watching', true],
+			['subscriptions', false],
+			['subscription-shorts', false],
+			['trending-news', false],
+			['trending-podcasts', false]
+		]);
+		expect(enabledSections(sections)).toEqual(['trending-gaming', 'continue-watching']);
+		expect(enabledSections(editableSections())).toEqual(homeSections('user'));
 	});
 
 	it('maps trending sections to their category', () => {

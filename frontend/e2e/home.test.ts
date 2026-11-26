@@ -11,6 +11,7 @@ const account = {
 	id: '0193a8e4-7f00-7000-8000-000000000001',
 	username: 'mara',
 	role: 'user',
+	has_password: true,
 	created_at: '2026-11-26T10:00:00Z'
 };
 
@@ -47,8 +48,14 @@ async function mockApi(
 	{
 		signedIn = false,
 		trending = {},
-		subscriptions = 0
-	}: { signedIn?: boolean; trending?: Trending; subscriptions?: number } = {}
+		subscriptions = 0,
+		homeSections = null
+	}: {
+		signedIn?: boolean;
+		trending?: Trending;
+		subscriptions?: number;
+		homeSections?: string[] | null;
+	} = {}
 ) {
 	await page.route('**/proxy/image/**', (route) =>
 		route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL })
@@ -98,6 +105,14 @@ async function mockApi(
 		json(route, {
 			items: Array.from({ length: 20 }, (_, i) => video('feed', i + 1)),
 			continuation: null
+		})
+	);
+	await page.route('**/api/v0/settings', (route) =>
+		json(route, {
+			video_codecs: [],
+			max_quality: null,
+			default_quality: null,
+			home_sections: homeSections
 		})
 	);
 	await page.route('**/api/v0/history/continue?*', (route) => json(route, []));
@@ -177,5 +192,30 @@ test('signed-in users without subscriptions are shown where to get some', async 
 	await expect(latest.getByRole('link', { name: 'Import / export' })).toHaveAttribute(
 		'href',
 		'/subscriptions/import-export'
+	);
+});
+
+test('signed-in users get the rows they chose, in their order', async ({ page }) => {
+	await mockApi(page, {
+		signedIn: true,
+		subscriptions: 1,
+		trending: { news: 2, podcasts: 2 },
+		homeSections: ['trending-podcasts', 'subscriptions', 'trending-news', 'removed-section']
+	});
+	await page.goto('/');
+	await expect(page.getByRole('heading', { level: 2 })).toHaveText([
+		'Podcasts',
+		'Latest from your subscriptions',
+		'News'
+	]);
+});
+
+test('an empty home page points to the settings', async ({ page }) => {
+	await mockApi(page, { signedIn: true, homeSections: [] });
+	await page.goto('/');
+	await expect(page.getByRole('heading', { name: 'Your home page is empty' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open settings' })).toHaveAttribute(
+		'href',
+		'/settings'
 	);
 });
