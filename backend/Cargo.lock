@@ -2450,6 +2450,7 @@ dependencies = [
  "oxipipe",
  "oxistream-dash",
  "oxistream-db",
+ "quick-xml",
  "reqwest 0.13.5",
  "rsa 0.10.0",
  "rust-embed",

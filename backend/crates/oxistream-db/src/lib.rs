@@ -19,7 +19,7 @@ pub use sessions::{
 };
 pub use subscriptions::{
     Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedStatus,
-    FeedVideo, Image, PgChannelRepository, PgSubscriptionRepository, Subscription,
+    FeedVideo, Image, ImportedChannel, PgChannelRepository, PgSubscriptionRepository, Subscription,
     SubscriptionRepository,
 };
 pub use users::{
