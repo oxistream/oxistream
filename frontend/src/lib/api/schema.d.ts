@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v0/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Channel header and the first page of its videos. */
+        get: operations["channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/channels/{id}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A further page of a channel's videos. */
+        get: operations["channel_videos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/instance": {
         parameters: {
             query?: never;
@@ -21,15 +55,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve a YouTube URL to a video, channel or playlist ID. */
+        get: operations["resolve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search videos, channels and playlists. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/search/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search suggestions for a partial query. */
+        get: operations["search_suggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/videos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Video details and related videos. */
+        get: operations["video"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChannelDetails: {
+            avatar: components["schemas"]["Thumbnail"][];
+            banner: components["schemas"]["Thumbnail"][];
+            description: string;
+            handle?: string | null;
+            id: string;
+            name: string;
+            /** Format: int64 */
+            subscriber_count?: number | null;
+            tags: string[];
+            verified: boolean;
+            /** Format: int64 */
+            video_count?: number | null;
+            videos: components["schemas"]["VideoPage"];
+        };
+        ChannelRef: {
+            avatar: components["schemas"]["Thumbnail"][];
+            id: string;
+            name: string;
+            /** Format: int64 */
+            subscriber_count?: number | null;
+            verified: boolean;
+        };
+        ChannelSummary: {
+            avatar: components["schemas"]["Thumbnail"][];
+            description: string;
+            handle?: string | null;
+            id: string;
+            name: string;
+            /** Format: int64 */
+            subscriber_count?: number | null;
+            verified: boolean;
+        };
+        ErrorBody: {
+            code: components["schemas"]["ErrorCode"];
+            message: string;
+            /** @description Machine-readable detail, e.g. the unavailability reason. */
+            reason?: string | null;
+        };
+        /** @enum {string} */
+        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error";
         InstanceInfo: {
             /** @description Software name. */
             name: string;
             /** @description Server version. */
             version: string;
+        };
+        PlaylistSummary: {
+            channel?: components["schemas"]["ChannelRef"] | null;
+            id: string;
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+            /** Format: int64 */
+            video_count?: number | null;
+        };
+        Resolved: {
+            id: string;
+            kind: components["schemas"]["ResolvedKind"];
+            /**
+             * Format: int32
+             * @description Start offset in seconds for video links with a timestamp.
+             */
+            start_seconds?: number | null;
+        };
+        /** @enum {string} */
+        ResolvedKind: "video" | "channel" | "playlist";
+        SearchItem: (components["schemas"]["VideoSummary"] & {
+            /** @enum {string} */
+            type: "video";
+        }) | (components["schemas"]["ChannelSummary"] & {
+            /** @enum {string} */
+            type: "channel";
+        }) | (components["schemas"]["PlaylistSummary"] & {
+            /** @enum {string} */
+            type: "playlist";
+        });
+        SearchPage: {
+            /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
+            continuation?: string | null;
+            /** @description Set when YouTube searched for a corrected query instead. */
+            corrected_query?: string | null;
+            items: components["schemas"]["SearchItem"][];
+        };
+        Thumbnail: {
+            /** Format: int32 */
+            height: number;
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
+        VideoDetails: {
+            channel: components["schemas"]["ChannelRef"];
+            /** @description Plain text; links are written out as URLs. */
+            description: string;
+            /**
+             * Format: int32
+             * @description Missing when the player data could not be fetched.
+             */
+            duration_seconds?: number | null;
+            id: string;
+            is_live: boolean;
+            keywords: string[];
+            /** Format: int32 */
+            like_count?: number | null;
+            /** Format: date-time */
+            published_at?: string | null;
+            /** @description Localized, human-readable publish date as shown by YouTube. */
+            published_text?: string | null;
+            related: components["schemas"]["VideoSummary"][];
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+            /** Format: int64 */
+            view_count: number;
+        };
+        VideoPage: {
+            continuation?: string | null;
+            items: components["schemas"]["VideoSummary"][];
+        };
+        VideoSummary: {
+            channel?: components["schemas"]["ChannelRef"] | null;
+            description?: string | null;
+            /** Format: int32 */
+            duration_seconds?: number | null;
+            id: string;
+            is_live: boolean;
+            is_short: boolean;
+            is_upcoming: boolean;
+            /** Format: date-time */
+            published_at?: string | null;
+            published_text?: string | null;
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+            /** Format: int64 */
+            view_count?: number | null;
         };
     };
     responses: never;
@@ -40,6 +271,131 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    channel: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelDetails"];
+                };
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    channel_videos: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoPage"];
+                };
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     instance: {
         parameters: {
             query?: never;
@@ -56,6 +412,222 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceInfo"];
+                };
+            };
+        };
+    };
+    resolve: {
+        parameters: {
+            query?: {
+                /** @description YouTube URL, path (`/@handle`, `/watch?v=…`), ID or handle. */
+                url?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resolved"];
+                };
+            };
+            /** @description Not a supported YouTube URL */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Target does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query?: {
+                /** @description Search query; required unless `continuation` is given. */
+                q?: string;
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPage"];
+                };
+            };
+            /** @description Missing query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_suggestions: {
+        parameters: {
+            query?: {
+                /** @description Partial search query. */
+                q?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    video: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube video ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoDetails"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

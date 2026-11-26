@@ -7,6 +7,9 @@ use utoipa_scalar::{Scalar, Servable};
 
 use crate::AppState;
 
+mod dto;
+pub mod error;
+mod lang;
 mod v0;
 
 #[derive(OpenApi)]

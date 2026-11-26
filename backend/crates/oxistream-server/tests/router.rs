@@ -48,3 +48,35 @@ async fn metrics_endpoint_renders() {
     let (status, _) = get(app_without_db(), "/metrics").await;
     assert_eq!(status, StatusCode::OK);
 }
+
+async fn error_code(uri: &str) -> (StatusCode, String) {
+    let (status, body) = get(app_without_db(), uri).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    (status, json["code"].as_str().unwrap().to_owned())
+}
+
+#[tokio::test]
+async fn youtube_endpoints_validate_input_without_upstream() {
+    for uri in [
+        "/api/v0/videos/not-an-id",
+        "/api/v0/channels/not-a-channel",
+        "/api/v0/channels/not-a-channel/videos",
+        "/api/v0/search",
+        "/api/v0/search?q=%20",
+        "/api/v0/resolve",
+        "/api/v0/resolve?url=https%3A%2F%2Fexample.com%2Fwatch%3Fv%3DdQw4w9WgXcQ",
+    ] {
+        assert_eq!(
+            error_code(uri).await,
+            (StatusCode::BAD_REQUEST, "bad_request".to_owned()),
+            "{uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn empty_search_suggestions() {
+    let (status, body) = get(app_without_db(), "/api/v0/search/suggestions?q=").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, "[]");
+}
