@@ -4,7 +4,7 @@ use axum::extract::rejection::{BytesRejection, QueryRejection};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{FeedCursor, FeedVideo, Image, Subscription};
+use oxistream_db::{FeedCursor, FeedFilter, FeedVideo, Image, Subscription};
 use rustypipe::validate;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -404,6 +404,29 @@ struct FeedParams {
     continuation: Option<String>,
     /// Page size, 1 to 100; default 30.
     limit: Option<u32>,
+    /// Defaults to `all`.
+    #[param(inline)]
+    kind: Option<FeedKind>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum FeedKind {
+    #[default]
+    All,
+    /// Everything but shorts.
+    Videos,
+    Shorts,
+}
+
+impl From<FeedKind> for FeedFilter {
+    fn from(kind: FeedKind) -> Self {
+        match kind {
+            FeedKind::All => Self::All,
+            FeedKind::Videos => Self::Videos,
+            FeedKind::Shorts => Self::Shorts,
+        }
+    }
 }
 
 /// Videos of subscribed channels, newest first.
@@ -415,15 +438,18 @@ struct FeedParams {
     params(FeedParams),
     responses(
         (status = OK, body = FeedPage),
-        (status = BAD_REQUEST, description = "Invalid continuation or limit", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Invalid continuation, limit or kind", body = ErrorBody),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
     )
 )]
 async fn feed(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Query(params): Query<FeedParams>,
+    params: Result<Query<FeedParams>, QueryRejection>,
 ) -> Result<Json<FeedPage>, ApiError> {
+    let Query(params) = params.map_err(|_| {
+        ApiError::bad_request("invalid query; `kind` must be `all`, `videos` or `shorts`")
+    })?;
     let limit = params.limit.unwrap_or(FEED_DEFAULT_LIMIT);
     if !(1..=FEED_MAX_LIMIT).contains(&limit) {
         return Err(ApiError::bad_request(format!(
@@ -440,7 +466,12 @@ async fn feed(
     };
     let mut videos = state
         .subscriptions
-        .feed(user.id, after.as_ref(), limit + 1)
+        .feed(
+            user.id,
+            params.kind.unwrap_or_default().into(),
+            after.as_ref(),
+            limit + 1,
+        )
         .await?;
     let continuation = if videos.len() > limit as usize {
         videos.truncate(limit as usize);

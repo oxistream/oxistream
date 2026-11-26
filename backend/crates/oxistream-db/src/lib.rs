@@ -30,9 +30,9 @@ pub use sessions::{
 };
 pub use settings::{PgUserSettingsRepository, UserSettings, UserSettingsRepository};
 pub use subscriptions::{
-    Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedStatus,
-    FeedVideo, Image, ImportedChannel, PgChannelRepository, PgSubscriptionRepository, Subscription,
-    SubscriptionRepository,
+    Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
+    FeedStatus, FeedVideo, Image, ImportedChannel, PgChannelRepository, PgSubscriptionRepository,
+    Subscription, SubscriptionRepository,
 };
 pub use users::{
     Identity, NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository,

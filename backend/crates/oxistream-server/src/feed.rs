@@ -10,7 +10,7 @@ use oxistream_db::{
 };
 use rustypipe::model::paginator::Paginator;
 use rustypipe::model::{self as rp};
-use rustypipe::param::Language;
+use rustypipe::param::{ChannelOrder, ChannelVideoTab, Language};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 
@@ -37,7 +37,27 @@ pub trait ChannelSource: Send + Sync {
 impl ChannelSource for YouTube {
     async fn fetch(&self, channel_id: &str) -> youtube::Result<ChannelFetch> {
         let channel = self.channel_videos(channel_id, Language::En).await?;
-        Ok(ChannelFetch::from_rp(channel))
+        // The videos tab leaves out shorts; without them the feed simply has none.
+        let shorts = if channel.has_shorts {
+            match self
+                .channel_tab(
+                    channel_id,
+                    ChannelVideoTab::Shorts,
+                    ChannelOrder::Latest,
+                    Language::En,
+                )
+                .await
+            {
+                Ok(page) => page.items,
+                Err(err) => {
+                    tracing::warn!(%channel_id, error = ?err, "channel shorts fetch failed");
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        Ok(ChannelFetch::from_rp(channel, shorts))
     }
 }
 
@@ -52,11 +72,15 @@ fn images(src: &[rp::Thumbnail]) -> Vec<Image> {
 }
 
 impl ChannelFetch {
-    pub fn from_rp(channel: rp::Channel<Paginator<rp::VideoItem>>) -> Self {
+    pub fn from_rp(
+        channel: rp::Channel<Paginator<rp::VideoItem>>,
+        shorts: Vec<rp::VideoItem>,
+    ) -> Self {
         let videos = channel
             .content
             .items
             .into_iter()
+            .chain(shorts)
             .map(|v| ChannelVideoUpsert {
                 thumbnails: images(&v.thumbnail),
                 duration_seconds: v.duration.and_then(|d| i32::try_from(d).ok()),

@@ -114,9 +114,29 @@ pub trait SubscriptionRepository: Send + Sync {
     async fn feed(
         &self,
         user_id: Uuid,
+        filter: FeedFilter,
         after: Option<&FeedCursor>,
         limit: u32,
     ) -> Result<Vec<FeedVideo>, Error>;
+}
+
+/// Which videos of subscribed channels the feed lists.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FeedFilter {
+    #[default]
+    All,
+    Videos,
+    Shorts,
+}
+
+impl FeedFilter {
+    fn is_short(self) -> Option<bool> {
+        match self {
+            Self::All => None,
+            Self::Videos => Some(false),
+            Self::Shorts => Some(true),
+        }
+    }
 }
 
 /// Channel metadata written by a successful fetch.
@@ -298,6 +318,7 @@ impl SubscriptionRepository for PgSubscriptionRepository {
     async fn feed(
         &self,
         user_id: Uuid,
+        filter: FeedFilter,
         after: Option<&FeedCursor>,
         limit: u32,
     ) -> Result<Vec<FeedVideo>, Error> {
@@ -309,7 +330,8 @@ impl SubscriptionRepository for PgSubscriptionRepository {
              FROM channel_videos v \
              JOIN subscriptions s ON s.channel_id = v.channel_id AND s.user_id = $1 \
              JOIN channels c ON c.id = v.channel_id \
-             WHERE $2::timestamptz IS NULL OR (v.sort_at, v.video_id) < ($2, $3) \
+             WHERE ($2::timestamptz IS NULL OR (v.sort_at, v.video_id) < ($2, $3)) \
+                AND ($5::boolean IS NULL OR v.is_short = $5) \
              ORDER BY v.sort_at DESC, v.video_id DESC \
              LIMIT $4",
         )
@@ -317,6 +339,7 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .bind(after.map(|c| c.sort_at))
         .bind(after.map(|c| c.video_id.as_str()))
         .bind(i64::from(limit))
+        .bind(filter.is_short())
         .fetch_all(&self.pool)
         .await?)
     }
@@ -388,13 +411,16 @@ impl ChannelRepository for PgChannelRepository {
         .bind(channel.verified)
         .execute(&mut *tx)
         .await?;
-        for video in videos {
-            // A video stays with the channel it was first seen on.
+        for (position, video) in (0_i32..).zip(videos) {
+            // A video stays with the channel it was first seen on. Videos without a date, such as
+            // shorts, sort by first sight, staggered by list position to keep the channel's order.
             sqlx::query(
                 "INSERT INTO channel_videos \
                     (video_id, channel_id, title, duration_seconds, published_at, \
-                     published_text, thumbnails, view_count, is_live, is_upcoming, is_short) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+                     published_text, thumbnails, view_count, is_live, is_upcoming, is_short, \
+                     first_seen_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
+                     now() - make_interval(secs => $12::double precision / 1000)) \
                  ON CONFLICT (video_id) DO UPDATE SET \
                     title = EXCLUDED.title, \
                     duration_seconds = COALESCE(EXCLUDED.duration_seconds, \
@@ -420,6 +446,7 @@ impl ChannelRepository for PgChannelRepository {
             .bind(video.is_live)
             .bind(video.is_upcoming)
             .bind(video.is_short)
+            .bind(position)
             .execute(&mut *tx)
             .await?;
         }

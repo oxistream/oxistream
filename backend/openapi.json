@@ -1046,6 +1046,20 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Defaults to `all`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "videos",
+                "shorts"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1059,7 +1073,7 @@
             }
           },
           "400": {
-            "description": "Invalid continuation or limit",
+            "description": "Invalid continuation, limit or kind",
             "content": {
               "application/json": {
                 "schema": {
