@@ -5,6 +5,7 @@
 </script>
 
 <script lang="ts">
+	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -111,6 +112,9 @@
 				{/if}
 			</div>
 		</div>
-		<SubscribeButton channelId={channel.id} class="w-full @xl:w-auto" />
+		<div class="flex items-center gap-1.5">
+			<SubscribeButton channelId={channel.id} class="flex-1 @xl:flex-none" />
+			<ChannelActionsMenu {channel} size="icon" />
+		</div>
 	</div>
 </header>

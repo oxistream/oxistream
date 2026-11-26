@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
 	import VideoMeta from '#lib/components/video/video-meta.svelte';
@@ -13,9 +14,12 @@
 	let {
 		video,
 		now,
+		actions = true,
 		class: className
 	}: {
 		video: VideoSummary;
+		/** Offers the channel actions menu, e.g. to block the channel. */
+		actions?: boolean;
 		/** Reference time for the relative date; fixed in stories. */
 		now?: Date;
 		class?: string;
@@ -38,22 +42,31 @@
 		badge={video.isLive ? m.search_live() : undefined}
 	/>
 	<div class="flex min-w-0 flex-col gap-1 @xl:pt-0.5">
-		<h3
-			class="line-clamp-2 text-sm leading-5 font-medium text-foreground @xl:text-base @xl:leading-6"
-		>
-			<a
-				href={resolve(`/watch?v=${video.id}`)}
-				data-card-link
-				title={video.title}
-				class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
+		<div class="flex items-start gap-2">
+			<h3
+				class="line-clamp-2 flex-1 text-sm leading-5 font-medium text-foreground @xl:text-base @xl:leading-6"
 			>
-				{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
-						, {m.video_duration({ duration: formatDurationLong(video.durationSeconds, locale) })}
-					</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
-						, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
-					</span>{/if}
-			</a>
-		</h3>
+				<a
+					href={resolve(`/watch?v=${video.id}`)}
+					data-card-link
+					title={video.title}
+					class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
+				>
+					{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
+							, {m.video_duration({ duration: formatDurationLong(video.durationSeconds, locale) })}
+						</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
+							, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
+						</span>{/if}
+				</a>
+			</h3>
+			{#if actions && video.channel.id}
+				<ChannelActionsMenu
+					channel={video.channel}
+					label={m.block_video_actions({ title: video.title })}
+					class="relative z-10 -me-1.5 -mt-1 shrink-0 pointer-fine:opacity-0 pointer-fine:group-hover/video:opacity-100 pointer-fine:focus-visible:opacity-100 pointer-fine:data-[state=open]:opacity-100"
+				/>
+			{/if}
+		</div>
 		<VideoMeta {video} {now} />
 		{#if video.channel.id}
 			<a

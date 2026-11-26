@@ -3,6 +3,7 @@
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { createBlocksQuery } from '#lib/api/blocks.js';
 	import { createChannelTabQuery } from '#lib/api/channel.js';
 	import { useVideo } from '#lib/api/video.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -23,6 +24,7 @@
 		shortStub,
 		takeShortsList
 	} from '#lib/shorts/queue.js';
+	import type { VideoSummary } from '#lib/video.js';
 	import ShortSlot from './short-slot.svelte';
 
 	let { openedId }: { openedId: string } = $props();
@@ -51,8 +53,13 @@
 		() => 'latest'
 	);
 
+	const blocks = createBlocksQuery();
+	const blocked = $derived(new Set(blocks.data?.map((c) => c.id)));
+	// Shorts of blocked channels drop out, except the one on screen.
 	const queue = $derived(
-		buildQueue(openedId, context, channelShorts.data?.pages.flatMap((p) => p.items) ?? [])
+		buildQueue(openedId, context, channelShorts.data?.pages.flatMap((p) => p.items) ?? []).filter(
+			(short) => short.id === currentId || !blocked.has(short.channel.id)
+		)
 	);
 	const index = $derived(queue.findIndex((short) => short.id === currentId));
 	const current = $derived(queue[index] ?? shortStub(currentId));
@@ -70,12 +77,20 @@
 
 	const canStep = (step: Step) => (step === 1 ? next : previous) !== undefined;
 
-	function go(step: Step) {
-		const target = step === 1 ? next : previous;
+	function show(target: VideoSummary | undefined) {
 		if (!target) return;
 		currentId = target.id;
 		// Replaces the entry, so going back leaves the shorts instead of stepping through them.
 		void replaceState(resolve('/shorts/[id=videoid]', { id: target.id }), {});
+	}
+
+	function go(step: Step) {
+		show(step === 1 ? next : previous);
+	}
+
+	/** Moves on to the next short of another channel, if there is one. */
+	function skipChannel(channelId: string) {
+		show(queue.slice(index + 1).find((short) => short.channel.id !== channelId));
 	}
 
 	function onkeydown(event: KeyboardEvent) {
@@ -173,7 +188,12 @@
 				class="shorts-cell"
 				style:translate="0 calc({slot.offset} * (100% + var(--shorts-gap)) + {drag}px)"
 			>
-				<ShortSlot short={slot.short} active={slot.offset === 0} preload={slot.preload} />
+				<ShortSlot
+					short={slot.short}
+					active={slot.offset === 0}
+					preload={slot.preload}
+					onblocked={skipChannel}
+				/>
 			</div>
 		{/each}
 	</div>

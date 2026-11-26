@@ -8,6 +8,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { ResolvedPathname } from '$app/types';
+	import { createBlockMutation, createBlocksQuery } from '#lib/api/blocks.js';
 	import {
 		createChannelPlaylistsQuery,
 		createChannelQuery,
@@ -19,6 +20,7 @@
 	import { isNotFound, uniqueBy } from '#lib/api/mapping.js';
 	import type { SearchResult } from '#lib/api/search.js';
 	import { isVideoTab, parseChannelSort, type ChannelTab } from '#lib/channel-tabs.js';
+	import ChannelBlockedNotice from '#lib/components/block/channel-blocked-notice.svelte';
 	import SearchResults from '#lib/components/search/search-results.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import ErrorState from '#lib/components/state/error-state.svelte';
@@ -54,6 +56,9 @@
 	} = $props();
 
 	const channel = createChannelQuery(() => id);
+	const blocks = createBlocksQuery();
+	const unblock = createBlockMutation();
+	const blocked = $derived(!!id && (blocks.data?.some((c) => c.id === id) ?? false));
 	const ready = $derived(channel.data ? id : undefined);
 
 	const videoTab = $derived(isVideoTab(tab) ? tab : 'videos');
@@ -149,6 +154,12 @@
 			<ChannelHeaderSkeleton />
 			<VideoGrid loading showChannel={false} skeletonCount={8} />
 		</div>
+	{:else if blocked}
+		<ChannelBlockedNotice
+			channel={channel.data}
+			pending={unblock.isPending}
+			onunblock={() => channel.data && unblock.mutate({ channel: channel.data, block: false })}
+		/>
 	{:else}
 		<ChannelHeader channel={channel.data} />
 		<div class="flex flex-col gap-5">

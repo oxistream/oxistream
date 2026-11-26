@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import { formatDurationLong } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -77,5 +78,12 @@
 			{/if}
 			<VideoMeta {video} {now} />
 		</div>
+		{#if channelShown}
+			<ChannelActionsMenu
+				channel={video.channel}
+				label={m.block_video_actions({ title: video.title })}
+				class="relative z-10 -me-1.5 shrink-0 pointer-fine:opacity-0 pointer-fine:group-hover/video:opacity-100 pointer-fine:focus-visible:opacity-100 pointer-fine:data-[state=open]:opacity-100"
+			/>
+		{/if}
 	</div>
 </article>
