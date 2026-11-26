@@ -8,9 +8,10 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
     ChannelBlockRepository, HistoryRepository, LikeRepository, PgChannelBlockRepository,
     PgChannelRepository, PgHistoryRepository, PgLikeRepository, PgPlaylistFollowRepository,
-    PgPlaylistRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
-    PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
-    PlaylistFollowRepository, PlaylistRepository, SubscriptionRepository, UserSettingsRepository,
+    PgPlaylistRepository, PgPool, PgSessionRepository, PgSponsorBlockSettingsRepository,
+    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
+    PgYouTubePlaylistRepository, PlaylistFollowRepository, PlaylistRepository,
+    SponsorBlockSettingsRepository, SubscriptionRepository, UserSettingsRepository,
     VideoRepository,
 };
 use tokio::net::TcpListener;
@@ -27,6 +28,7 @@ mod ops;
 pub mod proxy;
 pub mod rate_limit;
 mod spa;
+pub mod sponsorblock;
 pub mod subscription_io;
 pub mod telemetry;
 pub mod youtube;
@@ -53,6 +55,8 @@ pub struct AppState {
     /// `None` disables rate limiting.
     pub rate_limit: Option<rate_limit::RateLimit>,
     pub auth: auth::Auth,
+    pub sponsorblock: sponsorblock::SponsorBlock,
+    pub sponsorblock_settings: Arc<dyn SponsorBlockSettingsRepository>,
 }
 
 impl AppState {
@@ -115,6 +119,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
 
     let youtube = youtube::YouTube::new(&config.youtube)?;
     let proxy = proxy::Proxy::new(&config.proxy)?;
+    let sponsorblock = sponsorblock::SponsorBlock::new(&config.sponsorblock)?;
     let rate_limit = config.rate_limit.as_ref().map(rate_limit::RateLimit::new);
     let auth = auth::Auth::new(
         config.auth.clone(),
@@ -175,6 +180,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             proxy,
             rate_limit,
             auth,
+            sponsorblock,
+            sponsorblock_settings: Arc::new(PgSponsorBlockSettingsRepository::new(db.clone())),
         })
         .into_make_service_with_connect_info::<SocketAddr>(),
     )
