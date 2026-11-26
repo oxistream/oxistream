@@ -125,7 +125,8 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 - Server-side only: clients never contact SponsorBlock. `GET /api/v0/videos/{id}/segments` asks `/api/skipSegments/{first 4 hex chars of sha256(id)}` for all categories (action types `skip`, `poi`, `full`) and keeps only the requested video. Generic User-Agent, no user data.
 - Cached in memory (`moka`) per video: 1 h, 15 min when empty, 1 min after errors. Upstream errors yield no segments and a warning, never a failed request.
 - Preferences per skip category `auto | button | off` (default: `sponsor` auto, the rest button), plus highlight marker and full-video label toggles. Stored in `user_sponsorblock_settings` (JSONB, missing keys take defaults) via `GET/PUT /api/v0/settings/sponsorblock`; guests use localStorage.
-- Player: markers on the progress bar, auto-skip with undo, skip button inside `button` segments; a segment the user seeks into or undoes is not auto-skipped again. Shorts only auto-skip.
+- Player: markers on the progress bar, category label on hover/scrub, auto-skip with undo, skip button inside `button` segments, "jump to highlight" button in the control bar; a segment the user seeks into or undoes is not auto-skipped again. Shorts only auto-skip.
+- Smooth skips: ~8 s before an auto-skip (and while a skip button shows), the fragments dash.js will request at the target (from its parsed sidx/WebM cues, current video and audio representation) are fetched and handed to dash.js as blob URLs via a request interceptor; any mismatch goes to the network. No Service Worker.
 - ENV: `OXISTREAM_SPONSORBLOCK_ENABLED` (default `true`), `OXISTREAM_SPONSORBLOCK_API_URL` (default `https://sponsor.ajay.app`). `GET /api/v0/instance` reports `sponsorblock`.
 
 ## Frontend
