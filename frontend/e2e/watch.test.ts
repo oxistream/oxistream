@@ -62,12 +62,14 @@ const video = {
 const MPD = `<?xml version="1.0" encoding="UTF-8"?>
 <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT1394S" minBufferTime="PT1.5S"><Period></Period></MPD>`;
 
+type MockResponse = { status: number; body: unknown };
+
 async function mockApi(
 	page: Page,
 	{
-		details = { status: 200, body: video as unknown },
-		manifest = { status: 200, body: MPD as unknown }
-	} = {}
+		details = { status: 200, body: video },
+		manifest = { status: 200, body: MPD }
+	}: { details?: MockResponse; manifest?: MockResponse } = {}
 ) {
 	// Nothing in these tests may reach the backend or YouTube.
 	await page.route('**/proxy/**', (route) => route.fulfill({ status: 404, body: '' }));

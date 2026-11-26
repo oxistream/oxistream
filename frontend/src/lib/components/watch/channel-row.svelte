@@ -1,25 +1,20 @@
 <script lang="ts">
-	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
 	import { resolve } from '$app/paths';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
+	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
+	import type { ChannelSummary } from '#lib/video.js';
 
 	let {
 		channel,
 		class: className
 	}: {
-		channel: {
-			id: string;
-			name: string;
-			avatarUrl?: string;
-			subscriberCount?: number | null;
-			verified?: boolean;
-		};
+		channel: ChannelSummary;
 		class?: string;
 	} = $props();
 
@@ -38,10 +33,10 @@
 		>
 			<span class="truncate">{channel.name}</span>
 			{#if channel.verified}
-				<BadgeCheckIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<VerifiedBadge class="text-sm" />
 			{/if}
 		</a>
-		{#if channel.subscriberCount != null}
+		{#if channel.subscriberCount !== undefined}
 			<span class="truncate text-xs text-muted-foreground tabular">
 				{m.watch_subscribers({
 					count: channel.subscriberCount,

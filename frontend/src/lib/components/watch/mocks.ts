@@ -1,7 +1,8 @@
 // Stand-in watch page data for stories, shaped like the API's VideoDetails.
-import type { ApiVideoSummary, VideoDetails } from '#lib/api/video.js';
+import type { components } from '#lib/api/schema.js';
+import type { VideoDetails } from '#lib/api/video.js';
 import { mockVideos } from '#lib/mocks/videos.js';
-import type { RelatedVideo } from './related';
+import type { VideoSummary } from '#lib/video.js';
 
 const thumb = (url?: string) => (url ? [{ url, width: 640, height: 360 }] : []);
 
@@ -32,7 +33,7 @@ export const mockVideoDetails: VideoDetails = {
 		subscriber_count: 284_000,
 		verified: true
 	},
-	view_count: forge.viewCount,
+	view_count: forge.viewCount ?? 0,
 	like_count: 18_420,
 	published_at: '2026-11-21T09:30:00Z',
 	published_text: 'Nov 21, 2026',
@@ -44,7 +45,7 @@ export const mockVideoDetails: VideoDetails = {
 		{ id: 'en', lang: 'en', label: 'English', auto_generated: false, url: '' },
 		{ id: 'a.de', lang: 'de', label: 'German', auto_generated: true, url: '' }
 	],
-	related: mockVideos.slice(1, 9).map((v): ApiVideoSummary => ({
+	related: mockVideos.slice(1, 9).map((v): components['schemas']['VideoSummary'] => ({
 		id: v.id,
 		title: v.title,
 		thumbnails: thumb(v.thumbnailUrl),
@@ -58,17 +59,13 @@ export const mockVideoDetails: VideoDetails = {
 	}))
 };
 
-export const mockRelated: RelatedVideo[] = mockVideos.slice(1).map((v, i) => ({
+export const mockRelated: VideoSummary[] = mockVideos.slice(1).map((v, i) => ({
 	id: v.id,
 	title: v.title,
 	thumbnailUrl: v.thumbnailUrl,
 	durationSeconds: v.durationSeconds,
 	// YouTube often sends related items without channel, views or date; every third one here.
 	...(i % 3 === 2
-		? {}
-		: {
-				viewCount: v.viewCount,
-				publishedAt: v.publishedAt,
-				channel: { id: v.channel.id, name: v.channel.name }
-			})
+		? { channel: { id: '', name: '' } }
+		: { viewCount: v.viewCount, publishedAt: v.publishedAt, channel: v.channel })
 }));

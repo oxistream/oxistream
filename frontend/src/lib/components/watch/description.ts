@@ -1,16 +1,9 @@
+import { isHandle, isVideoId, parseYouTubeUrl, watchPath } from '#lib/youtube.js';
+
 export type DescriptionSegment =
 	| { type: 'text'; text: string }
 	| { type: 'link'; text: string; href: string; internal: boolean }
 	| { type: 'timestamp'; text: string; seconds: number };
-
-const YOUTUBE_HOSTS = new Set([
-	'youtube.com',
-	'www.youtube.com',
-	'm.youtube.com',
-	'music.youtube.com',
-	'youtu.be',
-	'www.youtu.be'
-]);
 
 // URLs, then h:mm:ss / m:ss timestamps that are not part of a longer number or ratio.
 const TOKEN = /(https?:\/\/[^\s<>"]+)|(?<![\w:.])((?:\d{1,2}:)?\d{1,2}:[0-5]\d)(?![\w:])/g;
@@ -38,44 +31,37 @@ export function parseTimestamp(text: string): number {
 		.reduce((total, part) => total * 60 + part, 0);
 }
 
-const VIDEO_ID = /^[\w-]{11}$/;
-
 /**
  * Rewrites a YouTube URL to the matching Oxistream route, so description links stay on this
  * instance. Returns null for anything that has no local equivalent.
  */
 export function toLocalPath(href: string): string | null {
-	let url: URL;
-	try {
-		url = new URL(href);
-	} catch {
-		return null;
-	}
-	if (!YOUTUBE_HOSTS.has(url.hostname)) return null;
-
-	const time = url.searchParams.get('t');
-	const withTime = (path: string) => (time ? `${path}&t=${encodeURIComponent(time)}` : path);
-
-	if (url.hostname.endsWith('youtu.be')) {
-		const id = url.pathname.slice(1);
-		return VIDEO_ID.test(id) ? withTime(`/watch?v=${id}`) : null;
-	}
-
+	const url = parseYouTubeUrl(href);
+	if (!url) return null;
 	const [first, second] = url.pathname.split('/').filter(Boolean);
+	const query = (key: string) => url.searchParams.get(key);
+
+	if (url.hostname.toLowerCase().endsWith('youtu.be')) {
+		return first && isVideoId(first) ? watchPath(first, url.searchParams) : null;
+	}
 	if (first === 'watch') {
-		const id = url.searchParams.get('v');
-		return id && VIDEO_ID.test(id) ? withTime(`/watch?v=${id}`) : null;
+		const id = query('v');
+		return id && isVideoId(id) ? watchPath(id, url.searchParams) : null;
 	}
-	if ((first === 'shorts' || first === 'live') && second && VIDEO_ID.test(second)) {
-		return `/watch?v=${second}`;
+	if (
+		(first === 'shorts' || first === 'live' || first === 'embed') &&
+		second &&
+		isVideoId(second)
+	) {
+		return watchPath(second, url.searchParams);
 	}
-	if (first === 'channel' && second) return `/channel/${second}`;
-	if (first?.startsWith('@')) return `/${first}`;
-	if (first === 'playlist' && url.searchParams.has('list')) {
-		return `/playlist?list=${encodeURIComponent(url.searchParams.get('list')!)}`;
+	if (first === 'channel' && second) return `/channel/${encodeURIComponent(second)}`;
+	if (first && isHandle(decodeURIComponent(first))) return `/${first}`;
+	if (first === 'playlist' && query('list')) {
+		return `/playlist?${new URLSearchParams({ list: query('list')! })}`;
 	}
-	if (first === 'results' && url.searchParams.has('search_query')) {
-		return `/results?search_query=${encodeURIComponent(url.searchParams.get('search_query')!)}`;
+	if (first === 'results' && query('search_query')) {
+		return `/results?${new URLSearchParams({ search_query: query('search_query')! })}`;
 	}
 	return null;
 }

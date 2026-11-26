@@ -1,4 +1,4 @@
-import { ApiError } from '#lib/api/video.js';
+import { ApiError } from '#lib/api/mapping.js';
 import { m } from '#lib/paraglide/messages.js';
 
 export type WatchProblem = {
@@ -123,7 +123,7 @@ export function describeProblem(error: unknown): WatchProblem {
 			return {
 				kind: 'error',
 				title: m.watch_error_upstream_title(),
-				description: error.code === 'network' ? m.error_load_body() : m.watch_error_upstream_body(),
+				description: error.code ? m.watch_error_upstream_body() : m.error_load_body(),
 				retry: true,
 				youtube: false
 			};
