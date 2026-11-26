@@ -108,6 +108,7 @@ test('arrow keys and j/k move between the channel shorts', async ({ page }) => {
 		`/watch?v=${shortId(2)}`
 	);
 
+	await expect(page.getByTestId('shorts-next')).toBeEnabled();
 	await page.keyboard.press('ArrowDown');
 	await expect(page).toHaveURL(new RegExp(`/shorts/${shortId(3)}$`));
 	await expect(viewer(page).getByRole('heading', { name: 'Forge short 3' })).toBeVisible();
