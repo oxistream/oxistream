@@ -61,8 +61,8 @@
 		/** Keyboard shortcuts work anywhere on the page, not only while the player has focus. */
 		globalHotkeys?: boolean;
 		/**
-		 * `short` is portrait with fewer controls, and leaves arrow up/down and j/k to the page
-		 * for moving between shorts.
+		 * `short` is portrait with fewer controls that only show while paused, toggles playback on
+		 * any tap, and leaves arrow up/down and j/k to the page for moving between shorts.
 		 */
 		variant?: 'video' | 'short';
 		loop?: boolean;
@@ -95,7 +95,8 @@
 	});
 
 	let player: VideoPlayerElement;
-	let media: HTMLElement;
+	let media: HTMLElement & Pick<HTMLMediaElement, 'play' | 'pause' | 'paused' | 'readyState'>;
+	let paused = $state(true);
 
 	/** Jumps to `seconds` and keeps playing, as when a timestamp in the description is clicked. */
 	export function seek(seconds: number) {
@@ -103,6 +104,23 @@
 		if (!state || !player.store.target) return;
 		void selectTime(state)?.seek(seconds);
 		void selectPlayback(state)?.play();
+	}
+
+	let playWhenReady = $state(false);
+	// A play waiting for the media counts as playing, so the controls stay out of the way.
+	const showPaused = $derived(paused && !playWhenReady);
+
+	/** Also works before the media is ready: playback then starts once it can. */
+	export function play() {
+		if (!media) return;
+		// An earlier play() would be aborted when dash.js attaches the source.
+		if (media.readyState === 0) playWhenReady = true;
+		else media.play().catch(() => {});
+	}
+
+	export function pause() {
+		playWhenReady = false;
+		if (media && !media.paused) media.pause();
 	}
 
 	onMount(() => {
@@ -173,6 +191,8 @@
 
 		const unbridgeAudio = bridgeDashAudioTracks(media as unknown as AudioTrackHost);
 		const unsubscribe = store.subscribe(() => {
+			paused = selectPlayback(store.state)?.paused ?? true;
+			if (!paused) playWhenReady = false;
 			restoreVolume();
 			restoreCaptions();
 			persist();
@@ -180,6 +200,11 @@
 
 		// Loading media resets the playback rate, so rate and start time wait for the metadata.
 		const onLoadedMetadata = () => {
+			if (playWhenReady) {
+				media.play().catch(() => {
+					playWhenReady = false;
+				});
+			}
 			if (startApplied) return;
 			startApplied = true;
 			if (prefs.playbackRate) selectPlaybackRate(store.state)?.setPlaybackRate(prefs.playbackRate);
@@ -234,6 +259,7 @@
 			data-preset="video"
 			data-theater={theater ? '' : undefined}
 			data-variant={variant}
+			data-paused={showPaused ? '' : undefined}
 		>
 			<dash-video
 				bind:this={media}
@@ -269,7 +295,7 @@
 				</media-dialog-popup>
 			</media-error-dialog>
 			<media-title class="media-title"> </media-title>
-			<media-controls>
+			<media-controls visibility={variant === 'short' && showPaused ? 'always' : 'auto'}>
 				<media-buffering-indicator class="video-controls-center-buffering">
 					<media-controls-group class="video-controls-center">
 						<media-seek-button
@@ -720,12 +746,16 @@
 			<media-hotkey target={hotkeyTarget} keys="f" action="toggleFullscreen"> </media-hotkey>
 			<media-hotkey target={hotkeyTarget} keys="c" action="toggleSubtitles"> </media-hotkey>
 			<media-hotkey target={hotkeyTarget} keys="i" action="togglePictureInPicture"> </media-hotkey>
-			<media-gesture type="tap" action="togglePaused" pointer="mouse" region="center">
-			</media-gesture>
-			<media-gesture type="tap" action="toggleControls" pointer="touch"> </media-gesture>
-			<media-gesture type="doubletap" action="seekStep" region="left"> </media-gesture>
-			<media-gesture type="doubletap" action="toggleFullscreen" region="center"> </media-gesture>
-			<media-gesture type="doubletap" action="seekStep" region="right"> </media-gesture>
+			{#if variant === 'short'}
+				<media-gesture type="tap" action="togglePaused"> </media-gesture>
+			{:else}
+				<media-gesture type="tap" action="togglePaused" pointer="mouse" region="center">
+				</media-gesture>
+				<media-gesture type="tap" action="toggleControls" pointer="touch"> </media-gesture>
+				<media-gesture type="doubletap" action="seekStep" region="left"> </media-gesture>
+				<media-gesture type="doubletap" action="toggleFullscreen" region="center"> </media-gesture>
+				<media-gesture type="doubletap" action="seekStep" region="right"> </media-gesture>
+			{/if}
 			<media-status-announcer class="media-status-announcer"> </media-status-announcer>
 			<div class="video-status-indicators">
 				<media-volume-indicator class="media-indicator media-volume-indicator">
@@ -791,6 +821,19 @@
 	.oxi-player :global([data-variant='short'] .media-airplay-button),
 	.oxi-player :global([data-variant='short'] .media-pip-button) {
 		display: none;
+	}
+
+	/* Shorts show their controls only while paused, also before the first play. */
+	.oxi-player :global(.oxi-player-frame[data-variant='short']) {
+		--media-controls-before-start: visible;
+	}
+
+	.oxi-player :global([data-variant='short']:not([data-paused]) .video-controls-content),
+	.oxi-player :global([data-variant='short']:not([data-paused]) .video-controls-backdrop),
+	.oxi-player :global([data-variant='short']:not([data-paused]) .video-controls-center) {
+		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.oxi-player :global(.oxi-player-frame[data-theater]) {
