@@ -3,7 +3,7 @@
 use rustypipe::model::paginator::Paginator;
 use rustypipe::model::richtext::ToPlaintext;
 use rustypipe::model::{self as rp, UrlTarget};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 
@@ -127,6 +127,58 @@ pub struct SearchPage {
 pub struct VideoPage {
     pub items: Vec<VideoSummary>,
     pub continuation: Option<String>,
+}
+
+/// YouTube has no general trending list anymore, only these destination pages.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum TrendingCategory {
+    /// Trending podcast episodes, the broadest mix of topics.
+    #[default]
+    Podcasts,
+    Gaming,
+    /// Top news stories.
+    News,
+}
+
+impl From<TrendingCategory> for rustypipe::param::TrendingCategory {
+    fn from(category: TrendingCategory) -> Self {
+        match category {
+            TrendingCategory::Podcasts => Self::Podcasts,
+            TrendingCategory::Gaming => Self::Gaming,
+            TrendingCategory::News => Self::News,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct TrendingVideos {
+    /// ISO 3166-1 alpha-2 country code, from `OXISTREAM_TRENDING_REGION`.
+    pub region: String,
+    pub category: TrendingCategory,
+    pub items: Vec<VideoSummary>,
+}
+
+impl TrendingVideos {
+    pub fn from_rp(
+        region: rustypipe::param::Country,
+        category: TrendingCategory,
+        videos: &[rp::VideoItem],
+        img: &impl Fn(&str) -> String,
+    ) -> Self {
+        Self {
+            region: serde_json::to_value(region)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default(),
+            category,
+            items: videos
+                .iter()
+                .cloned()
+                .map(|v| VideoSummary::from_rp(v, img))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]

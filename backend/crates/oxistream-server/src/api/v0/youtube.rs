@@ -1,4 +1,5 @@
 use axum::Json;
+use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path, Query, State};
 use oxistream_db::VideoUpsert;
 use rustypipe::model as rp;
@@ -9,7 +10,9 @@ use utoipa_axum::routes;
 
 use super::storyboard;
 use crate::AppState;
-use crate::api::dto::{ChannelDetails, Resolved, SearchPage, VideoDetails, VideoPage};
+use crate::api::dto::{
+    ChannelDetails, Resolved, SearchPage, TrendingCategory, TrendingVideos, VideoDetails, VideoPage,
+};
 use crate::api::error::{ApiError, ErrorBody};
 use crate::api::lang::ContentLanguage;
 
@@ -21,6 +24,48 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(channel))
         .routes(routes!(channel_videos))
         .routes(routes!(resolve))
+        .routes(routes!(trending))
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct TrendingParams {
+    /// Defaults to `podcasts`.
+    #[param(inline)]
+    category: Option<TrendingCategory>,
+}
+
+/// Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).
+#[utoipa::path(
+    get,
+    path = "/trending",
+    tag = "youtube",
+    params(
+        TrendingParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = TrendingVideos),
+        (status = BAD_REQUEST, description = "Unknown category", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn trending(
+    State(state): State<AppState>,
+    params: Result<Query<TrendingParams>, QueryRejection>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<TrendingVideos>, ApiError> {
+    let Query(params) = params
+        .map_err(|_| ApiError::bad_request("`category` must be `podcasts`, `gaming` or `news`"))?;
+    let category = params.category.unwrap_or_default();
+    let videos = state.youtube.trending(category.into(), lang).await?;
+    Ok(Json(TrendingVideos::from_rp(
+        state.youtube.trending_region(),
+        category,
+        &videos,
+        &|url| state.image_url(url),
+    )))
 }
 
 /// Video details and related videos.

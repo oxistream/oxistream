@@ -6,6 +6,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use axum::http::HeaderName;
+use rustypipe::param::Country;
 
 const BIND: &str = "OXISTREAM_BIND";
 const DATABASE_URL: &str = "OXISTREAM_DATABASE_URL";
@@ -14,6 +15,7 @@ const LOG: &str = "OXISTREAM_LOG";
 const LOG_FORMAT: &str = "OXISTREAM_LOG_FORMAT";
 const BOTGUARD_BIN: &str = "OXISTREAM_BOTGUARD_BIN";
 const YOUTUBE_CACHE_DIR: &str = "OXISTREAM_YOUTUBE_CACHE_DIR";
+const TRENDING_REGION: &str = "OXISTREAM_TRENDING_REGION";
 const PROXY_SECRET: &str = "OXISTREAM_PROXY_SECRET";
 const PROXY_STREAM_TTL: &str = "OXISTREAM_PROXY_STREAM_TTL_SECS";
 const PROXY_IMAGE_TTL: &str = "OXISTREAM_PROXY_IMAGE_TTL_SECS";
@@ -220,12 +222,40 @@ impl Default for AuthConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct YouTubeConfig {
     /// `rustypipe-botguard` binary; looked up in the working directory and `PATH` when unset.
     pub botguard_bin: Option<PathBuf>,
     /// Persists RustyPipe's client cache and botguard snapshot; in-memory and temp dir when unset.
     pub cache_dir: Option<PathBuf>,
+    /// Country whose trending videos are shown.
+    pub trending_region: Country,
+}
+
+impl Default for YouTubeConfig {
+    fn default() -> Self {
+        Self {
+            botguard_bin: None,
+            cache_dir: None,
+            trending_region: Country::Us,
+        }
+    }
+}
+
+/// ISO 3166-1 alpha-2 country code known to YouTube.
+struct Region(Country);
+
+impl FromStr for Region {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let code = s.trim().to_ascii_uppercase();
+        // `ZZ` (global) only exists for music charts.
+        match serde_json::from_value::<Country>(serde_json::Value::String(code)) {
+            Ok(country) if country != Country::Zz => Ok(Self(country)),
+            _ => Err("expected a two-letter country code supported by YouTube, e.g. `US`".into()),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -335,6 +365,12 @@ impl Config {
             youtube: YouTubeConfig {
                 botguard_bin: get(BOTGUARD_BIN).map(PathBuf::from),
                 cache_dir: get(YOUTUBE_CACHE_DIR).map(PathBuf::from),
+                trending_region: parse_or(
+                    get(TRENDING_REGION),
+                    TRENDING_REGION,
+                    Region(Country::Us),
+                )?
+                .0,
             },
             proxy: ProxyConfig {
                 secret: secret.clone(),
@@ -685,6 +721,12 @@ mod tests {
     }
 
     #[test]
+    fn trending_region() {
+        let config = with(&[(TRENDING_REGION, " de ")]).unwrap();
+        assert_eq!(config.youtube.trending_region, Country::De);
+    }
+
+    #[test]
     fn invalid_values() {
         let err = with(&[(BIND, "nope")]).unwrap_err();
         assert!(
@@ -708,6 +750,9 @@ mod tests {
             (PUBLIC_URL, "tube.example.com"),
             (PUBLIC_URL, "ftp://tube.example.com"),
             (FEED_INTERVAL, "0"),
+            (TRENDING_REGION, "XX"),
+            (TRENDING_REGION, "ZZ"),
+            (TRENDING_REGION, "Germany"),
         ] {
             let err = with(&[(var, value)]).unwrap_err();
             assert!(

@@ -10,6 +10,7 @@ use common::{app_without_db, get, state_without_db};
 use http_body_util::BodyExt;
 use oxistream_server::config::YouTubeConfig;
 use oxistream_server::youtube::YouTube;
+use rustypipe::param::{Country, Language, TrendingCategory};
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -340,4 +341,42 @@ async fn video_details_list_proxied_subtitles() {
         "{}",
         String::from_utf8_lossy(&body)
     );
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn trending_lists_proxied_videos_per_category() {
+    for category in ["podcasts", "gaming", "news"] {
+        let (status, json) = get_json(&format!("/api/v0/trending?category={category}")).await;
+        assert_eq!(status, StatusCode::OK, "{json}");
+        assert_eq!(json["region"], "US");
+        assert_eq!(json["category"], category);
+        let items = json["items"].as_array().unwrap();
+        assert!(items.len() >= 20, "{category}: {} items", items.len());
+        let thumb = items[0]["thumbnails"][0]["url"].as_str().unwrap();
+        assert!(thumb.starts_with("/proxy/image/"), "{thumb}");
+    }
+    let (status, json) = get_json("/api/v0/trending").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["category"], "podcasts");
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn trending_follows_configured_region() {
+    let config = YouTubeConfig {
+        trending_region: Country::De,
+        ..YouTubeConfig::default()
+    };
+    let youtube = YouTube::new(&config).unwrap();
+    let first = youtube
+        .trending(TrendingCategory::Gaming, Language::De)
+        .await
+        .unwrap();
+    assert!(first.len() >= 20, "{} items", first.len());
+    let cached = youtube
+        .trending(TrendingCategory::Gaming, Language::De)
+        .await
+        .unwrap();
+    assert!(Arc::ptr_eq(&first, &cached));
 }
