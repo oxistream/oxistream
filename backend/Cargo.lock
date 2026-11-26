@@ -2380,6 +2380,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxipipe"
+version = "0.11.4"
+source = "git+https://github.com/oxistream/oxipipe?rev=a50fe249b0a317e2d6f11bbc6aa91904c9b6ada9#a50fe249b0a317e2d6f11bbc6aa91904c9b6ada9"
+dependencies = [
+ "data-encoding",
+ "fancy-regex",
+ "localzone",
+ "once_cell",
+ "phf",
+ "rand 0.9.5",
+ "regex",
+ "reqwest 0.12.28",
+ "ress",
+ "rquickjs",
+ "serde",
+ "serde_json",
+ "serde_plain",
+ "serde_with",
+ "sha1 0.10.7",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tracing",
+ "url",
+ "urlencoding",
+]
+
+[[package]]
 name = "oxistream-dash"
 version = "0.1.0"
 dependencies = [
@@ -2417,13 +2445,13 @@ dependencies = [
  "metrics-exporter-prometheus",
  "moka",
  "openidconnect",
+ "oxipipe",
  "oxistream-dash",
  "oxistream-db",
  "reqwest 0.13.5",
  "rsa 0.10.0",
  "rust-embed",
  "rustls",
- "rustypipe",
  "serde",
  "serde_json",
  "sha2 0.11.2",
@@ -3366,35 +3394,6 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
-name = "rustypipe"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bf8d7c42ac7860a078f63f90d6513dd3833585337e65b5fca9f74ddba2d59ef"
-dependencies = [
- "data-encoding",
- "fancy-regex",
- "localzone",
- "once_cell",
- "phf",
- "rand 0.9.5",
- "regex",
- "reqwest 0.12.28",
- "ress",
- "rquickjs",
- "serde",
- "serde_json",
- "serde_plain",
- "serde_with",
- "sha1 0.10.7",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tracing",
- "url",
- "urlencoding",
-]
 
 [[package]]
 name = "ryu"
