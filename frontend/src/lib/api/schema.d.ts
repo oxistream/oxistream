@@ -931,6 +931,8 @@ export interface components {
         PlaylistSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
             id: string;
+            /** @description YouTube presents the playlist as a course. */
+            is_course: boolean;
             thumbnails: components["schemas"]["Thumbnail"][];
             title: string;
             /** Format: int64 */
@@ -1122,6 +1124,8 @@ export interface components {
             /** @description Plain text; empty without description. */
             description: string;
             id: string;
+            /** @description YouTube presents the playlist as a course. */
+            is_course: boolean;
             /**
              * Format: date
              * @description Date of the last change, `YYYY-MM-DD`.

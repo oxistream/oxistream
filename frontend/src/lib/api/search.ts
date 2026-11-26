@@ -17,6 +17,7 @@ export type PlaylistResult = {
 	thumbnailUrl?: string;
 	channel?: ChannelSummary;
 	videoCount?: number;
+	isCourse?: boolean;
 };
 
 export type SearchResult =
@@ -49,7 +50,8 @@ export function toSearchResult(item: SearchItem): SearchResult {
 					title: item.title,
 					thumbnailUrl: pickImage(item.thumbnails, 480),
 					channel: item.channel ? toChannel(item.channel) : undefined,
-					videoCount: item.video_count ?? undefined
+					videoCount: item.video_count ?? undefined,
+					isCourse: item.is_course
 				}
 			};
 	}

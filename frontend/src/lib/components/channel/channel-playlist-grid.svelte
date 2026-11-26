@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PlaylistResult } from '#lib/api/search.js';
+	import CourseBadge from '#lib/components/playlist/course-badge.svelte';
 	import { playlistHref } from '#lib/components/playlist/links.js';
 	import PlaylistCover from '#lib/components/playlist/playlist-cover.svelte';
 	import VideoCardSkeleton from '#lib/components/video/video-card-skeleton.svelte';
@@ -56,6 +57,7 @@
 									</span>{/if}
 							</a>
 						</h3>
+						{#if playlist.isCourse}<CourseBadge class="-mt-1.5" />{/if}
 					</article>
 				</li>
 			{/each}

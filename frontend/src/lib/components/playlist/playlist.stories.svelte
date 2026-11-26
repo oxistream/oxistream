@@ -7,6 +7,7 @@
 	import { mockPlaylist, mockPlaylistNow, mockPlaylists } from '#lib/mocks/playlists.js';
 	import PlaylistCard from './playlist-card.svelte';
 	import PlaylistFormDialog from './playlist-form-dialog.svelte';
+	import CourseBadge from './course-badge.svelte';
 	import { localPlayback, youtubePlayback } from './playback';
 	import PlaylistCover from './playlist-cover.svelte';
 	import PlaylistItems from './playlist-items.svelte';
@@ -48,6 +49,10 @@
 			{/each}
 		</ul>
 	</div>
+</Story>
+
+<Story name="Course badge" asChild>
+	<CourseBadge />
 </Story>
 
 <Story name="Visibility labels" asChild>

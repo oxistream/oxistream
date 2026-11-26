@@ -90,7 +90,8 @@ export function toChannelPlaylist(playlist: ApiPlaylist): PlaylistResult {
 		title: playlist.title,
 		thumbnailUrl: pickImage(playlist.thumbnails, 480),
 		channel: playlist.channel ? toChannel(playlist.channel) : undefined,
-		videoCount: playlist.video_count ?? undefined
+		videoCount: playlist.video_count ?? undefined,
+		isCourse: playlist.is_course
 	};
 }
 

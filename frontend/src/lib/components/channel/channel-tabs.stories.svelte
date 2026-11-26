@@ -25,7 +25,8 @@
 		id: `PLmock${i}`,
 		title: video.title,
 		thumbnailUrl: video.thumbnailUrl,
-		videoCount: i === 2 ? undefined : (i + 1) * 7
+		videoCount: i === 2 ? undefined : (i + 1) * 7,
+		isCourse: i === 1
 	}));
 </script>
 

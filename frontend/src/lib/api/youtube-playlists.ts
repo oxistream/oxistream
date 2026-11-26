@@ -19,6 +19,7 @@ export type YouTubePlaylist = {
 	/** `YYYY-MM-DD` */
 	lastUpdate?: string;
 	lastUpdateText?: string;
+	isCourse?: boolean;
 };
 
 /** The first page also carries the playlist itself. */
@@ -40,7 +41,8 @@ export function toYouTubePlaylistPage(p: Schemas['YouTubePlaylist']): YouTubePla
 			videoCount: p.video_count,
 			thumbnailUrl: pickImage(p.thumbnails, 640),
 			lastUpdate: p.last_update ?? undefined,
-			lastUpdateText: p.last_update_text ?? undefined
+			lastUpdateText: p.last_update_text ?? undefined,
+			isCourse: p.is_course
 		},
 		items: p.videos.items.map((video) => toVideo(video)),
 		continuation: p.videos.continuation ?? undefined

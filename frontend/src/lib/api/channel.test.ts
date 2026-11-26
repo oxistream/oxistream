@@ -42,14 +42,29 @@ describe('toChannelPlaylist', () => {
 				title: 'Forge basics',
 				thumbnails: [{ url: '/proxy/image/pl', width: 480, height: 270 }],
 				channel: null,
-				video_count: null
+				video_count: null,
+				is_course: false
 			})
 		).toEqual({
 			id: 'PLforge',
 			title: 'Forge basics',
 			thumbnailUrl: '/proxy/image/pl',
 			channel: undefined,
-			videoCount: undefined
+			videoCount: undefined,
+			isCourse: false
 		});
+	});
+
+	it('keeps the course flag', () => {
+		const course = toChannelPlaylist({
+			id: 'PLAscMa3kKhHjBYOTrT20kpYMNQX95KU6i',
+			title: 'Rust for beginners',
+			thumbnails: [],
+			channel: null,
+			video_count: 85,
+			is_course: true
+		});
+		expect(course.isCourse).toBe(true);
+		expect(course.videoCount).toBe(85);
 	});
 });

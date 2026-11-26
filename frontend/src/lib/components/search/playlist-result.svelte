@@ -2,6 +2,7 @@
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import { resolve } from '$app/paths';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
+	import CourseBadge from '#lib/components/playlist/course-badge.svelte';
 	import type { PlaylistResult } from '#lib/api/search.js';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -61,7 +62,11 @@
 			</a>
 		</h3>
 		<p class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground tabular">
-			<span class="shrink-0">{m.search_playlist()}</span>
+			{#if playlist.isCourse}
+				<CourseBadge />
+			{:else}
+				<span class="shrink-0">{m.search_playlist()}</span>
+			{/if}
 			{#if playlist.channel?.name}
 				<span aria-hidden="true">·</span>
 				<span class="truncate">{playlist.channel.name}</span>

@@ -94,7 +94,16 @@ async function mockChannel(page: Page, { playlists = true } = {}) {
 									title: 'Forge basics',
 									thumbnails: wide('pl'),
 									channel: null,
-									video_count: 24
+									video_count: 24,
+									is_course: false
+								},
+								{
+									id: 'PLforgecourse',
+									title: 'Knife making course',
+									thumbnails: wide('course'),
+									channel: null,
+									video_count: 12,
+									is_course: true
 								}
 							]
 						: [],
@@ -172,6 +181,12 @@ test('playlists link to the YouTube playlist view', async ({ page }) => {
 		'/playlist?list=PLforgebasics'
 	);
 	await expect(playlists.getByText('24 videos', { exact: true })).toBeVisible();
+
+	const cards = playlists.getByRole('listitem');
+	await expect(
+		cards.filter({ hasText: 'Knife making course' }).getByText('Course', { exact: true })
+	).toBeVisible();
+	await expect(cards.filter({ hasText: 'Forge basics' }).getByText('Course')).toHaveCount(0);
 });
 
 test('a channel without playlists shows an empty state', async ({ page }) => {
