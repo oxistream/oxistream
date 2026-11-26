@@ -4091,7 +4091,8 @@
         "required": [
           "id",
           "title",
-          "thumbnails"
+          "thumbnails",
+          "is_course"
         ],
         "properties": {
           "channel": {
@@ -4106,6 +4107,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "is_course": {
+            "type": "boolean",
+            "description": "YouTube presents the playlist as a course."
           },
           "thumbnails": {
             "type": "array",
@@ -4746,6 +4751,7 @@
           "description",
           "video_count",
           "thumbnails",
+          "is_course",
           "videos"
         ],
         "properties": {
@@ -4766,6 +4772,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "is_course": {
+            "type": "boolean",
+            "description": "YouTube presents the playlist as a course."
           },
           "last_update": {
             "type": [
