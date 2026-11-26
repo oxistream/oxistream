@@ -104,6 +104,8 @@ pub struct PlaylistSummary {
     pub thumbnails: Vec<Thumbnail>,
     pub channel: Option<ChannelRef>,
     pub video_count: Option<u64>,
+    /// YouTube presents the playlist as a course.
+    pub is_course: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -222,6 +224,8 @@ pub struct YouTubePlaylist {
     pub last_update: Option<String>,
     /// Localized text as shown by YouTube, e.g. `Last updated on Feb 16, 2026`.
     pub last_update_text: Option<String>,
+    /// YouTube presents the playlist as a course.
+    pub is_course: bool,
     /// First page; more via `/youtube/playlists/{id}/videos`.
     pub videos: VideoPage,
 }
@@ -403,6 +407,7 @@ impl PlaylistSummary {
             thumbnails: thumbnails(&playlist.thumbnail, img),
             channel: playlist.channel.map(|c| ChannelRef::from_rp(c, img)),
             video_count: playlist.video_count,
+            is_course: playlist.is_course,
             id: playlist.id,
             title: playlist.name,
         }
@@ -494,6 +499,7 @@ impl YouTubePlaylist {
             thumbnails: thumbnails(&playlist.thumbnail, img),
             last_update: playlist.last_update.map(|d| d.to_string()),
             last_update_text: playlist.last_update_txt,
+            is_course: playlist.is_course,
             videos: VideoPage::from_rp(playlist.videos, img),
             id: playlist.id,
             title: playlist.name,
@@ -710,6 +716,7 @@ mod tests {
                 "thumbnail": [thumb("https://i.ytimg.com/vi/x/default.jpg")],
                 "channel": null,
                 "video_count": 12,
+                "is_course": true,
             } },
         ]);
         let page = SearchPage::from_rp(
@@ -730,6 +737,7 @@ mod tests {
         assert_eq!(types, ["video", "channel", "playlist"]);
         assert_eq!(json["items"][1]["handle"], "@RickAstleyYT");
         assert_eq!(json["items"][2]["video_count"], 12);
+        assert_eq!(json["items"][2]["is_course"], true);
         assert_images_mapped(&page);
     }
 
@@ -779,6 +787,7 @@ mod tests {
                 "thumbnail": [thumb("https://i.ytimg.com/vi/x/hqdefault.jpg")],
                 "channel": null,
                 "video_count": 42,
+                "is_course": false,
             },
             {
                 "id": "PLempty",
@@ -786,6 +795,7 @@ mod tests {
                 "thumbnail": [],
                 "channel": channel_tag(),
                 "video_count": null,
+                "is_course": true,
             },
         ]);
         let page =
@@ -798,6 +808,8 @@ mod tests {
         assert_eq!(page.items[0].video_count, Some(42));
         assert_eq!(page.items[0].channel, None);
         assert_eq!(page.items[1].video_count, None);
+        assert!(!page.items[0].is_course);
+        assert!(page.items[1].is_course);
         assert_eq!(
             page.items[1].channel.as_ref().map(|c| c.name.as_str()),
             Some("Rick Astley")
@@ -842,6 +854,7 @@ mod tests {
             "channel": { "id": "UCBvCrmhpqZpDdyy4f4uwVXA", "name": "Caribou" },
             "last_update": "2026-05-05",
             "last_update_txt": "Last updated on May 5, 2026",
+            "is_course": true,
             "visitor_data": null,
         }));
         let dto = YouTubePlaylist::from_rp(playlist, &img);
@@ -849,6 +862,7 @@ mod tests {
         assert_eq!(dto.title, "The longest mixtape");
         assert_eq!(dto.description, "1000 songs");
         assert_eq!(dto.video_count, 940);
+        assert!(dto.is_course);
         assert_eq!(dto.last_update.as_deref(), Some("2026-05-05"));
         assert_eq!(
             dto.last_update_text.as_deref(),
@@ -877,12 +891,14 @@ mod tests {
             "channel": null,
             "last_update": null,
             "last_update_txt": null,
+            "is_course": false,
             "visitor_data": null,
         }));
         let dto = YouTubePlaylist::from_rp(playlist, &img);
         assert_eq!(dto.description, "");
         assert_eq!(dto.channel, None);
         assert_eq!(dto.last_update, None);
+        assert!(!dto.is_course);
         assert_eq!(dto.videos.continuation, None);
     }
 
