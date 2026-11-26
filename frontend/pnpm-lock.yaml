@@ -194,6 +194,9 @@ importers:
       '@inlang/paraglide-js':
         specifier: ^3.2.2
         version: 3.2.2(eslint@10.15.0(jiti@2.7.0)(supports-color@10.2.2))(typescript@6.0.3)(vite@8.3.8(@types/node@24.19.4)(esbuild@0.28.2)(jiti@2.7.0))
+      '@internationalized/date':
+        specifier: ^3.12.4
+        version: 3.12.4
       '@lucide/svelte':
         specifier: ^1.81.0
         version: 1.81.0(svelte@5.59.2(@typescript-eslint/types@8.74.0))
