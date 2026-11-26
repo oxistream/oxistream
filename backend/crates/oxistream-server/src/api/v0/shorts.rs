@@ -126,7 +126,7 @@ impl DiscoverState {
             || upstream.len() > MAX_UPSTREAM_TOKEN
             || !upstream
                 .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'%'))
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'%' | b'='))
         {
             return None;
         }
@@ -402,6 +402,10 @@ mod tests {
             Some(seeds_only)
         );
         assert_eq!(DiscoverState::default().encode(), None);
+
+        // Query strings arrive decoded, so URL-encoded padding turns into `=`.
+        let decoded = DiscoverState::decode("dQw4w9WgXcQ.Cgs2a1NDVnFa==").unwrap();
+        assert_eq!(decoded.upstream.as_deref(), Some("Cgs2a1NDVnFa=="));
     }
 
     #[test]
