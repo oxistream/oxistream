@@ -2,7 +2,6 @@
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
-	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import type { ComponentProps } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
@@ -14,6 +13,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import type { User } from '#lib/video.js';
 	import NavMain, { type NavItem } from './nav-main.svelte';
+	import NavSettings from './nav-settings.svelte';
 	import NavUser from './nav-user.svelte';
 	import NavSubscriptions from './subscription/nav-subscriptions.svelte';
 
@@ -42,7 +42,6 @@
 		{ href: '/feed/playlists', label: m.nav_playlists, icon: ListVideoIcon },
 		{ href: '/feed/history', label: m.nav_history, icon: ClockIcon }
 	];
-	const secondary: NavItem[] = [{ href: '/settings', label: m.nav_settings, icon: SettingsIcon }];
 </script>
 
 <Sidebar.Root bind:ref variant="inset" collapsible="icon" {...restProps}>
@@ -72,7 +71,7 @@
 			<NavMain items={primary} />
 			<NavMain items={library} label={m.nav_library()} />
 			{#if user}<NavSubscriptions {channels} />{/if}
-			<NavMain items={secondary} class="mt-auto" />
+			<NavSettings signedIn={user !== null} class="mt-auto" />
 		</nav>
 	</Sidebar.Content>
 	<Sidebar.Footer>

@@ -14,24 +14,25 @@ import PlaybackSection from '#lib/components/settings/sections/playback-section.
 import { m } from '#lib/paraglide/messages.js';
 
 type Base = {
-	/** Anchor in the settings page, e.g. `/settings#playback`. */
+	/** Route segment: the section lives at `/settings/{id}`. */
 	id: string;
 	title: () => string;
-	description?: () => string;
+	description: () => string;
 	icon: Component;
 	/** Only shown to signed-in users. */
 	account: boolean;
 };
 
 /**
- * A settings page section: either rendered in place by a component that loads and saves its
- * own data, or a link to a page of its own.
+ * A settings section, listed on the settings overview, its navigation and the sidebar. Either
+ * rendered at `/settings/{id}` by a component that loads and saves its own data, or a page of
+ * its own at `href`.
  */
 export type SettingsSection =
 	| (Base & { component: Component; href?: never })
 	| (Base & { href: () => string; component?: never });
 
-/** In page order. A new feature adds its section here. */
+/** In navigation order. A new feature adds its section here, e.g. SponsorBlock after history. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'playback',
@@ -52,12 +53,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'history',
 		title: m.nav_history,
+		description: m.settings_history_hint,
 		icon: ClockIcon,
 		account: true,
 		component: HistorySection
 	},
 	{
-		id: 'blocked-channels',
+		id: 'blocked',
 		title: m.blocked_title,
 		description: m.blocked_description,
 		icon: BanIcon,
@@ -67,6 +69,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'appearance',
 		title: m.settings_appearance,
+		description: m.settings_appearance_description,
 		icon: PaletteIcon,
 		account: false,
 		component: AppearanceSettings
@@ -74,6 +77,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'account',
 		title: m.settings_account,
+		description: m.settings_account_hint,
 		icon: UserIcon,
 		account: true,
 		component: AccountSection
@@ -82,4 +86,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 
 export function visibleSections(signedIn: boolean): SettingsSection[] {
 	return SETTINGS_SECTIONS.filter((section) => signedIn || !section.account);
+}
+
+export function sectionHref(section: SettingsSection): string {
+	return section.href?.() ?? resolve('/settings/[section]', { section: section.id });
+}
+
+/** A section rendered at `/settings/{id}`. */
+export function findSection(id: string): (SettingsSection & { component: Component }) | undefined {
+	return SETTINGS_SECTIONS.find(
+		(section): section is SettingsSection & { component: Component } =>
+			section.id === id && section.component !== undefined
+	);
 }

@@ -93,15 +93,130 @@ test('guests only get appearance settings and a sign-in prompt', async ({ page }
 	await mockApi(page, { signedIn: false });
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
-	await expect(page.getByRole('heading', { level: 2 })).toHaveText([
-		'Sign in for more settings',
+	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
+	await expect(overview.getByRole('link')).toHaveText([/Appearance/]);
+
+	// Open on settings routes.
+	const nav = page.locator('[data-slot="sidebar"]');
+	await expect(nav.getByRole('list', { name: 'Settings sections' }).getByRole('link')).toHaveText([
 		'Appearance'
 	]);
+
+	await page.goto('/settings/playback');
+	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
+	await expect(page.getByRole('combobox', { name: 'Maximum quality' })).toHaveCount(0);
+});
+
+test('the overview links every section', async ({ page }) => {
+	await mockApi(page);
+	await page.goto('/settings');
+	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
+	await expect(overview.getByRole('link')).toHaveText([
+		/Playback/,
+		/Home page/,
+		/History/,
+		/Blocked channels/,
+		/Appearance/,
+		/Account/
+	]);
+	await overview.getByRole('link', { name: /Home page/ }).click();
+	await expect(page).toHaveURL(/\/settings\/home$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Home page' })).toBeVisible();
+
+	await page.goto('/settings/nope');
+	await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+test('the sidebar settings entry expands to the sections', async ({ page }) => {
+	await mockApi(page);
+	await page.goto('/');
+	const nav = page.locator('[data-slot="sidebar"]');
+	const sub = nav.getByRole('list', { name: 'Settings sections' });
+	await expect(sub).toBeHidden();
+
+	await nav.getByRole('button', { name: 'Show settings sections' }).click();
+	await expect(sub.getByRole('link')).toHaveText([
+		'Playback',
+		'Home page',
+		'History',
+		'Blocked channels',
+		'Appearance',
+		'Account'
+	]);
+	await sub.getByRole('link', { name: 'Playback' }).click();
+	await expect(page).toHaveURL(/\/settings\/playback$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Playback' })).toBeVisible();
+	await expect(sub.getByRole('link', { name: 'Playback' })).toHaveAttribute('data-active', 'true');
+	await expect(sub.getByRole('link', { name: 'Playback' })).toHaveAttribute('aria-current', 'page');
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Settings sections' })
+			.getByRole('link', { name: 'Playback' })
+	).toHaveAttribute('aria-current', 'page');
+
+	await sub.getByRole('link', { name: 'Blocked channels' }).click();
+	await expect(page).toHaveURL(/\/settings\/blocked$/);
+	await expect(sub.getByRole('link', { name: 'Blocked channels' })).toHaveAttribute(
+		'data-active',
+		'true'
+	);
+	await expect(sub.getByRole('link', { name: 'Playback' })).toHaveAttribute('data-active', 'false');
+
+	// Collapsed elsewhere unless left open, and remembered across reloads.
+	await nav.getByRole('button', { name: 'Show settings sections' }).click();
+	await expect(sub).toBeHidden();
+	await nav.getByRole('link', { name: 'Home', exact: true }).click();
+	await expect(sub).toBeHidden();
+	await nav.getByRole('button', { name: 'Show settings sections' }).click();
+	await page.reload();
+	await expect(sub.getByRole('link', { name: 'Account' })).toBeVisible();
+});
+
+test('the collapsed sidebar lists the sections in the settings tooltip', async ({ page }) => {
+	await mockApi(page);
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+	await expect(page.locator('[data-slot="sidebar"][data-state="collapsed"]')).toBeVisible();
+
+	const gear = page.locator('[data-slot="sidebar"]').getByRole('link', { name: 'Settings' });
+	await gear.hover();
+	await expect(page.locator('[data-slot="tooltip-content"]').getByRole('listitem')).toHaveText([
+		'Playback',
+		'Home page',
+		'History',
+		'Blocked channels',
+		'Appearance',
+		'Account'
+	]);
+
+	await gear.click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await page
+		.getByRole('main')
+		.getByRole('link', { name: /History/ })
+		.click();
+	await expect(page).toHaveURL(/\/settings\/history$/);
+	await expect(gear).toHaveAttribute('data-active', 'true');
+});
+
+test('the mobile sheet lists the settings sections', async ({ page }) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await mockApi(page);
+	await page.goto('/settings/account');
+	await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+	const sheet = page.getByRole('dialog');
+	const sub = sheet.getByRole('list', { name: 'Settings sections' });
+	await expect(sub.getByRole('link', { name: 'Account' })).toHaveAttribute('data-active', 'true');
+	await sub.getByRole('link', { name: 'History' }).click();
+	await expect(page).toHaveURL(/\/settings\/history$/);
+	await expect(sheet).toBeHidden();
+	await page.getByRole('link', { name: 'All settings' }).click();
+	await expect(page).toHaveURL(/\/settings$/);
 });
 
 test('home page sections can be reordered, hidden and reset', async ({ page }) => {
 	const calls = await mockApi(page);
-	await page.goto('/settings');
+	await page.goto('/settings/home');
 
 	const shown = page.getByRole('list', { name: 'Shown' });
 	await expect(shown.getByRole('listitem')).toHaveText([
@@ -139,7 +254,7 @@ test('home page sections can be reordered, hidden and reset', async ({ page }) =
 
 test('playback preferences are saved', async ({ page }) => {
 	const calls = await mockApi(page);
-	await page.goto('/settings');
+	await page.goto('/settings/playback');
 
 	await page.getByText('Custom order', { exact: true }).click();
 	await expect.poll(() => calls.patches.at(-1)).toEqual({ video_codecs: ['av1', 'vp9', 'h264'] });
@@ -157,19 +272,9 @@ test('playback preferences are saved', async ({ page }) => {
 	await expect(order).toHaveCount(0);
 });
 
-test('blocked channels are managed on their own page', async ({ page }) => {
-	await mockApi(page);
-	await page.goto('/settings');
-	const blocked = page.getByRole('region', { name: 'Blocked channels' });
-	await expect(blocked.getByRole('link', { name: 'Manage' })).toHaveAttribute(
-		'href',
-		'/settings/blocked'
-	);
-});
-
 test('history can be paused from the settings', async ({ page }) => {
 	await mockApi(page);
-	await page.goto('/settings');
+	await page.goto('/settings/history');
 	const toggle = page.getByRole('switch', { name: 'Pause history' });
 	await expect(toggle).not.toBeChecked();
 	await toggle.click();
@@ -178,7 +283,7 @@ test('history can be paused from the settings', async ({ page }) => {
 
 test('the password can be changed', async ({ page }) => {
 	const calls = await mockApi(page);
-	await page.goto('/settings');
+	await page.goto('/settings/account');
 
 	await page.getByLabel('Current password').fill('wrong password');
 	await page.getByLabel('New password').fill('new password!!');
@@ -195,14 +300,14 @@ test('the password can be changed', async ({ page }) => {
 
 test('single sign-on users have no password form', async ({ page }) => {
 	await mockApi(page, { hasPassword: false });
-	await page.goto('/settings');
+	await page.goto('/settings/account');
 	await expect(page.getByText(/Single sign-on account since/)).toBeVisible();
 	await expect(page.getByLabel('Current password')).toHaveCount(0);
 });
 
 test('deleting the account needs the username and password', async ({ page }) => {
 	const calls = await mockApi(page);
-	await page.goto('/settings');
+	await page.goto('/settings/account');
 
 	await page.getByRole('button', { name: 'Delete account' }).click();
 	const dialog = page.getByRole('alertdialog');

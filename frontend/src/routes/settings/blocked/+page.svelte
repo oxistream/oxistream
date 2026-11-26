@@ -41,7 +41,7 @@
 	}
 </script>
 
-<div class="flex w-full max-w-3xl flex-col gap-6 px-(--page-gutter) py-6">
+<div class="flex w-full max-w-3xl flex-col gap-6">
 	<PageHeader
 		title={m.blocked_title()}
 		description={session.user && blocks.data
