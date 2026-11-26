@@ -501,7 +501,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search videos, channels and playlists. */
+        /** Search videos, shorts, channels and playlists. */
         get: operations["search"];
         put?: never;
         post?: never;
@@ -1630,6 +1630,8 @@ export interface operations {
             query?: {
                 /** @description Search query; required unless `continuation` is given. */
                 q?: string;
+                /** @description Result type, defaults to `all`. Pass the same type with `continuation`. */
+                type?: "all" | "videos" | "shorts" | "channels" | "playlists";
                 /** @description Token from a previous page. */
                 continuation?: string;
             };
@@ -2844,6 +2846,8 @@ export interface operations {
             query?: {
                 /** @description Search query; required unless `continuation` is given. */
                 q?: string;
+                /** @description Result type, defaults to `all`. Pass the same type with `continuation`. */
+                type?: "all" | "videos" | "shorts" | "channels" | "playlists";
                 /** @description Token from a previous page. */
                 continuation?: string;
             };
@@ -2864,7 +2868,7 @@ export interface operations {
                     "application/json": components["schemas"]["SearchPage"];
                 };
             };
-            /** @description Missing query */
+            /** @description Missing query or unknown type */
             400: {
                 headers: {
                     [name: string]: unknown;

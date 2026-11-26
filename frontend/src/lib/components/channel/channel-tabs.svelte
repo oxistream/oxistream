@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import type { ResolvedPathname } from '$app/types';
 	import { visibleTabs, type ChannelTab } from '#lib/channel-tabs.js';
+	import { tabLinkClass } from '#lib/components/tab-link.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { channelHref } from './links';
@@ -69,7 +70,7 @@
 						href={channelHref(base, tab)}
 						aria-current={tab === current ? 'page' : undefined}
 						data-sveltekit-noscroll
-						class="relative inline-flex h-10 items-center rounded-t-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-(--motion-in) ease-ui after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors hover:text-foreground focus-visible:outline-offset-[-2px] aria-[current=page]:text-foreground aria-[current=page]:after:bg-foreground"
+						class={tabLinkClass}
 					>
 						{labels[tab]()}
 					</a>
