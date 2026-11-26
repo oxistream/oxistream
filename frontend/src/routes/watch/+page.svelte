@@ -13,6 +13,7 @@
 		neighbors
 	} from '#lib/api/playlist-order.js';
 	import { createPlaylistQuery, useLastPlayed } from '#lib/api/playlists.js';
+	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import { createYouTubePlaylistQuery, mergeYouTubePlaylist } from '#lib/api/youtube-playlists.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
@@ -26,6 +27,7 @@
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
+	import SponsorBlockDialog from '#lib/components/sponsorblock/sponsorblock-dialog.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
@@ -38,6 +40,7 @@
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
+	import { resolveSegments } from '#lib/sponsorblock/skip.js';
 
 	const THEATER_KEY = 'oxistream:theater';
 	// Enough to find a video anywhere in YouTube's largest playlists (5,000 videos).
@@ -54,6 +57,20 @@
 	const likedVideos = createLikedVideosQuery(() => isLikedListId(listId));
 	const rememberLastPlayed = useLastPlayed();
 	const manifest = useManifest(() => videoId);
+	const segmentsQuery = useSegments(() => videoId);
+	const sponsorBlock = useSponsorBlockSettings();
+	const segments = $derived(
+		sponsorBlock.ready && segmentsQuery.data
+			? resolveSegments(segmentsQuery.data, sponsorBlock.current)
+			: []
+	);
+	let sponsorBlockOpen = $state(false);
+
+	async function openSponsorBlock() {
+		// The dialog cannot show above a fullscreen player.
+		if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+		sponsorBlockOpen = true;
+	}
 
 	let theater = $state(readJson(THEATER_KEY, (v): v is boolean => typeof v === 'boolean') ?? false);
 	let player = $state<ReturnType<typeof Player>>();
@@ -194,6 +211,8 @@
 
 <svelte:window {onkeydown} />
 
+<SponsorBlockDialog bind:open={sponsorBlockOpen} />
+
 {#if !videoId}
 	<div class="px-(--page-gutter) py-6">
 		<EmptyState
@@ -230,6 +249,8 @@
 							{startTime}
 							{theater}
 							autoplay
+							{segments}
+							onsponsorblocksettings={session.sponsorblock ? openSponsorBlock : undefined}
 							ontheatertoggle={toggleTheater}
 							onprogress={reportProgress(videoId)}
 							onended={playlistPosition.next ? playNext : undefined}

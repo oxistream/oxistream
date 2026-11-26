@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { pickImage, toChannel } from '#lib/api/mapping.js';
+	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import Player from '#lib/components/player/player.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
 	import PlayerMessage from '#lib/components/watch/player-message.svelte';
 	import { m } from '#lib/paraglide/messages.js';
+	import { resolveSegments } from '#lib/sponsorblock/skip.js';
 	import type { ChannelSummary, VideoSummary } from '#lib/video.js';
 	import ShortOverlay from './short-overlay.svelte';
 
@@ -34,6 +36,13 @@
 
 	const video = useVideo(() => id);
 	const manifest = useManifest(() => (loaded ? id : null));
+	const segmentsQuery = useSegments(() => (loaded ? id : null));
+	const sponsorBlock = useSponsorBlockSettings();
+	const segments = $derived(
+		sponsorBlock.ready && segmentsQuery.data
+			? resolveSegments(segmentsQuery.data, sponsorBlock.current)
+			: []
+	);
 
 	const details = $derived(video.data?.id === id ? video.data : undefined);
 	const title = $derived(details?.title ?? short.title);
@@ -83,6 +92,7 @@
 			src={manifestUrl(id)}
 			{poster}
 			variant="short"
+			{segments}
 			loop
 			autoplay={active}
 			globalHotkeys={active}

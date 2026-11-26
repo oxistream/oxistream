@@ -12,6 +12,7 @@
 	import '@videojs/html/media/dash-video';
 	import './videojs/video/skin';
 	import RectangleHorizontalIcon from '@lucide/svelte/icons/rectangle-horizontal';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import {
 		selectPlayback,
 		selectPlaybackRate,
@@ -27,6 +28,9 @@
 	import { readPreferences, savePreferences } from './preferences';
 	import { bridgeDashAudioTracks, type AudioTrackHost } from './dash-audio-tracks';
 	import { createProgressEmitter, type ProgressReport } from './progress';
+	import { categoryColor } from '#lib/sponsorblock/categories.js';
+	import { createSkipper, type AutoSkip, type PlayerSegment } from '#lib/sponsorblock/skip.js';
+	import SegmentOverlay from './segment-overlay.svelte';
 
 	let {
 		src,
@@ -40,6 +44,8 @@
 		globalHotkeys = true,
 		variant = 'video',
 		loop = false,
+		segments = [],
+		onsponsorblocksettings,
 		ontheatertoggle,
 		ontimeupdate,
 		onprogress,
@@ -66,6 +72,10 @@
 		 */
 		variant?: 'video' | 'short';
 		loop?: boolean;
+		/** SponsorBlock segments with the viewer's preferences applied. Shorts only auto-skip. */
+		segments?: PlayerSegment[];
+		/** Shows a SponsorBlock entry in the settings menu when set. */
+		onsponsorblocksettings?: () => void;
 		/** Shows a theater mode button when set. */
 		ontheatertoggle?: () => void;
 		ontimeupdate?: (currentTime: number, duration: number) => void;
@@ -95,8 +105,69 @@
 	});
 
 	let player: VideoPlayerElement;
-	let media: HTMLElement & Pick<HTMLMediaElement, 'play' | 'pause' | 'paused' | 'readyState'>;
+	let media: HTMLElement &
+		Pick<HTMLMediaElement, 'play' | 'pause' | 'paused' | 'readyState' | 'currentTime' | 'seeking'>;
 	let paused = $state(true);
+
+	// Highlight and whole-video label are offered at the start only.
+	const INTRO_WINDOW = 10;
+	const SKIPPED_NOTICE_MS = 6000;
+	let currentTime = $state(0);
+	let duration = $state(0);
+	const activeSegments = $derived(
+		variant === 'short' ? segments.filter((s) => s.kind === 'skip' && s.mode === 'auto') : segments
+	);
+	const skipper = $derived(createSkipper(activeSegments));
+	let lastSkip = $state<AutoSkip | null>(null);
+	const skipButton = $derived(variant === 'video' ? skipper.button(currentTime) : undefined);
+	const highlight = $derived(activeSegments.find((s) => s.kind === 'highlight'));
+	const offerHighlight = $derived(
+		variant === 'video' &&
+			!!highlight &&
+			currentTime < INTRO_WINDOW &&
+			currentTime < highlight.start - 1
+	);
+	const fullLabel = $derived(activeSegments.find((s) => s.kind === 'full'));
+	const markers = $derived(
+		variant === 'video' && duration > 0
+			? activeSegments
+					.filter((s) => s.kind !== 'full' && s.start < duration)
+					.map((s) => ({
+						id: s.id,
+						category: s.category,
+						point: s.kind === 'highlight',
+						left: (s.start / duration) * 100,
+						width: ((Math.min(s.end, duration) - s.start) / duration) * 100
+					}))
+			: []
+	);
+
+	// Our own seeks must not count as the user seeking into a segment.
+	let internalTarget: number | null = null;
+	function seekInternal(seconds: number) {
+		const time = player?.store.target ? selectTime(player.store.state) : undefined;
+		if (!time) return;
+		internalTarget = seconds;
+		void time.seek(seconds);
+	}
+
+	function autoSkip(skip: AutoSkip) {
+		seekInternal(duration > 0 ? Math.min(skip.target, duration) : skip.target);
+		lastSkip = skip;
+	}
+
+	function undoSkip() {
+		if (!lastSkip) return;
+		skipper.suppress(lastSkip.segment.id);
+		seekInternal(lastSkip.segment.start);
+		lastSkip = null;
+	}
+
+	$effect(() => {
+		if (!lastSkip) return;
+		const timer = setTimeout(() => (lastSkip = null), SKIPPED_NOTICE_MS);
+		return () => clearTimeout(timer);
+	});
 
 	/** Jumps to `seconds` and keeps playing, as when a timestamp in the description is clicked. */
 	export function seek(seconds: number) {
@@ -208,12 +279,28 @@
 			if (startApplied) return;
 			startApplied = true;
 			if (prefs.playbackRate) selectPlaybackRate(store.state)?.setPlaybackRate(prefs.playbackRate);
-			if (startTime > 0) void selectTime(store.state)?.seek(startTime);
+			if (startTime > 0) seekInternal(startTime);
 		};
 		const onTimeUpdate = () => {
-			const { position, duration } = snapshot();
-			ontimeupdate?.(position, duration);
-			progress.update(position, duration, !selectPlayback(store.state)?.paused);
+			const now = snapshot();
+			currentTime = now.position;
+			duration = now.duration;
+			ontimeupdate?.(now.position, now.duration);
+			progress.update(now.position, now.duration, !selectPlayback(store.state)?.paused);
+			checkSkip();
+		};
+		const checkSkip = () => {
+			if (media.seeking) return;
+			const skip = skipper.autoSkip(media.currentTime);
+			if (skip) autoSkip(skip);
+		};
+		const onSeeking = () => {
+			const target = media.currentTime;
+			const internal = internalTarget !== null && Math.abs(target - internalTarget) < 1;
+			internalTarget = null;
+			if (internal) return;
+			skipper.seeked(target);
+			lastSkip = null;
 		};
 		const flush = (reason: 'pause' | 'ended' | 'unload') => () => {
 			const { position, duration } = snapshot();
@@ -232,6 +319,9 @@
 
 		media.addEventListener('loadedmetadata', onLoadedMetadata);
 		media.addEventListener('timeupdate', onTimeUpdate);
+		media.addEventListener('seeking', onSeeking);
+		// Also while paused, e.g. when a skip button lands in an automatic segment.
+		media.addEventListener('seeked', checkSkip);
 		media.addEventListener('pause', onPause);
 		media.addEventListener('ended', onEnded);
 		window.addEventListener('pagehide', onUnload);
@@ -243,6 +333,8 @@
 			unbridgeAudio();
 			media.removeEventListener('loadedmetadata', onLoadedMetadata);
 			media.removeEventListener('timeupdate', onTimeUpdate);
+			media.removeEventListener('seeking', onSeeking);
+			media.removeEventListener('seeked', checkSkip);
 			media.removeEventListener('pause', onPause);
 			media.removeEventListener('ended', onEnded);
 			window.removeEventListener('pagehide', onUnload);
@@ -431,6 +523,20 @@
 											</div>
 										</template>
 									</media-time-slider-chapters>
+									{#if markers.length}
+										<div class="oxi-segment-markers" aria-hidden="true">
+											{#each markers as marker (marker.id)}
+												<span
+													class="oxi-segment-marker"
+													data-category={marker.category}
+													data-point={marker.point ? '' : undefined}
+													style:left="{marker.left}%"
+													style:width={marker.point ? undefined : `${marker.width}%`}
+													style:background-color={categoryColor(marker.category)}
+												></span>
+											{/each}
+										</div>
+									{/if}
 									<media-slider-thumb class="media-slider-thumb media-time-slider-thumb">
 									</media-slider-thumb>
 									<media-slider-preview class="media-slider-preview" overflow="visible">
@@ -622,6 +728,18 @@
 											</template>
 										</media-captions-radio-group>
 									</media-menu-content>
+									{#if onsponsorblocksettings}
+										<media-menu-item
+											class="media-menu-trigger-item oxi-sponsorblock-item"
+											data-testid="player-sponsorblock-settings"
+											role="menuitem"
+											onselect={onsponsorblocksettings}
+										>
+											<ShieldCheckIcon class="media-menu-trigger-item-icon" aria-hidden="true" />
+											<span>{m.sponsorblock_title()}</span>
+											<span class="media-menu-hint"></span>
+										</media-menu-item>
+									{/if}
 								</media-menu-content>
 							</media-menu>
 						</media-controls-group>
@@ -725,6 +843,19 @@
 					</media-tooltip-group>
 				</media-controls-content>
 			</media-controls>
+			{#if activeSegments.length}
+				<SegmentOverlay
+					skipped={lastSkip?.segment.category}
+					onundo={undoSkip}
+					skippable={skipButton?.category}
+					onskip={() => skipButton && seekInternal(skipButton.end)}
+					highlight={offerHighlight}
+					onhighlight={() => highlight && seekInternal(highlight.start)}
+					label={variant === 'video' && fullLabel && (currentTime < INTRO_WINDOW || showPaused)
+						? fullLabel.category
+						: undefined}
+				/>
+			{/if}
 			<media-hotkey target={hotkeyTarget} keys="Space" action="togglePaused"> </media-hotkey>
 			{#if variant === 'video'}
 				<media-hotkey target={hotkeyTarget} keys="k" action="togglePaused"> </media-hotkey>
@@ -853,6 +984,32 @@
 	/* Video thumbnails often come as 4:3 with letterbox bars; cover crops exactly those bars. */
 	.oxi-player :global(.media-poster-image) {
 		object-fit: cover;
+	}
+
+	.oxi-segment-markers {
+		position: absolute;
+		inset-inline: 0;
+		top: 50%;
+		height: var(--media-spacing, 0.25rem);
+		translate: 0 -50%;
+		pointer-events: none;
+	}
+
+	.oxi-segment-marker {
+		position: absolute;
+		inset-block: 0;
+		min-width: 2px;
+		opacity: 0.9;
+	}
+
+	.oxi-segment-marker[data-point] {
+		width: 3px;
+		translate: -50% 0;
+	}
+
+	.oxi-player :global(.oxi-sponsorblock-item svg) {
+		width: 1.125rem;
+		height: 1.125rem;
 	}
 
 	.oxi-player :global(.oxi-theater-button svg) {

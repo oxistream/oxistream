@@ -30,3 +30,17 @@
 <Story name="With theater button" args={{ ontheatertoggle: () => {} }} {template} />
 
 <Story name="Theater" args={{ theater: true, ontheatertoggle: () => {} }} {template} />
+
+<Story
+	name="SponsorBlock segments"
+	args={{
+		segments: [
+			{ id: 'i', category: 'intro', kind: 'skip', mode: 'button', start: 0, end: 4 },
+			{ id: 's', category: 'sponsor', kind: 'skip', mode: 'auto', start: 8, end: 14 },
+			{ id: 'h', category: 'poi_highlight', kind: 'highlight', start: 20, end: 20 },
+			{ id: 'x', category: 'exclusive_access', kind: 'full', start: 0, end: 0 }
+		],
+		onsponsorblocksettings: () => {}
+	}}
+	{template}
+/>

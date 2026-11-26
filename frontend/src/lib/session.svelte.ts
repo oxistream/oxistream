@@ -70,6 +70,11 @@ class Session {
 		return this.#instance?.data?.auth ?? null;
 	}
 
+	/** The instance serves SponsorBlock segments. */
+	get sponsorblock(): boolean {
+		return this.#instance?.data?.sponsorblock ?? false;
+	}
+
 	get user(): User | null {
 		const account = this.account;
 		return account ? { id: account.id, name: account.username, username: account.username } : null;
