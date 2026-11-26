@@ -38,9 +38,22 @@
 			{ id: 'i', category: 'intro', kind: 'skip', mode: 'button', start: 0, end: 4 },
 			{ id: 's', category: 'sponsor', kind: 'skip', mode: 'auto', start: 8, end: 14 },
 			{ id: 'h', category: 'poi_highlight', kind: 'highlight', start: 20, end: 20 },
+			{ id: 'f', category: 'filler', kind: 'skip', mode: 'button', start: 30, end: 45 },
 			{ id: 'x', category: 'exclusive_access', kind: 'full', start: 0, end: 0 }
 		],
 		onsponsorblocksettings: () => {}
+	}}
+	{template}
+/>
+
+<Story
+	name="SponsorBlock hover labels"
+	args={{
+		segments: [
+			{ id: 's', category: 'sponsor', kind: 'skip', mode: 'auto', start: 10, end: 60 },
+			{ id: 'o', category: 'outro', kind: 'skip', mode: 'button', start: 100, end: 134 },
+			{ id: 'h', category: 'poi_highlight', kind: 'highlight', start: 75, end: 75 }
+		]
 	}}
 	{template}
 />

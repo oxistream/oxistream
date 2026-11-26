@@ -5,7 +5,7 @@
 	const { Story } = defineMeta({
 		title: 'Player/SegmentOverlay',
 		component: SegmentOverlay,
-		args: { onundo: () => {}, onskip: () => {}, onhighlight: () => {} }
+		args: { onundo: () => {}, onskip: () => {} }
 	});
 </script>
 
@@ -28,6 +28,4 @@
 	{template}
 />
 
-<Story name="Highlight" args={{ highlight: true }} {template} />
-
-<Story name="Full-video label" args={{ label: 'exclusive_access', highlight: true }} {template} />
+<Story name="Full-video label" args={{ label: 'exclusive_access' }} {template} />

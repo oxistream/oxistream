@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings, normalizeSettings, type Segment } from './settings';
-import { createSkipper, resolveSegments, type PlayerSegment } from './skip';
+import { createSkipper, resolveSegments, segmentAt, type PlayerSegment } from './skip';
 
 const segment = (
 	id: string,
@@ -107,5 +107,61 @@ describe('createSkipper', () => {
 		const skipper = createSkipper([auto('a', 10, 20)]);
 		skipper.seeked(5);
 		expect(skipper.autoSkip(10)).not.toBeNull();
+	});
+});
+
+describe('upcoming skip', () => {
+	const auto = (id: string, start: number, end: number): PlayerSegment => ({
+		id,
+		category: 'sponsor',
+		kind: 'skip',
+		mode: 'auto',
+		start,
+		end
+	});
+
+	it('looks ahead to the next automatic skip and its chained target', () => {
+		const skipper = createSkipper([auto('b', 40, 50), auto('a', 10, 20), auto('c', 19, 25)]);
+		expect(skipper.upcoming(5, 8)).toBe(25);
+		expect(skipper.upcoming(0, 8)).toBeNull();
+		expect(skipper.upcoming(12, 5)).toBeNull();
+		expect(skipper.upcoming(12, 8)).toBe(25);
+		expect(skipper.upcoming(35, 8)).toBe(50);
+	});
+
+	it('skips suppressed segments', () => {
+		const skipper = createSkipper([auto('a', 10, 20)]);
+		skipper.suppress('a');
+		expect(skipper.upcoming(5, 8)).toBeNull();
+	});
+});
+
+describe('segmentAt', () => {
+	const segments: PlayerSegment[] = [
+		{ id: 's', category: 'sponsor', kind: 'skip', mode: 'auto', start: 10, end: 30 },
+		{ id: 'i', category: 'interaction', kind: 'skip', mode: 'button', start: 15, end: 18 },
+		{ id: 'h', category: 'poi_highlight', kind: 'highlight', start: 50, end: 50 },
+		{ id: 'x', category: 'exclusive_access', kind: 'full', start: 0, end: 0 }
+	];
+
+	it('finds the range under the pointer', () => {
+		expect(segmentAt(segments, 10)?.id).toBe('s');
+		expect(segmentAt(segments, 29.9)?.id).toBe('s');
+		expect(segmentAt(segments, 30)).toBeUndefined();
+		expect(segmentAt(segments, 5)).toBeUndefined();
+	});
+
+	it('prefers the shortest overlapping range', () => {
+		expect(segmentAt(segments, 16)?.id).toBe('i');
+	});
+
+	it('finds a highlight near the pointer', () => {
+		expect(segmentAt(segments, 50.4, 0.5)?.id).toBe('h');
+		expect(segmentAt(segments, 51, 0.5)).toBeUndefined();
+		expect(segmentAt(segments, 50)?.id).toBe('h');
+	});
+
+	it('ignores whole-video labels', () => {
+		expect(segmentAt(segments, 0, 1)).toBeUndefined();
 	});
 });

@@ -35,7 +35,7 @@ function serveClip(route: Route) {
 }
 
 /** A guest on an instance with SponsorBlock; nothing reaches the backend or YouTube. */
-async function mockApi(page: Page) {
+async function mockApi(page: Page, list: unknown[] = segments) {
 	const requests: string[] = [];
 	page.on('request', (request) => requests.push(request.url()));
 	await page.route('**/api/v0/**', (route) => json(route, { code: 'not_found', message: '' }, 404));
@@ -61,7 +61,7 @@ async function mockApi(page: Page) {
 	await page.route(`**/api/v0/videos/${ID}/manifest.mpd`, (route) =>
 		route.fulfill({ status: 200, contentType: 'application/dash+xml', body: MPD })
 	);
-	await page.route(`**/api/v0/videos/${ID}/segments`, (route) => json(route, { segments }));
+	await page.route(`**/api/v0/videos/${ID}/segments`, (route) => json(route, { segments: list }));
 	await page.route(`**/api/v0/videos/${ID}`, (route) =>
 		json(route, {
 			id: ID,
@@ -139,4 +139,68 @@ test('guests change preferences from the player menu', async ({ page }) => {
 
 	await page.reload();
 	await expect(page.locator('.oxi-segment-marker')).toHaveCount(1);
+});
+
+/** Moving over the player first shows its controls. */
+async function showControls(page: Page) {
+	const box = (await page.locator('.oxi-player-frame').boundingBox())!;
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+}
+
+async function hoverAt(page: Page, seconds: number) {
+	await showControls(page);
+	const slider = page.locator('.video-controls-time-slider');
+	await expect(slider).toBeVisible();
+	const box = (await slider.boundingBox())!;
+	await page.mouse.move(box.x + (box.width * seconds) / 6, box.y + box.height / 2);
+}
+
+test('hovering the progress bar names the segment', async ({ page }) => {
+	await mockApi(page);
+	await page.goto(`/watch?v=${ID}`);
+	await expect(page.locator('.oxi-segment-marker')).toHaveCount(2);
+	await media(page).evaluate((element) => (element as unknown as HTMLMediaElement).pause());
+
+	const label = page.getByTestId('segment-hover');
+	await hoverAt(page, 2);
+	await expect(label).toHaveText('Sponsor');
+	await expect(label).toHaveAttribute('data-category', 'sponsor');
+	await hoverAt(page, 4.5);
+	await expect(label).toHaveText('Self-promotion');
+	await hoverAt(page, 0.5);
+	await expect(label).toHaveCount(0);
+
+	await page.evaluate(() => localStorage.setItem('PARAGLIDE_LOCALE', 'de'));
+	await page.reload();
+	await expect(page.locator('.oxi-segment-marker')).toHaveCount(2);
+	await media(page).evaluate((element) => (element as unknown as HTMLMediaElement).pause());
+	await hoverAt(page, 4.5);
+	await expect(label).toHaveText('Eigenwerbung');
+});
+
+test('the highlight button jumps to the highlight', async ({ page }) => {
+	await mockApi(page, [{ id: 'h', category: 'poi_highlight', action: 'poi', start: 4, end: 4 }]);
+	await page.goto(`/watch?v=${ID}`);
+	await expect(page.locator('.oxi-segment-marker')).toHaveCount(1);
+	await media(page).evaluate((element) => (element as unknown as HTMLMediaElement).pause());
+
+	await showControls(page);
+	const button = page.getByRole('button', { name: 'Jump to highlight' });
+	await button.click();
+	await expect.poll(() => currentTime(page)).toBeGreaterThanOrEqual(3.9);
+	await hoverAt(page, 4);
+	await expect(page.getByTestId('segment-hover')).toHaveText('Highlight');
+
+	await page.evaluate(() =>
+		localStorage.setItem('oxistream:sponsorblock', JSON.stringify({ highlight: false }))
+	);
+	const loaded = page.waitForResponse(`**/api/v0/videos/${ID}/segments`);
+	await page.reload();
+	await loaded;
+	await expect
+		.poll(() =>
+			media(page).evaluate((element) => (element as unknown as HTMLMediaElement).duration)
+		)
+		.toBeGreaterThan(0);
+	await expect(page.getByTestId('player-highlight')).toHaveCount(0);
 });
