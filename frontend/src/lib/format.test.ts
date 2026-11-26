@@ -5,6 +5,7 @@ import {
 	formatDuration,
 	formatDurationLong,
 	formatNumber,
+	formatRelativeDay,
 	formatRelativeTime
 } from './format';
 
@@ -79,6 +80,25 @@ describe('formatRelativeTime', () => {
 		expect(formatRelativeTime('2026-11-26T09:00:00Z', 'de', now)).toBe('vor 3 Stunden');
 		expect(formatRelativeTime('2026-11-25T10:00:00Z', 'de', now)).toBe('gestern');
 		expect(formatRelativeTime(new Date('2026-11-20T12:00:00Z'), 'de', now)).toBe('vor 6 Tagen');
+	});
+});
+
+describe('formatRelativeDay', () => {
+	const now = new Date(2026, 10, 26, 23, 30);
+
+	it('counts calendar days, not hours', () => {
+		expect(formatRelativeDay('2026-11-26', 'en', now)).toBe('today');
+		expect(formatRelativeDay('2026-11-25', 'en', now)).toBe('yesterday');
+		expect(formatRelativeDay('2026-11-22', 'en', now)).toBe('4 days ago');
+		expect(formatRelativeDay('2026-11-05', 'en', now)).toBe('3 weeks ago');
+		expect(formatRelativeDay('2024-05-01', 'en', now)).toBe('2 years ago');
+		expect(formatRelativeDay('2026-11-27', 'en', now)).toBe('today');
+	});
+
+	it('localizes to German', () => {
+		expect(formatRelativeDay('2026-11-26', 'de', now)).toBe('heute');
+		expect(formatRelativeDay('2026-11-24', 'de', now)).toBe('vorgestern');
+		expect(formatRelativeDay('2026-08-01', 'de', now)).toBe('vor 3 Monaten');
 	});
 });
 

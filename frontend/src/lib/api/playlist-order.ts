@@ -44,3 +44,22 @@ export function resumeVideo<T extends { id: string }>(
 ): T | undefined {
 	return items.find((item) => item.id === lastVideoId) ?? items[0];
 }
+
+/** YouTube mixes (`RD…`) are generated per viewer; only curated `RDCLAK…` lists have a page. */
+export function isMixId(id: string | null | undefined): boolean {
+	return typeof id === 'string' && id.startsWith('RD') && !id.startsWith('RDCLAK');
+}
+
+/**
+ * Whether more of a paginated playlist must be loaded for playback: the current video is not
+ * among the loaded items yet, or is so close to the end that the next one may be missing.
+ */
+export function needsMoreItems(
+	items: readonly { id: string }[],
+	currentId: string | null | undefined,
+	lookahead = 2
+): boolean {
+	if (!currentId) return false;
+	const index = items.findIndex((item) => item.id === currentId);
+	return index < 0 || index >= items.length - lookahead;
+}

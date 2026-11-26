@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { dropIndex, isLocalPlaylistId, moveItem, neighbors, resumeVideo } from './playlist-order';
+import {
+	dropIndex,
+	isLocalPlaylistId,
+	isMixId,
+	moveItem,
+	needsMoreItems,
+	neighbors,
+	resumeVideo
+} from './playlist-order';
 
 const items = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
 const ids = (list: { id: string }[]) => list.map((item) => item.id).join('');
@@ -73,5 +81,27 @@ describe('resumeVideo', () => {
 		expect(resumeVideo(items, 'gone')).toEqual({ id: 'a' });
 		expect(resumeVideo(items, null)).toEqual({ id: 'a' });
 		expect(resumeVideo([], 'a')).toBeUndefined();
+	});
+});
+
+describe('isMixId', () => {
+	it('tells generated mixes from curated RDCLAK lists', () => {
+		expect(isMixId('RDdQw4w9WgXcQ')).toBe(true);
+		expect(isMixId('RDMMdQw4w9WgXcQ')).toBe(true);
+		expect(isMixId('RDCLAK5uy_kFQXdnqMaQCVx2wpUM4ZfbsGCDibZtkJk')).toBe(false);
+		expect(isMixId('PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf')).toBe(false);
+		expect(isMixId(null)).toBe(false);
+	});
+});
+
+describe('needsMoreItems', () => {
+	it('asks for more until the current video and its successors are loaded', () => {
+		expect(needsMoreItems(items, 'a')).toBe(false);
+		expect(needsMoreItems(items, 'b')).toBe(false);
+		expect(needsMoreItems(items, 'c')).toBe(true);
+		expect(needsMoreItems(items, 'd')).toBe(true);
+		expect(needsMoreItems(items, 'later')).toBe(true);
+		expect(needsMoreItems(items, 'b', 3)).toBe(true);
+		expect(needsMoreItems(items, null)).toBe(false);
 	});
 });

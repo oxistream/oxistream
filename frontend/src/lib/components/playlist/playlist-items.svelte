@@ -8,7 +8,7 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { resolve } from '$app/paths';
 	import { dropIndex, moveItem } from '#lib/api/playlist-order.js';
-	import type { PlaylistVideo } from '#lib/api/playlists.js';
+	import type { VideoSummary } from '#lib/video.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import VideoThumbnail from '#lib/components/video/video-thumbnail.svelte';
@@ -27,11 +27,11 @@
 		class: className
 	}: {
 		playlistId: string;
-		items: PlaylistVideo[];
+		items: VideoSummary[];
 		/** Shows drag handles and item menus. */
 		editable?: boolean;
-		onmove?: (video: PlaylistVideo, from: number, to: number) => void;
-		onremove?: (video: PlaylistVideo) => void;
+		onmove?: (video: VideoSummary, from: number, to: number) => void;
+		onremove?: (video: VideoSummary) => void;
 		class?: string;
 	} = $props();
 
@@ -42,7 +42,7 @@
 
 	const shown = $derived(drag ? moveItem(items, drag.from, drag.to) : items);
 
-	function move(video: PlaylistVideo, from: number, to: number) {
+	function move(video: VideoSummary, from: number, to: number) {
 		const target = Math.max(0, Math.min(to, items.length - 1));
 		if (target === from) return;
 		onmove?.(video, from, target);
@@ -53,7 +53,7 @@
 		});
 	}
 
-	function startDrag(event: PointerEvent, video: PlaylistVideo, index: number) {
+	function startDrag(event: PointerEvent, video: VideoSummary, index: number) {
 		if (!list || (event.pointerType === 'mouse' && event.button !== 0)) return;
 		event.preventDefault();
 		try {
@@ -91,7 +91,7 @@
 	}
 
 	// Keyboard alternative to dragging, on the focused handle.
-	function handleKey(event: KeyboardEvent, video: PlaylistVideo, index: number) {
+	function handleKey(event: KeyboardEvent, video: VideoSummary, index: number) {
 		const targets: Record<string, number> = {
 			ArrowUp: index - 1,
 			ArrowDown: index + 1,

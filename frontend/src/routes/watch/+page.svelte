@@ -2,13 +2,20 @@
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { pickImage } from '#lib/api/mapping.js';
+	import { ApiError, pickImage } from '#lib/api/mapping.js';
 	import { createProgressReporter, createVideoProgressQuery } from '#lib/api/history.js';
-	import { isLocalPlaylistId, neighbors } from '#lib/api/playlist-order.js';
+	import {
+		isLocalPlaylistId,
+		isMixId,
+		needsMoreItems,
+		neighbors
+	} from '#lib/api/playlist-order.js';
 	import { createPlaylistQuery, useLastPlayed } from '#lib/api/playlists.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
+	import { createYouTubePlaylistQuery, mergeYouTubePlaylist } from '#lib/api/youtube-playlists.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
 	import { playlistWatchHref } from '#lib/components/playlist/links.js';
+	import { localPlayback, youtubePlayback } from '#lib/components/playlist/playback.js';
 	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
@@ -27,6 +34,8 @@
 	import { session } from '#lib/session.svelte.js';
 
 	const THEATER_KEY = 'oxistream:theater';
+	// Enough to find a video anywhere in YouTube's largest playlists (5,000 videos).
+	const MAX_PLAYLIST_PAGES = 60;
 
 	const videoId = $derived(page.url.searchParams.get('v'));
 	const timeParam = $derived(page.url.searchParams.get('t'));
@@ -35,6 +44,7 @@
 
 	const video = useVideo(() => videoId);
 	const playlist = createPlaylistQuery(() => listId);
+	const youtubePlaylist = createYouTubePlaylistQuery(() => listId);
 	const rememberLastPlayed = useLastPlayed();
 	const manifest = useManifest(() => videoId);
 
@@ -67,14 +77,29 @@
 				: pageTitle(m.watch_title())
 	);
 
-	const playlistPosition = $derived(
-		playlist.data ? neighbors(playlist.data.items, videoId) : { index: -1 }
-	);
+	const localList = $derived(isLocalPlaylistId(listId));
+	const youtubeList = $derived(mergeYouTubePlaylist(youtubePlaylist.data));
+	const playback = $derived.by(() => {
+		if (localList) return playlist.data ? localPlayback(playlist.data) : undefined;
+		return youtubeList ? youtubePlayback(youtubeList, youtubePlaylist.hasNextPage) : undefined;
+	});
+	const playlistPosition = $derived(playback ? neighbors(playback.items, videoId) : { index: -1 });
 	const playlistStatus = $derived.by(() => {
 		if (!listId) return null;
-		if (!isLocalPlaylistId(listId)) return 'unsupported';
-		if (playlist.data) return 'ready';
-		return playlist.isError ? 'unavailable' : 'loading';
+		if (isMixId(listId)) return 'mix';
+		if (playback) return 'ready';
+		const error = localList ? playlist.error : youtubePlaylist.error;
+		if (!error) return 'loading';
+		return error instanceof ApiError && error.reason === 'mix' ? 'mix' : 'unavailable';
+	});
+
+	// YouTube playlists come in pages: load until the current video and the one after it are known.
+	$effect(() => {
+		const query = youtubePlaylist;
+		if (!youtubeList || !query.hasNextPage || query.isFetching || query.isFetchNextPageError)
+			return;
+		if ((query.data?.pages.length ?? 0) >= MAX_PLAYLIST_PAGES) return;
+		if (needsMoreItems(youtubeList.items, videoId)) void query.fetchNextPage();
 	});
 
 	// The owner's resume point for "Continue" on the playlist page.
@@ -86,8 +111,7 @@
 
 	function playNext() {
 		const next = playlistPosition.next;
-
-		if (next && playlist.data) void goto(playlistWatchHref(next.id, playlist.data.id));
+		if (next && playback) void goto(playlistWatchHref(next.id, playback.id));
 	}
 
 	const explicitStart = $derived(parseStartTime(timeParam));
@@ -216,9 +240,13 @@
 
 			{#if playlistStatus}
 				<PlaylistPanel
-					playlist={playlist.data}
+					playlist={playback}
 					currentId={videoId}
 					status={playlistStatus}
+					hasMore={!localList && youtubePlaylist.hasNextPage}
+					loadingMore={youtubePlaylist.isFetchingNextPage}
+					loadFailed={youtubePlaylist.isFetchNextPageError}
+					onloadmore={() => void youtubePlaylist.fetchNextPage()}
 					class="watch-playlist"
 				/>
 			{/if}
@@ -265,6 +293,11 @@
 	.watch :global(.watch-playlist) {
 		grid-area: playlist;
 		max-height: 26rem;
+	}
+
+	/* A notice instead of a list only takes the space it needs. */
+	.watch :global(.watch-playlist:not([data-status='ready'], [data-status='loading'])) {
+		align-self: start;
 	}
 
 	@container (width >= 60rem) {

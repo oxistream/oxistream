@@ -25,13 +25,14 @@
 	import PlaylistCover from '#lib/components/playlist/playlist-cover.svelte';
 	import PlaylistFormDialog from '#lib/components/playlist/playlist-form-dialog.svelte';
 	import PlaylistItems from '#lib/components/playlist/playlist-items.svelte';
+	import PlaylistLayout from '#lib/components/playlist/playlist-layout.svelte';
 	import VisibilityLabel from '#lib/components/playlist/visibility-label.svelte';
+	import YouTubePlaylistView from '#lib/components/playlist/youtube-playlist-view.svelte';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import ErrorState from '#lib/components/state/error-state.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
-	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { formatDurationLong, formatNumber } from '#lib/format.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -41,7 +42,7 @@
 	const locale = getLocale();
 	const client = useQueryClient();
 	const listId = $derived(page.url.searchParams.get('list'));
-	const supported = $derived(isLocalPlaylistId(listId));
+	const local = $derived(isLocalPlaylistId(listId));
 	const playlist = createPlaylistQuery(() => listId);
 	const update = createUpdatePlaylistMutation();
 	const remove = createDeletePlaylistMutation();
@@ -65,13 +66,7 @@
 	const title = $derived(
 		data
 			? pageTitle(data.title)
-			: pageTitle(
-					!supported && listId
-						? m.playlist_unsupported_title()
-						: notFound
-							? m.playlist_not_found_title()
-							: m.search_playlist()
-				)
+			: pageTitle(notFound ? m.playlist_not_found_title() : m.search_playlist())
 	);
 
 	function save(fields: PlaylistFields) {
@@ -102,39 +97,21 @@
 </script>
 
 <svelte:head>
-	<title>{title}</title>
+	{#if !listId || local}<title>{title}</title>{/if}
 </svelte:head>
 
 <div class="px-(--page-gutter) py-6">
-	{#if !data}<h1 class="sr-only">{m.search_playlist()}</h1>{/if}
+	{#if !data && (local || !listId)}<h1 class="sr-only">{m.search_playlist()}</h1>{/if}
 	{#if !listId}
 		<EmptyState
 			icon={ListVideoIcon}
 			title={m.playlist_none_title()}
 			description={m.playlist_none_body()}
 		/>
-	{:else if !supported}
-		<EmptyState
-			icon={ListVideoIcon}
-			title={m.playlist_unsupported_title()}
-			description={m.playlist_unsupported_body()}
-		/>
+	{:else if !local}
+		<YouTubePlaylistView {listId} />
 	{:else if playlist.isPending}
-		<div class="playlist-layout" role="status" aria-label={m.playlist_loading()}>
-			<div class="flex flex-col gap-3">
-				<Skeleton class="aspect-video w-full rounded-lg" />
-				<Skeleton class="h-6 w-3/4" />
-				<Skeleton class="h-4 w-1/2" />
-			</div>
-			<div class="flex flex-col gap-3">
-				{#each { length: 6 }, i (i)}
-					<div class="flex items-center gap-3">
-						<Skeleton class="aspect-video w-32 shrink-0 rounded-md sm:w-40" />
-						<Skeleton class="h-4 flex-1" />
-					</div>
-				{/each}
-			</div>
-		</div>
+		<PlaylistLayout />
 	{:else if notFound}
 		<EmptyState
 			icon={ListVideoIcon}
@@ -152,8 +129,8 @@
 			onretry={() => void playlist.refetch()}
 		/>
 	{:else}
-		<div class="playlist-layout">
-			<aside class="playlist-hero flex flex-col gap-4">
+		<PlaylistLayout>
+			{#snippet hero()}
 				<PlaylistCover src={data.thumbnailUrl} count={data.items.length} class="max-w-md" />
 				<div class="flex min-w-0 flex-col gap-1.5">
 					<h1 class="text-xl font-semibold tracking-tight text-pretty break-words">
@@ -232,29 +209,27 @@
 				{#if data.isOwner && data.visibility === 'private'}
 					<p class="text-xs text-muted-foreground">{m.playlist_private_hint()}</p>
 				{/if}
-			</aside>
+			{/snippet}
 
-			<section aria-label={m.playlist_items_label()} class="min-w-0">
-				{#if data.items.length === 0}
-					<EmptyState
-						icon={ListVideoIcon}
-						title={m.playlist_empty_title()}
-						description={m.playlist_empty_body()}
-						headingLevel={2}
-					/>
-				{:else}
-					<PlaylistItems
-						playlistId={data.id}
-						items={data.items}
-						editable={data.isOwner}
-						onmove={(video, from, to) =>
-							moveMutation.mutate({ playlistId: data.id, videoId: video.id, from, to })}
-						onremove={(video) =>
-							itemMutation.mutate({ playlistId: data.id, videoId: video.id, add: false })}
-					/>
-				{/if}
-			</section>
-		</div>
+			{#if data.items.length === 0}
+				<EmptyState
+					icon={ListVideoIcon}
+					title={m.playlist_empty_title()}
+					description={m.playlist_empty_body()}
+					headingLevel={2}
+				/>
+			{:else}
+				<PlaylistItems
+					playlistId={data.id}
+					items={data.items}
+					editable={data.isOwner}
+					onmove={(video, from, to) =>
+						moveMutation.mutate({ playlistId: data.id, videoId: video.id, from, to })}
+					onremove={(video) =>
+						itemMutation.mutate({ playlistId: data.id, videoId: video.id, add: false })}
+				/>
+			{/if}
+		</PlaylistLayout>
 
 		{#if data.isOwner}
 			<PlaylistFormDialog
@@ -292,25 +267,3 @@
 		{/if}
 	{/if}
 </div>
-
-<style>
-	.playlist-layout {
-		display: grid;
-		gap: 1.5rem;
-		max-width: 96rem;
-		margin-inline: auto;
-	}
-
-	@media (width >= 64rem) {
-		.playlist-layout {
-			grid-template-columns: 24rem minmax(0, 1fr);
-			gap: 2rem;
-			align-items: start;
-		}
-
-		.playlist-hero {
-			position: sticky;
-			top: 5rem;
-		}
-	}
-</style>
