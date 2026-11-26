@@ -274,6 +274,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/videos/{id}/storyboard.vtt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets. */
+        get: operations["storyboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -454,6 +471,8 @@ export interface components {
             /** @description Localized, human-readable publish date as shown by YouTube. */
             published_text?: string | null;
             related: components["schemas"]["VideoSummary"][];
+            /** @description `WebVTT` thumbnails track for seek previews; absent without storyboard. */
+            storyboard_url?: string | null;
             /** @description Empty when the player data could not be fetched. */
             subtitles: components["schemas"]["Subtitle"][];
             thumbnails: components["schemas"]["Thumbnail"][];
@@ -1185,6 +1204,65 @@ export interface operations {
                 };
             };
             /** @description Not found, unavailable, live or without playable streams */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    storyboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WebVTT thumbnails track */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/vtt": string;
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, unavailable or without storyboard */
             404: {
                 headers: {
                     [name: string]: unknown;

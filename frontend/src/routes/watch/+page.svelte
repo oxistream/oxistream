@@ -147,6 +147,7 @@
 							src={manifestUrl(videoId)}
 							{poster}
 							{subtitles}
+							storyboard={details.storyboard_url ?? undefined}
 							{startTime}
 							{theater}
 							autoplay

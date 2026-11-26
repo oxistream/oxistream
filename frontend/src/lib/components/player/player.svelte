@@ -32,6 +32,7 @@
 		src,
 		poster,
 		subtitles = [],
+		storyboard,
 		startTime = 0,
 		autoplay = false,
 		dashSettings,
@@ -46,6 +47,8 @@
 		src: string;
 		poster?: string;
 		subtitles?: PlayerSubtitle[];
+		/** WebVTT thumbnails track for seek previews. */
+		storyboard?: string;
 		/** Seconds to start from, e.g. from `?t=`. */
 		startTime?: number;
 		autoplay?: boolean;
@@ -218,6 +221,9 @@
 				{#each subtitles as track (track.id)}
 					<track kind="subtitles" src={track.url} srclang={track.lang} label={track.label} />
 				{/each}
+				{#if storyboard}
+					<track kind="metadata" label="thumbnails" src={storyboard} default />
+				{/if}
 			</dash-video>
 			<media-poster class="media-poster">
 				<img alt="" decoding="async" class="media-poster-image" />
