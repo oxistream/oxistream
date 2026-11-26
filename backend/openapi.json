@@ -2450,6 +2450,85 @@
         ]
       }
     },
+    "/api/v0/trending": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).",
+        "operationId": "trending",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Defaults to `podcasts`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "YouTube has no general trending list anymore, only these destination pages.",
+              "enum": [
+                "podcasts",
+                "gaming",
+                "news"
+              ]
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendingVideos"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/videos/{id}": {
       "get": {
         "tags": [
@@ -3665,6 +3744,38 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "TrendingCategory": {
+        "type": "string",
+        "description": "YouTube has no general trending list anymore, only these destination pages.",
+        "enum": [
+          "podcasts",
+          "gaming",
+          "news"
+        ]
+      },
+      "TrendingVideos": {
+        "type": "object",
+        "required": [
+          "region",
+          "category",
+          "items"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/TrendingCategory"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoSummary"
+            }
+          },
+          "region": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code, from `OXISTREAM_TRENDING_REGION`."
           }
         }
       },

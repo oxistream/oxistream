@@ -536,6 +536,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`). */
+        get: operations["trending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/videos/{id}": {
         parameters: {
             query?: never;
@@ -891,6 +908,17 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        /**
+         * @description YouTube has no general trending list anymore, only these destination pages.
+         * @enum {string}
+         */
+        TrendingCategory: "podcasts" | "gaming" | "news";
+        TrendingVideos: {
+            category: components["schemas"]["TrendingCategory"];
+            items: components["schemas"]["VideoSummary"][];
+            /** @description ISO 3166-1 alpha-2 country code, from `OXISTREAM_TRENDING_REGION`. */
+            region: string;
         };
         /** @description Fields to change; absent fields stay as they are. */
         UpdatePlaylist: {
@@ -2778,6 +2806,58 @@ export interface operations {
             };
             /** @description Foreign origin */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    trending: {
+        parameters: {
+            query?: {
+                /** @description Defaults to `podcasts`. */
+                category?: "podcasts" | "gaming" | "news";
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendingVideos"];
+                };
+            };
+            /** @description Unknown category */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

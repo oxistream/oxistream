@@ -91,6 +91,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - Player clients: VisionOS first, TV as fallback; WEB is SABR-only. TV streams may only become valid after a pre-roll ad, so the proxy waits for `VideoPlayer::available_at`.
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.
 - Player responses cached in memory (`moka`) per instance. On an upstream 403 the proxy re-fetches player data.
+- Trending: YouTube dropped its trending page and YouTube Charts needs reCAPTCHA, so `GET /api/v0/trending?category=podcasts|gaming|news` (default `podcasts`) uses the destination pages of `OXISTREAM_TRENDING_REGION` (ISO country code, default `US`, validated at startup), cached in memory per instance for 30 min.
 - Feed worker: interval via `OXISTREAM_FEED_INTERVAL_MINUTES` (default 30); fetches only due channels on a 1 min tick. Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Runs under a Postgres advisory lock so multiple replicas are safe.
 
 ### Stream proxy

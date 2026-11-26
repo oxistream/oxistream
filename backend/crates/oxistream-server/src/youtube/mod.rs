@@ -11,7 +11,7 @@ use rustypipe::model::paginator::{ContinuationEndpoint, Paginator};
 use rustypipe::model::{
     Channel, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
 };
-use rustypipe::param::Language;
+use rustypipe::param::{Country, Language, TrendingCategory};
 use rustypipe::validate;
 use time::OffsetDateTime;
 
@@ -27,6 +27,8 @@ const PLAYER_CACHE_CAPACITY: u64 = 2_000;
 /// Stream URLs must stay usable for a while after they are handed out.
 const PLAYER_EXPIRY_MARGIN: Duration = Duration::from_mins(30);
 const BOTGUARD_SNAPSHOT_FILE: &str = "oxistream-bg_snapshot.bin";
+const TRENDING_CACHE_CAPACITY: u64 = 200;
+const TRENDING_TTL: Duration = Duration::from_mins(30);
 
 /// Fetches player data in place of RustyPipe, e.g. to serve fixtures in tests.
 #[async_trait]
@@ -39,6 +41,8 @@ pub struct YouTube {
     rp: RustyPipe,
     players: Cache<String, Arc<VideoPlayer>>,
     player_source: Option<Arc<dyn PlayerSource>>,
+    trending_region: Country,
+    trending: Cache<(TrendingCategory, Language), Arc<Vec<VideoItem>>>,
 }
 
 impl YouTube {
@@ -75,11 +79,44 @@ impl YouTube {
             .max_capacity(PLAYER_CACHE_CAPACITY)
             .expire_after(PlayerExpiry)
             .build();
+        let trending = Cache::builder()
+            .max_capacity(TRENDING_CACHE_CAPACITY)
+            .time_to_live(TRENDING_TTL)
+            .build();
         Ok(Self {
             rp,
             players,
             player_source: None,
+            trending_region: config.trending_region,
+            trending,
         })
+    }
+
+    pub fn trending_region(&self) -> Country {
+        self.trending_region
+    }
+
+    /// Trending videos of the configured region, cached per category and language.
+    pub async fn trending(
+        &self,
+        category: TrendingCategory,
+        lang: Language,
+    ) -> Result<Arc<Vec<VideoItem>>> {
+        self.trending
+            .try_get_with((category, lang), async move {
+                let videos = self
+                    .query(lang)
+                    .country(self.trending_region)
+                    .trending_category(category)
+                    .await?;
+                // Not cached, so a layout change upstream does not stick for the whole TTL.
+                if videos.is_empty() {
+                    return Err(YouTubeError::Upstream("no trending videos found".into()));
+                }
+                Ok(Arc::new(videos))
+            })
+            .await
+            .map_err(|err| (*err).clone())
     }
 
     /// Version string of the botguard binary in use, if one was found.
