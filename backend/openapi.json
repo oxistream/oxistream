@@ -163,6 +163,51 @@
         ]
       }
     },
+    "/api/v0/auth/oidc/backchannel-logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Back-channel logout: the provider ends sessions server to server.",
+        "description": "Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure\n`{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.\nNeeds no `Origin` header or session.",
+        "operationId": "backchannel_logout",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutTokenForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Matching sessions ended"
+          },
+          "400": {
+            "description": "Invalid, replayed or unexpected logout token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider not discovered yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/auth/oidc/callback": {
       "get": {
         "tags": [
@@ -1259,6 +1304,34 @@
               "null"
             ],
             "description": "For sessions started via single sign-on: the provider's end-session URL to navigate\nto, which signs out there, too (RP-initiated logout). `null` otherwise."
+          }
+        }
+      },
+      "LogoutTokenForm": {
+        "type": "object",
+        "required": [
+          "logout_token"
+        ],
+        "properties": {
+          "logout_token": {
+            "type": "string",
+            "description": "Signed logout token (JWT) from the provider."
+          }
+        }
+      },
+      "OAuthError": {
+        "type": "object",
+        "description": "OAuth 2.0 error response, as the back-channel logout spec asks for.",
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "error_description": {
+            "type": "string"
           }
         }
       },

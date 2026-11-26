@@ -11,7 +11,9 @@ use axum::http::{Method, Request, StatusCode, header};
 use common::idp::{CLIENT_ID, Idp};
 use common::{TEST_PROXY_SECRET, isolated_test_pool, state_with_auth, test_pool, unique_suffix};
 use http_body_util::BodyExt;
-use oxistream_db::{PgPool, PgUserRepository, UserRepository};
+use oxistream_db::{
+    PgPool, PgSessionRepository, PgUserRepository, SessionRepository, UserRepository,
+};
 use oxistream_server::AppState;
 use oxistream_server::auth::cookie;
 use oxistream_server::config::{AuthConfig, OidcConfig};
@@ -600,4 +602,237 @@ async fn rotated_signing_keys_are_refetched() {
         reply.location
     );
     assert_eq!(idp.state.lock().unwrap().jwks_fetches, fetches + 1);
+}
+
+const LOGOUT_EVENT: &str = "http://schemas.openid.net/event/backchannel-logout";
+
+/// A logout token for `claims`, completed with `iss`, `aud`, `iat`, `jti` and the event.
+fn logout_token(idp: &Idp, claims: &Value) -> String {
+    let state = idp.state.lock().unwrap();
+    let mut full = json!({
+        "iss": state.issuer,
+        "aud": CLIENT_ID,
+        "iat": common::idp::now(),
+        "jti": format!("jti-{}", unique_suffix()),
+        "events": { LOGOUT_EVENT: {} },
+    });
+    for (key, value) in claims.as_object().unwrap() {
+        if value.is_null() {
+            full.as_object_mut().unwrap().remove(key);
+        } else {
+            full[key] = value.clone();
+        }
+    }
+    state.keys[state.active].sign(&json!({ "typ": "logout+jwt" }), &full)
+}
+
+/// Posts like a provider would: form-encoded, without `Origin` or cookies.
+async fn backchannel(app: &Router, token: &str) -> (StatusCode, Option<String>, Value) {
+    let body = format!("logout_token={token}");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/api/v0/auth/oidc/backchannel-logout")
+                .header(header::HOST, "oxistream:8080")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let cache = response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .map(|v| v.to_str().unwrap().to_owned());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        cache,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+async fn signed_in(app: &Router, reply: &Reply) -> bool {
+    let token = reply.cookie("oxistream_session").unwrap();
+    send(
+        app,
+        Method::GET,
+        "/api/v0/auth/me",
+        &[("oxistream_session", &token)],
+    )
+    .await
+    .status
+        == StatusCode::OK
+}
+
+#[tokio::test]
+async fn backchannel_logout_rejects_invalid_tokens() {
+    let idp = Idp::start().await;
+    let app =
+        oxistream_server::app(discovered(common::unreachable_pool(), oidc_config(&idp)).await);
+    for (claims, reason) in [
+        (
+            json!({ "sid": "s", "aud": "someone-else" }),
+            "wrong audience",
+        ),
+        (
+            json!({ "sid": "s", "iss": "https://evil.example" }),
+            "wrong issuer",
+        ),
+        (json!({ "sid": "s", "nonce": "n" }), "nonce is not allowed"),
+        (
+            json!({ "sid": "s", "events": null }),
+            "missing logout event",
+        ),
+        (json!({ "sid": "s", "iat": 1 }), "too old"),
+        (json!({ "sid": "s", "exp": 1 }), "expired"),
+        (json!({ "sid": "s", "jti": null }), "missing jti"),
+        (json!({}), "neither sid nor sub"),
+    ] {
+        let (status, cache, body) = backchannel(&app, &logout_token(&idp, &claims)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{claims}");
+        assert_eq!(cache.as_deref(), Some("no-store"));
+        assert_eq!(body["error"], "invalid_request");
+        assert_eq!(body["error_description"], reason, "{claims}");
+    }
+    let (status, _, body) = backchannel(&app, "not-a-jwt").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error_description"], "malformed token");
+
+    let (status, _, _) = backchannel(&common::app_without_db(), "x").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "without single sign-on");
+    let undiscovered = oxistream_server::app(state_with_auth(
+        common::unreachable_pool(),
+        AuthConfig {
+            oidc: Some(oidc_config(&idp)),
+            ..AuthConfig::default()
+        },
+    ));
+    let (status, _, body) =
+        backchannel(&undiscovered, &logout_token(&idp, &json!({ "sid": "s" }))).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"], "temporarily_unavailable");
+}
+
+#[tokio::test]
+async fn backchannel_logout_refetches_keys_once_for_unknown_key_ids() {
+    let idp = Idp::start().await;
+    let app =
+        oxistream_server::app(discovered(common::unreachable_pool(), oidc_config(&idp)).await);
+    let fetches = idp.state.lock().unwrap().jwks_fetches;
+    // Signed with a key the provider does not publish.
+    let rogue = common::idp::SigningKey::new(1, "rogue");
+    let mut claims = json!({
+        "iss": idp.issuer, "aud": CLIENT_ID, "iat": common::idp::now(), "jti": "j",
+        "sid": "s", "events": { LOGOUT_EVENT: {} },
+    });
+    let token = rogue.sign(&json!({ "typ": "logout+jwt" }), &claims);
+    let (status, _, body) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error_description"], "no matching key");
+    assert_eq!(idp.state.lock().unwrap().jwks_fetches, fetches + 1);
+
+    // A known key ID with someone else's key fails without another fetch.
+    claims["jti"] = json!("k");
+    let forged = common::idp::SigningKey::new(1, "key-1").sign(&json!({}), &claims);
+    let (status, _, body) = backchannel(&app, &forged).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error_description"], "invalid signature");
+    assert_eq!(idp.state.lock().unwrap().jwks_fetches, fetches + 1);
+
+    let (status, _, body) = backchannel(
+        &app,
+        &common::idp::SigningKey::new(0, "key-1").sign(&json!({ "typ": "JWT" }), &claims),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error_description"], "unexpected typ header");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn backchannel_logout_ends_sessions_by_sid() {
+    let db = test_pool().await;
+    let idp = Idp::start().await;
+    let app = oxistream_server::app(discovered(db.pool.clone(), oidc_config(&idp)).await);
+    let subject = sub();
+    let (sid_a, sid_b) = (format!("sid-a-{subject}"), format!("sid-b-{subject}"));
+    let a = sign_in(&app, &idp, json!({ "sub": subject, "sid": sid_a })).await;
+    let b = sign_in(&app, &idp, json!({ "sub": subject, "sid": sid_b })).await;
+
+    let token = logout_token(&idp, &json!({ "sid": sid_a, "sub": subject }));
+    let (status, cache, _) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cache.as_deref(), Some("no-store"));
+    assert!(!signed_in(&app, &a).await, "session with that sid is gone");
+    assert!(signed_in(&app, &b).await, "other provider sessions stay");
+
+    let (status, _, body) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "replayed jti");
+    assert_eq!(body["error_description"], "logout token was already used");
+
+    let other = sign_in(&app, &idp, json!({ "sub": sub(), "sid": sid_b })).await;
+    let token = logout_token(&idp, &json!({ "sid": sid_b, "sub": "someone-else" }));
+    assert_eq!(backchannel(&app, &token).await.0, StatusCode::OK);
+    assert!(
+        signed_in(&app, &b).await,
+        "sid only counts for its own subject"
+    );
+    assert!(signed_in(&app, &other).await);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn backchannel_logout_ends_all_sessions_by_sub() {
+    let db = test_pool().await;
+    let idp = Idp::start().await;
+    let app = oxistream_server::app(discovered(db.pool.clone(), oidc_config(&idp)).await);
+    let subject = sub();
+    let a = sign_in(&app, &idp, json!({ "sub": subject, "sid": "x1" })).await;
+    let b = sign_in(&app, &idp, json!({ "sub": subject })).await;
+    let bystander = sign_in(&app, &idp, json!({ "sub": sub() })).await;
+
+    let (status, _, _) = backchannel(&app, &logout_token(&idp, &json!({ "sub": subject }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!signed_in(&app, &a).await);
+    assert!(!signed_in(&app, &b).await);
+    assert!(signed_in(&app, &bystander).await);
+
+    let unknown = logout_token(&idp, &json!({ "sub": "never-signed-in" }));
+    assert_eq!(backchannel(&app, &unknown).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn backchannel_logout_accepts_rotated_keys() {
+    let db = test_pool().await;
+    let idp = Idp::start().await;
+    let app = oxistream_server::app(discovered(db.pool.clone(), oidc_config(&idp)).await);
+    let subject = sub();
+    let session = sign_in(&app, &idp, json!({ "sub": subject })).await;
+    {
+        let mut state = idp.state.lock().unwrap();
+        state.keys.push(common::idp::SigningKey::new(1, "key-2"));
+        state.active = 1;
+    }
+    let fetches = idp.state.lock().unwrap().jwks_fetches;
+    let (status, _, body) =
+        backchannel(&app, &logout_token(&idp, &json!({ "sub": subject }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(idp.state.lock().unwrap().jwks_fetches, fetches + 1);
+    assert!(!signed_in(&app, &session).await);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn expired_logout_token_ids_are_cleaned_up() {
+    let db = test_pool().await;
+    let sessions = PgSessionRepository::new(db.pool.clone());
+    let jti = format!("old-{}", unique_suffix());
+    let past = time::OffsetDateTime::now_utc() - time::Duration::minutes(1);
+    assert!(sessions.record_logout_jti(&jti, past).await.unwrap());
+    assert!(!sessions.record_logout_jti(&jti, past).await.unwrap());
+    assert!(sessions.delete_expired_logout_jtis().await.unwrap() >= 1);
+    assert!(sessions.record_logout_jti(&jti, past).await.unwrap());
 }

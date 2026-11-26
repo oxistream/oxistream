@@ -58,6 +58,20 @@ pub trait SessionRepository: Send + Sync {
 
     /// Deletes expired sessions and returns how many were removed.
     async fn delete_expired(&self) -> Result<u64, Error>;
+
+    /// Deletes the sessions started with the provider session `sid`, only of `user_id` if
+    /// given. Returns how many were removed.
+    async fn delete_by_oidc_sid(&self, sid: &str, user_id: Option<Uuid>) -> Result<u64, Error>;
+
+    /// Deletes all sessions of a user and returns how many were removed.
+    async fn delete_for_user(&self, user_id: Uuid) -> Result<u64, Error>;
+
+    /// Records the `jti` of a logout token; `false` if it was seen before.
+    async fn record_logout_jti(&self, jti: &str, expires_at: OffsetDateTime)
+    -> Result<bool, Error>;
+
+    /// Forgets logout token IDs that can no longer be replayed.
+    async fn delete_expired_logout_jtis(&self) -> Result<u64, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +160,48 @@ impl SessionRepository for PgSessionRepository {
 
     async fn delete_expired(&self) -> Result<u64, Error> {
         let result = sqlx::query("DELETE FROM sessions WHERE expires_at <= now()")
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn delete_by_oidc_sid(&self, sid: &str, user_id: Option<Uuid>) -> Result<u64, Error> {
+        let result = sqlx::query(
+            "DELETE FROM sessions WHERE oidc_sid = $1 AND ($2::uuid IS NULL OR user_id = $2)",
+        )
+        .bind(sid)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn delete_for_user(&self, user_id: Uuid) -> Result<u64, Error> {
+        let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn record_logout_jti(
+        &self,
+        jti: &str,
+        expires_at: OffsetDateTime,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            "INSERT INTO oidc_logout_jti (jti, expires_at) VALUES ($1, $2) \
+             ON CONFLICT (jti) DO NOTHING",
+        )
+        .bind(jti)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    async fn delete_expired_logout_jtis(&self) -> Result<u64, Error> {
+        let result = sqlx::query("DELETE FROM oidc_logout_jti WHERE expires_at <= now()")
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected())
