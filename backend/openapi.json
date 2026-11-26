@@ -3532,6 +3532,229 @@
         }
       }
     },
+    "/api/v0/rooms": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "List the signed-in user's open rooms, newest first.",
+        "operationId": "list_rooms",
+        "responses": {
+          "200": {
+            "description": "The user's rooms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoomListItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Open a room. Anyone with its link can join through the WebSocket at\n`/api/v0/rooms/{id}/ws`, speaking `RoomClientMessage` and `RoomServerMessage`. Rooms\nexpire a day after the last participant left.",
+        "operationId": "create_room",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoom"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Room opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Video not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too many open rooms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/rooms/{id}": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Look up a room before joining it.",
+        "operationId": "get_room",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Room ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Close a room; everyone in it is disconnected.",
+        "operationId": "delete_room",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Room ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Room closed"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such room of the user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/search": {
       "get": {
         "tags": [
@@ -5274,6 +5497,18 @@
           }
         }
       },
+      "CreateRoom": {
+        "type": "object",
+        "properties": {
+          "video_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "YouTube video to start with."
+          }
+        }
+      },
       "Credentials": {
         "type": "object",
         "required": [
@@ -6033,6 +6268,28 @@
           }
         }
       },
+      "QueueEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "video",
+          "added_by"
+        ],
+        "properties": {
+          "added_by": {
+            "type": "string",
+            "description": "Display name of whoever queued it."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoSummary",
+            "description": "`channel` is always set; view counts and dates are not."
+          }
+        }
+      },
       "Resolved": {
         "type": "object",
         "required": [
@@ -6064,6 +6321,541 @@
           "channel",
           "playlist"
         ]
+      },
+      "RoomClientMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "guest_key": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Random 16 to 128 URL-safe characters a guest keeps, so a removal sticks."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Display name of a guest, 1 to 32 characters; ignored for signed-in users."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "join"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Answered with `pong`, for estimating the server clock.",
+            "required": [
+              "t",
+              "type"
+            ],
+            "properties": {
+              "t": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ping"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "position",
+              "type"
+            ],
+            "properties": {
+              "position": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "play"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "position",
+              "type"
+            ],
+            "properties": {
+              "position": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "pause"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "position",
+              "type"
+            ],
+            "properties": {
+              "position": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "seek"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The current entry finished playing; the queue advances once, however many report it.",
+            "required": [
+              "entry",
+              "type"
+            ],
+            "properties": {
+              "entry": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ended"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Skip the current entry.",
+            "required": [
+              "entry",
+              "type"
+            ],
+            "properties": {
+              "entry": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "skip"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Play a queued entry now.",
+            "required": [
+              "entry",
+              "type"
+            ],
+            "properties": {
+              "entry": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "select"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "video_id",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "add"
+                ]
+              },
+              "video_id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "entry",
+              "type"
+            ],
+            "properties": {
+              "entry": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "remove"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Owner only: removes a participant for the rest of the room's life.",
+            "required": [
+              "participant",
+              "type"
+            ],
+            "properties": {
+              "participant": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "kick"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Sent by clients. The first message must be `join`; positions are in seconds."
+      },
+      "RoomErrorCode": {
+        "type": "string",
+        "enum": [
+          "not_found",
+          "room_full",
+          "queue_full",
+          "invalid",
+          "video_unavailable",
+          "forbidden",
+          "rate_limited",
+          "internal"
+        ]
+      },
+      "RoomInfo": {
+        "type": "object",
+        "description": "A watch together room.",
+        "required": [
+          "id",
+          "owner",
+          "is_owner",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "description": "Random ID, used in `/together/{id}`."
+          },
+          "is_owner": {
+            "type": "boolean",
+            "description": "Whether the signed-in user created the room."
+          },
+          "owner": {
+            "type": "string",
+            "description": "Username of the owner."
+          }
+        }
+      },
+      "RoomListItem": {
+        "type": "object",
+        "description": "One of the signed-in user's rooms.",
+        "required": [
+          "id",
+          "participant_count",
+          "queue_count",
+          "thumbnails",
+          "created_at",
+          "active_at"
+        ],
+        "properties": {
+          "active_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last time anyone was in the room; it expires a day after."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title of the current video, if any."
+          },
+          "id": {
+            "type": "string"
+          },
+          "participant_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Connected participants.",
+            "minimum": 0
+          },
+          "queue_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current and upcoming entries.",
+            "minimum": 0
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            },
+            "description": "Of the current video; empty without one."
+          }
+        }
+      },
+      "RoomParticipant": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_owner",
+          "is_guest"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_guest": {
+            "type": "boolean"
+          },
+          "is_owner": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RoomServerMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Answer to `join`, followed by `state`.",
+            "required": [
+              "participant_id",
+              "is_owner",
+              "server_time",
+              "type"
+            ],
+            "properties": {
+              "is_owner": {
+                "type": "boolean"
+              },
+              "participant_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "server_time": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Milliseconds since the Unix epoch."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "welcome"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The whole room, after every change.",
+            "required": [
+              "room",
+              "type"
+            ],
+            "properties": {
+              "room": {
+                "$ref": "#/components/schemas/RoomState"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "state"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "t",
+              "server_time",
+              "type"
+            ],
+            "properties": {
+              "server_time": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Milliseconds since the Unix epoch."
+              },
+              "t": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "pong"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "code",
+              "type"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/RoomErrorCode"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The owner removed this participant; the connection closes.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "kicked"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The room was closed or expired; the connection closes.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "closed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Sent by the server."
+      },
+      "RoomState": {
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "owner",
+          "queue",
+          "playing",
+          "position",
+          "position_at",
+          "participants"
+        ],
+        "properties": {
+          "current": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QueueEntry",
+                "description": "`null` once the queue has run out."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Username of the owner."
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoomParticipant"
+            }
+          },
+          "playing": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds into the current video at `position_at`; add the time since while playing."
+          },
+          "position_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Milliseconds since the Unix epoch."
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueEntry"
+            },
+            "description": "Upcoming entries in order."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Increases with every change."
+          }
+        }
       },
       "SearchItem": {
         "oneOf": [

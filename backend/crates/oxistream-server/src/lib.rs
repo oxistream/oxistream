@@ -8,11 +8,11 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
     ChannelBlockRepository, HistoryRepository, LikeRepository, PgChannelBlockRepository,
     PgChannelRepository, PgHistoryRepository, PgLikeRepository, PgPlaylistFollowRepository,
-    PgPlaylistRepository, PgPool, PgSessionRepository, PgSponsorBlockSettingsRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PgYouTubePlaylistRepository, PlaylistFollowRepository, PlaylistRepository,
-    SponsorBlockSettingsRepository, SubscriptionRepository, UserSettingsRepository,
-    VideoRepository,
+    PgPlaylistRepository, PgPool, PgRoomRepository, PgSessionRepository,
+    PgSponsorBlockSettingsRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
+    PlaylistFollowRepository, PlaylistRepository, SponsorBlockSettingsRepository,
+    SubscriptionRepository, UserSettingsRepository, VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -27,6 +27,7 @@ pub mod feed;
 mod ops;
 pub mod proxy;
 pub mod rate_limit;
+pub mod rooms;
 mod spa;
 pub mod sponsorblock;
 pub mod subscription_io;
@@ -57,6 +58,7 @@ pub struct AppState {
     pub auth: auth::Auth,
     pub sponsorblock: sponsorblock::SponsorBlock,
     pub sponsorblock_settings: Arc<dyn SponsorBlockSettingsRepository>,
+    pub rooms: rooms::Rooms,
 }
 
 impl AppState {
@@ -159,6 +161,9 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     )
     .spawn(feed_requests);
 
+    let rooms = rooms::Rooms::new(Arc::new(PgRoomRepository::new(db.clone())));
+    rooms.spawn(db.clone());
+
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(addr = %listener.local_addr()?, "listening");
 
@@ -182,6 +187,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             auth,
             sponsorblock,
             sponsorblock_settings: Arc::new(PgSponsorBlockSettingsRepository::new(db.clone())),
+            rooms,
         })
         .into_make_service_with_connect_info::<SocketAddr>(),
     )
