@@ -1,0 +1,92 @@
+<script lang="ts">
+	import { resolve } from '$app/paths';
+	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
+	import {
+		formatCompactNumber,
+		formatDate,
+		formatDurationLong,
+		formatRelativeTime
+	} from '#lib/format.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
+	import { cn } from '#lib/utils.js';
+	import type { VideoSummary } from '#lib/video.js';
+	import VideoThumbnail from './video-thumbnail.svelte';
+
+	let {
+		video,
+		headingLevel = 3,
+		showChannel = true,
+		now,
+		class: className
+	}: {
+		video: VideoSummary;
+		headingLevel?: 2 | 3 | 4;
+		showChannel?: boolean;
+		/** Reference time for the relative date; fixed in stories so snapshots stay stable. */
+		now?: Date;
+		class?: string;
+	} = $props();
+
+	const locale = getLocale();
+	const watched = $derived(
+		video.progress === undefined
+			? undefined
+			: new Intl.NumberFormat(locale, { style: 'percent' }).format(video.progress)
+	);
+</script>
+
+<article
+	class={cn(
+		'group/video relative flex min-w-0 flex-col gap-3 rounded-lg outline-offset-4 outline-ring has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-solid',
+		className
+	)}
+>
+	<VideoThumbnail
+		src={video.thumbnailUrl}
+		durationSeconds={video.durationSeconds}
+		progress={video.progress}
+	/>
+	<div class="flex gap-3">
+		{#if showChannel}
+			<ChannelAvatar name={video.channel.name} src={video.channel.avatarUrl} class="mt-0.5" />
+		{/if}
+		<div class="min-w-0 flex-1">
+			<svelte:element
+				this={`h${headingLevel}`}
+				class="line-clamp-2 text-sm leading-5 font-medium text-foreground"
+			>
+				<a
+					href={resolve(`/watch?v=${video.id}`)}
+					data-card-link
+					title={video.title}
+					class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
+				>
+					{video.title}<span class="sr-only">
+						, {m.video_duration({
+							duration: formatDurationLong(video.durationSeconds, locale)
+						})}{#if watched}, {m.video_watched({ percent: watched })}{/if}
+					</span>
+				</a>
+			</svelte:element>
+			{#if showChannel}
+				<a
+					href={resolve('/channel/[id]', { id: video.channel.id })}
+					class="relative z-10 mt-1 block w-fit max-w-full truncate rounded-sm text-xs text-muted-foreground transition-colors duration-(--motion-in) ease-ui hover:text-foreground focus-visible:outline-offset-1"
+				>
+					{video.channel.name}
+				</a>
+			{/if}
+			<p class="truncate text-xs text-muted-foreground tabular">
+				{m.video_views({
+					count: video.viewCount,
+					formatted: formatCompactNumber(video.viewCount, locale)
+				})}
+				<span aria-hidden="true">·</span>
+				<time datetime={video.publishedAt} title={formatDate(video.publishedAt, locale)}>
+					{formatRelativeTime(video.publishedAt, locale, now)}
+				</time>
+			</p>
+		</div>
+	</div>
+</article>

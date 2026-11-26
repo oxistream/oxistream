@@ -9,7 +9,7 @@ import {
 } from './format';
 
 // Intl inserts narrow and regular no-break spaces; compare on plain spaces.
-const plain = (value: string) => value.replace(/[  ]/g, ' ');
+const plain = (value: string) => value.replace(/[\u00a0\u202f]/g, ' ');
 
 describe('formatCompactNumber', () => {
 	it('abbreviates in English', () => {
