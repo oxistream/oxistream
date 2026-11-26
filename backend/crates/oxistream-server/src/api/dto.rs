@@ -190,7 +190,7 @@ pub fn thumbnails(src: &[rp::Thumbnail], img: &impl Fn(&str) -> String) -> Vec<T
 }
 
 /// Thumbnails derivable from the video ID alone, for when no player data is available.
-fn default_thumbnails(video_id: &str, img: &impl Fn(&str) -> String) -> Vec<Thumbnail> {
+pub fn default_thumbnails(video_id: &str, img: &impl Fn(&str) -> String) -> Vec<Thumbnail> {
     [("mqdefault", 320, 180), ("hqdefault", 480, 360)]
         .into_iter()
         .map(|(name, width, height)| Thumbnail {

@@ -12,6 +12,7 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use super::cursor;
 use crate::AppState;
 use crate::api::dto::{ChannelRef, Thumbnail, VideoSummary};
 use crate::api::error::{ApiError, ErrorBody, ErrorCode};
@@ -114,22 +115,6 @@ fn feed_item(video: FeedVideo, img: &impl Fn(&str) -> String) -> VideoSummary {
         id: video.video_id,
         title: video.title,
     }
-}
-
-fn encode_cursor(cursor: &FeedCursor) -> String {
-    let micros = cursor.sort_at.unix_timestamp_nanos() / 1000;
-    format!("{micros}.{}", cursor.video_id)
-}
-
-fn decode_cursor(token: &str) -> Option<FeedCursor> {
-    let (micros, video_id) = token.split_once('.')?;
-    let micros: i128 = micros.parse().ok()?;
-    let sort_at = OffsetDateTime::from_unix_timestamp_nanos(micros.checked_mul(1000)?).ok()?;
-    validate::video_id(video_id).ok()?;
-    Some(FeedCursor {
-        sort_at,
-        video_id: video_id.to_owned(),
-    })
 }
 
 fn check_channel_id(id: &str) -> Result<(), ApiError> {
@@ -447,9 +432,11 @@ async fn feed(
     }
     let after = match params.continuation.as_deref().map(str::trim) {
         None | Some("") => None,
-        Some(token) => Some(
-            decode_cursor(token).ok_or_else(|| ApiError::bad_request("invalid continuation"))?,
-        ),
+        Some(token) => {
+            let (sort_at, video_id) = cursor::decode(token)
+                .ok_or_else(|| ApiError::bad_request("invalid continuation"))?;
+            Some(FeedCursor { sort_at, video_id })
+        }
     };
     let mut videos = state
         .subscriptions
@@ -457,7 +444,9 @@ async fn feed(
         .await?;
     let continuation = if videos.len() > limit as usize {
         videos.truncate(limit as usize);
-        videos.last().map(|v| encode_cursor(&v.cursor()))
+        videos
+            .last()
+            .map(|v| cursor::encode(v.sort_at, &v.video_id))
     } else {
         None
     };
@@ -466,35 +455,4 @@ async fn feed(
         items: videos.into_iter().map(|v| feed_item(v, &img)).collect(),
         continuation,
     }))
-}
-
-#[cfg(test)]
-mod tests {
-    use time::macros::datetime;
-
-    use super::*;
-
-    #[test]
-    fn cursor_round_trips() {
-        let cursor = FeedCursor {
-            sort_at: datetime!(2026-11-26 12:34:56.123456 UTC),
-            video_id: "dQw4w9WgXcQ".into(),
-        };
-        let token = encode_cursor(&cursor);
-        assert_eq!(decode_cursor(&token), Some(cursor));
-    }
-
-    #[test]
-    fn rejects_malformed_cursors() {
-        for token in [
-            "",
-            "x",
-            "12",
-            "abc.dQw4w9WgXcQ",
-            "12.not-a-video-id!",
-            "1e99.dQw4w9WgXcQ",
-        ] {
-            assert_eq!(decode_cursor(token), None, "{token}");
-        }
-    }
 }

@@ -6,8 +6,9 @@ use std::sync::Arc;
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
-    PgChannelRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
-    PgVideoRepository, SubscriptionRepository, VideoRepository,
+    HistoryRepository, PgChannelRepository, PgHistoryRepository, PgPool, PgSessionRepository,
+    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
+    SubscriptionRepository, UserSettingsRepository, VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -36,6 +37,8 @@ pub struct AppState {
     pub youtube: youtube::YouTube,
     pub videos: Arc<dyn VideoRepository>,
     pub subscriptions: Arc<dyn SubscriptionRepository>,
+    pub history: Arc<dyn HistoryRepository>,
+    pub settings: Arc<dyn UserSettingsRepository>,
     pub feed: feed::Feed,
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
@@ -146,6 +149,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         app(AppState {
             videos: Arc::new(PgVideoRepository::new(db.clone())),
             subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
+            history: Arc::new(PgHistoryRepository::new(db.clone())),
+            settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
             feed,
             db: db.clone(),
             metrics,

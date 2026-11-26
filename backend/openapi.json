@@ -651,6 +651,329 @@
         ]
       }
     },
+    "/api/v0/history": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Watched videos, most recently watched first.",
+        "operationId": "history",
+        "parameters": [
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100; default 30.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid continuation or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Clear the whole watch history, including resume points.",
+        "operationId": "clear_history",
+        "responses": {
+          "204": {
+            "description": "History cleared"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/history/continue": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Started but unfinished videos, most recently watched first.",
+        "operationId": "continue_watching",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50; default 12.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryItem"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/history/settings": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Whether the watch history is paused.",
+        "operationId": "history_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Pause or resume the watch history.",
+        "operationId": "update_history_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistorySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/history/{video_id}": {
+      "delete": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Remove one video from the watch history. Succeeds if it is not in there, too.",
+        "operationId": "delete_entry",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not in the history anymore"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/instance": {
       "get": {
         "tags": [
@@ -670,6 +993,179 @@
             }
           }
         }
+      }
+    },
+    "/api/v0/progress": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Progress of several videos, e.g. for the progress bars of a list. Videos never watched\nare left out.",
+        "operationId": "batch_progress",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Comma-separated video IDs, at most 100.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VideoProgress"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or too many IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Record how far the signed-in user got into a video. Ignored while history is paused.",
+        "description": "The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.",
+        "operationId": "report_progress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded, or ignored while history is paused"
+          },
+          "400": {
+            "description": "Invalid report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/progress/{video_id}": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Progress of one video, to resume where the signed-in user left off.",
+        "operationId": "video_progress",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/api/v0/resolve": {
@@ -1799,6 +2295,56 @@
           "taken"
         ]
       },
+      "HistoryItem": {
+        "type": "object",
+        "required": [
+          "video",
+          "progress"
+        ],
+        "properties": {
+          "progress": {
+            "$ref": "#/components/schemas/VideoProgress"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoSummary",
+            "description": "From the metadata cache; `title` is the video ID and `channel` is absent while the\nmetadata is unknown."
+          }
+        }
+      },
+      "HistoryPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass to `continuation` to fetch the next page; absent on the last page."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            },
+            "description": "Most recently watched first."
+          }
+        }
+      },
+      "HistorySettings": {
+        "type": "object",
+        "required": [
+          "paused"
+        ],
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "description": "Progress reports are ignored while paused; existing history stays."
+          }
+        }
+      },
       "ImportFile": {
         "type": "string",
         "format": "binary",
@@ -1961,6 +2507,49 @@
             ],
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "ProgressReport": {
+        "type": "object",
+        "description": "A progress report from the player.",
+        "required": [
+          "video_id",
+          "position_seconds",
+          "duration_seconds"
+        ],
+        "properties": {
+          "duration_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "finished": {
+            "type": "boolean",
+            "description": "Watched to (nearly) the end."
+          },
+          "position_seconds": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds into the video."
+          },
+          "video_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProgressState": {
+        "type": "object",
+        "properties": {
+          "progress": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VideoProgress",
+                "description": "`null` if the video was never watched."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -2342,6 +2931,38 @@
             "items": {
               "$ref": "#/components/schemas/VideoSummary"
             }
+          }
+        }
+      },
+      "VideoProgress": {
+        "type": "object",
+        "description": "How far the signed-in user got into a video.",
+        "required": [
+          "video_id",
+          "position_seconds",
+          "duration_seconds",
+          "finished",
+          "updated_at"
+        ],
+        "properties": {
+          "duration_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "position_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the video was last watched."
+          },
+          "video_id": {
+            "type": "string"
           }
         }
       },
