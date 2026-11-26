@@ -39,7 +39,9 @@ pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
     SessionRepository, TokenHash,
 };
-pub use settings::{PgUserSettingsRepository, UserSettings, UserSettingsRepository};
+pub use settings::{
+    PgUserSettingsRepository, SettingsUpdate, UserSettings, UserSettingsRepository,
+};
 pub use sponsorblock::{PgSponsorBlockSettingsRepository, SponsorBlockSettingsRepository};
 pub use subscriptions::{
     Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
@@ -47,8 +49,8 @@ pub use subscriptions::{
     Subscription, SubscriptionRepository,
 };
 pub use users::{
-    Identity, NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository,
-    UsernameCandidates,
+    DeleteOutcome, Identity, NewUser, PgUserRepository, Role, User, UserCredentials,
+    UserRepository, UsernameCandidates,
 };
 pub use uuid::Uuid;
 pub use videos::{PgVideoRepository, Video, VideoRepository, VideoUpsert};

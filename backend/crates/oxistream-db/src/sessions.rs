@@ -75,6 +75,9 @@ pub trait SessionRepository: Send + Sync {
         token_hash: &TokenHash,
     ) -> Result<Option<String>, Error>;
 
+    /// Ends all sessions of the user except `keep`; returns how many were ended.
+    async fn delete_others(&self, user_id: Uuid, keep: &TokenHash) -> Result<u64, Error>;
+
     /// Deletes expired sessions and returns how many were removed.
     async fn delete_expired(&self) -> Result<u64, Error>;
 
@@ -122,7 +125,8 @@ impl SessionRepository for PgSessionRepository {
     async fn find_active(&self, token_hash: &TokenHash) -> Result<Option<ActiveSession>, Error> {
         let row = sqlx::query(
             "SELECT s.created_at AS s_created_at, s.last_seen_at, s.expires_at, \
-                u.id, u.username, u.role, u.disabled, u.created_at, u.updated_at \
+                u.id, u.username, u.role, u.disabled, \
+                u.password_hash IS NOT NULL AS has_password, u.created_at, u.updated_at \
              FROM sessions s JOIN users u ON u.id = s.user_id \
              WHERE s.id = $1 AND s.expires_at > now() AND NOT u.disabled",
         )
@@ -171,6 +175,15 @@ impl SessionRepository for PgSessionRepository {
                 .fetch_optional(&self.pool)
                 .await?;
         Ok(token.flatten())
+    }
+
+    async fn delete_others(&self, user_id: Uuid, keep: &TokenHash) -> Result<u64, Error> {
+        let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND id <> $2")
+            .bind(user_id)
+            .bind(keep.as_slice())
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     async fn delete_expired(&self) -> Result<u64, Error> {

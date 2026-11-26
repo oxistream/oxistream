@@ -47,6 +47,8 @@ pub struct User {
     pub username: String,
     pub role: Role,
     pub disabled: bool,
+    /// Local accounts have a password; single sign-on accounts do not.
+    pub has_password: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -70,6 +72,15 @@ pub struct NewUser {
 pub struct Identity {
     pub issuer: String,
     pub subject: String,
+}
+
+/// Result of [`UserRepository::delete`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeleteOutcome {
+    Deleted,
+    NotFound,
+    /// The user is the last admin while other users remain.
+    LastAdmin,
 }
 
 /// Username candidates for a new account: attempt `0` is the preferred name, later attempts
@@ -106,6 +117,17 @@ pub trait UserRepository: Send + Sync {
 
     /// Returns `false` if the user does not exist.
     async fn set_disabled(&self, id: Uuid, disabled: bool) -> Result<bool, Error>;
+
+    /// The stored password hash; `None` if the user does not exist or has no password.
+    async fn password_hash(&self, id: Uuid) -> Result<Option<String>, Error>;
+
+    /// Replaces the password of a local account. Returns `false` if the user does not exist or
+    /// has no password, since single sign-on accounts never get one.
+    async fn set_password(&self, id: Uuid, password_hash: &str) -> Result<bool, Error>;
+
+    /// Deletes the user and, by cascade, everything they own, including their sessions. The
+    /// last admin is kept unless no other users remain.
+    async fn delete(&self, id: Uuid) -> Result<DeleteOutcome, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -121,7 +143,8 @@ impl PgUserRepository {
 
 macro_rules! user_columns {
     () => {
-        "id, username, role, disabled, created_at, updated_at"
+        "id, username, role, disabled, password_hash IS NOT NULL AS has_password, \
+         created_at, updated_at"
     };
 }
 
@@ -137,6 +160,7 @@ pub(crate) fn user_from_row(row: &PgRow) -> Result<User, sqlx::Error> {
                 source: err.into(),
             })?,
         disabled: row.try_get("disabled")?,
+        has_password: row.try_get("has_password")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -320,5 +344,56 @@ impl UserRepository for PgUserRepository {
                 .execute(&self.pool)
                 .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn password_hash(&self, id: Uuid) -> Result<Option<String>, Error> {
+        let hash: Option<Option<String>> =
+            sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(hash.flatten())
+    }
+
+    async fn set_password(&self, id: Uuid, password_hash: &str) -> Result<bool, Error> {
+        let result = sqlx::query(
+            "UPDATE users SET password_hash = $2, updated_at = now() \
+             WHERE id = $1 AND password_hash IS NOT NULL",
+        )
+        .bind(id)
+        .bind(password_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn delete(&self, id: Uuid) -> Result<DeleteOutcome, Error> {
+        let mut tx = self.pool.begin().await?;
+        lock_users(&mut tx).await?;
+        let role: Option<String> = sqlx::query_scalar("SELECT role FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        let Some(role) = role else {
+            return Ok(DeleteOutcome::NotFound);
+        };
+        if role == Role::Admin.as_str() {
+            let blocked: bool = sqlx::query_scalar(
+                "SELECT NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin' AND id <> $1) \
+                    AND EXISTS (SELECT 1 FROM users WHERE id <> $1)",
+            )
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+            if blocked {
+                return Ok(DeleteOutcome::LastAdmin);
+            }
+        }
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(DeleteOutcome::Deleted)
     }
 }

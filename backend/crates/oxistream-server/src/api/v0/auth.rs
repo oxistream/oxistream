@@ -56,6 +56,8 @@ pub struct Account {
     pub id: Uuid,
     pub username: String,
     pub role: UserRole,
+    /// Local accounts have a password; single sign-on accounts do not.
+    pub has_password: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
@@ -66,12 +68,13 @@ impl From<User> for Account {
             id: user.id,
             username: user.username,
             role: user.role.into(),
+            has_password: user.has_password,
             created_at: user.created_at,
         }
     }
 }
 
-fn local_auth_disabled() -> ApiError {
+pub(super) fn local_auth_disabled() -> ApiError {
     ApiError::new(
         StatusCode::FORBIDDEN,
         ErrorCode::LocalAuthDisabled,
