@@ -160,7 +160,7 @@ pub struct LastPlayed {
 }
 
 /// YouTube's standard thumbnails, available for every video.
-fn video_thumbnails(video_id: &str, img: &impl Fn(&str) -> String) -> Vec<Thumbnail> {
+pub(super) fn video_thumbnails(video_id: &str, img: &impl Fn(&str) -> String) -> Vec<Thumbnail> {
     [("mqdefault", 320, 180), ("hqdefault", 480, 360)]
         .into_iter()
         .map(|(name, width, height)| Thumbnail {

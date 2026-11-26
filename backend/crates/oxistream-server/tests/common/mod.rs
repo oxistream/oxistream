@@ -12,14 +12,15 @@ use std::sync::Arc;
 
 use oxistream_db::{
     PgChannelBlockRepository, PgChannelRepository, PgHistoryRepository, PgLikeRepository,
-    PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgSessionRepository,
-    PgSponsorBlockSettingsRepository, PgSubscriptionRepository, PgUserRepository,
-    PgUserSettingsRepository, PgVideoRepository, PoolOptions,
+    PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgRoomRepository,
+    PgSessionRepository, PgSponsorBlockSettingsRepository, PgSubscriptionRepository,
+    PgUserRepository, PgUserSettingsRepository, PgVideoRepository, PoolOptions,
 };
 use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, SponsorBlockConfig, YouTubeConfig};
 use oxistream_server::feed::Feed;
 use oxistream_server::proxy::Proxy;
+use oxistream_server::rooms::Rooms;
 use oxistream_server::sponsorblock::SponsorBlock;
 use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
@@ -123,6 +124,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
+        rooms: Rooms::new(Arc::new(PgRoomRepository::new(db.clone()))),
         metrics: telemetry::detached_metrics_handle(),
         youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),
         proxy: Proxy::new(&ProxyConfig::new(TEST_PROXY_SECRET)).expect("build proxy"),

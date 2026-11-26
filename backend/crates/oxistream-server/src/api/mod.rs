@@ -20,6 +20,10 @@ mod v0;
         description = "HTTP API of the Oxistream server. State-changing requests must send an \
             `Origin` (or `Referer`) header of this instance."
     ),
+    components(schemas(
+        v0::rooms::protocol::RoomClientMessage,
+        v0::rooms::protocol::RoomServerMessage
+    )),
     modifiers(&SessionCookie)
 )]
 struct ApiDoc;

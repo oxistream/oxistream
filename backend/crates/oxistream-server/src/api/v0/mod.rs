@@ -17,6 +17,7 @@ mod likes;
 mod manifest;
 mod oidc;
 mod playlists;
+pub(super) mod rooms;
 mod settings;
 mod shorts;
 mod sponsorblock;
@@ -42,6 +43,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(settings::router())
         .merge(account::router())
         .merge(shorts::router())
+        .merge(rooms::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
