@@ -73,6 +73,8 @@ jobs:
       # Tests use this DB when set and fall back to testcontainers otherwise.
       OXISTREAM_TEST_DATABASE_URL: postgres://oxistream:oxistream@localhost:5432/oxistream
       DATABASE_URL: postgres://oxistream:oxistream@localhost:5432/oxistream
+      # Full debug info for every test binary fills the runner's disk while linking.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     defaults:
       run:
         working-directory: backend
