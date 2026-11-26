@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ChannelView from '#lib/components/channel/channel-view.svelte';
 
@@ -6,5 +7,5 @@
 </script>
 
 {#key id}
-	<ChannelView {id} />
+	<ChannelView {id} base={resolve('/channel/[id]', { id })} />
 {/key}

@@ -1,7 +1,7 @@
 <script lang="ts" module>
 	import type { ChannelDetails } from '#lib/api/channel.js';
 
-	export type ChannelHeaderData = Omit<ChannelDetails, 'firstPage'>;
+	export type ChannelHeaderData = Omit<ChannelDetails, 'firstPage' | 'hasShorts' | 'hasLive'>;
 </script>
 
 <script lang="ts">
