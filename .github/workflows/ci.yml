@@ -162,6 +162,9 @@ jobs:
         timeout-minutes: 10
         run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - name: Storybook smoke test
+        if: success() || failure()
+        run: pnpm test:storybook
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
