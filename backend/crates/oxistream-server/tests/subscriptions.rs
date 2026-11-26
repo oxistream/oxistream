@@ -374,7 +374,8 @@ async fn worker_fetches_each_subscribed_channel_once() {
             fetched: 2,
             failed: 1,
             pruned: 0,
-            rate_limited: false
+            rate_limited: false,
+            ..RunSummary::default()
         }
     );
     assert_eq!(source.fetches(CHANNEL_A), 1, "once despite two subscribers");

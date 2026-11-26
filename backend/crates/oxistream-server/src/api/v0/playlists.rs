@@ -7,7 +7,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use oxistream_db::{NewPlaylist, PlaylistItem, PlaylistUpdate, Visibility};
+use oxistream_db::{NewPlaylist, PlaylistItem, PlaylistUpdate, VideoUpsert, Visibility};
+use rustypipe::model::richtext::ToPlaintext;
 use rustypipe::validate;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -31,6 +32,7 @@ const ID_BYTES: usize = 12;
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(list_playlists, create_playlist))
+        .routes(routes!(import_playlist))
         .routes(routes!(get_playlist, update_playlist, delete_playlist))
         .routes(routes!(add_item, remove_item))
         .routes(routes!(move_item))
@@ -138,6 +140,12 @@ pub struct UpdatePlaylist {
     pub title: Option<String>,
     pub description: Option<String>,
     pub visibility: Option<PlaylistVisibility>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ImportPlaylist {
+    /// YouTube playlist ID; mixes cannot be imported.
+    pub playlist_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -374,6 +382,89 @@ async fn create_playlist(
     let created = state
         .playlists
         .create(user.id, &new, MAX_PLAYLISTS)
+        .await
+        .map_err(|e| map_limit(e, || format!("at most {MAX_PLAYLISTS} playlists allowed")))?;
+    let body = playlist_dto(created, true, &|url| state.image_url(url));
+    Ok((StatusCode::CREATED, Json(body)).into_response())
+}
+
+fn truncate_chars(text: &str, max: usize) -> String {
+    text.trim()
+        .chars()
+        .take(max)
+        .collect::<String>()
+        .trim_end()
+        .to_owned()
+}
+
+fn imported_video(v: rustypipe::model::VideoItem) -> Option<VideoUpsert> {
+    // Unavailable videos come without a channel.
+    let channel = v.channel?;
+    Some(VideoUpsert {
+        thumbnail_url: v
+            .thumbnail
+            .iter()
+            .max_by_key(|t| t.width * t.height)
+            .map(|t| t.url.clone()),
+        duration_seconds: v.duration.and_then(|d| i32::try_from(d).ok()),
+        published_at: v.publish_date,
+        channel_id: channel.id,
+        channel_name: channel.name,
+        id: v.id,
+        title: v.name,
+    })
+}
+
+/// Copy a YouTube playlist into a new private playlist, which can then be edited. Copies at
+/// most 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each
+/// video once: a repeated video keeps its first place.
+#[utoipa::path(
+    post,
+    path = "/playlists/import",
+    tag = "playlists",
+    security(("session" = [])),
+    params(("Accept-Language" = Option<String>, Header, description = "Content language")),
+    request_body = ImportPlaylist,
+    responses(
+        (status = CREATED, body = Playlist),
+        (status = BAD_REQUEST, description = "Invalid playlist ID", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found, private, or a mix (`reason` is `mix`)", body = ErrorBody),
+        (status = CONFLICT, description = "Too many playlists", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn import_playlist(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    ContentLanguage(lang): ContentLanguage,
+    body: Result<Json<ImportPlaylist>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(body) = body?;
+    let (playlist, videos) = state
+        .youtube
+        .playlist_with_videos(&body.playlist_id, MAX_ITEMS as usize, lang)
+        .await?;
+    let title = truncate_chars(&playlist.name, MAX_TITLE_CHARS);
+    let new = NewPlaylist {
+        id: new_playlist_id(),
+        title: if title.is_empty() {
+            body.playlist_id.clone()
+        } else {
+            title
+        },
+        description: playlist
+            .description
+            .map(|d| truncate_chars(&d.to_plaintext(), MAX_DESCRIPTION_CHARS))
+            .unwrap_or_default(),
+        visibility: Visibility::Private,
+    };
+    let videos: Vec<VideoUpsert> = videos.into_iter().filter_map(imported_video).collect();
+    let created = state
+        .playlists
+        .create_with_items(user.id, &new, &videos, MAX_PLAYLISTS)
         .await
         .map_err(|e| map_limit(e, || format!("at most {MAX_PLAYLISTS} playlists allowed")))?;
     let body = playlist_dto(created, true, &|url| state.image_url(url));
@@ -667,6 +758,13 @@ mod tests {
         ] {
             assert!(!is_playlist_id(id), "{id}");
         }
+    }
+
+    #[test]
+    fn truncates_imported_text_by_characters() {
+        assert_eq!(truncate_chars("  äöü  ", 2), "äö");
+        assert_eq!(truncate_chars("ab cd", 3), "ab");
+        assert_eq!(truncate_chars("short", 150), "short");
     }
 
     #[test]

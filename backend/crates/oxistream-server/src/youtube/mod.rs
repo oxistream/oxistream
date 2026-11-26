@@ -252,6 +252,32 @@ impl YouTube {
             .await?)
     }
 
+    /// A playlist with up to `limit` of its videos, following continuations.
+    pub async fn playlist_with_videos(
+        &self,
+        playlist_id: &str,
+        limit: usize,
+        lang: Language,
+    ) -> Result<(Playlist, Vec<VideoItem>)> {
+        let mut playlist = self.playlist(playlist_id, lang).await?;
+        let mut videos = std::mem::take(&mut playlist.videos.items);
+        let mut ctoken = playlist.videos.ctoken.take();
+        while videos.len() < limit
+            && let Some(token) = ctoken
+        {
+            let page = self
+                .playlist_continuation(playlist_id, &token, lang)
+                .await?;
+            if page.items.is_empty() {
+                break;
+            }
+            videos.extend(page.items);
+            ctoken = page.ctoken;
+        }
+        videos.truncate(limit);
+        Ok((playlist, videos))
+    }
+
     pub async fn channel_playlists(
         &self,
         channel_id: &str,
@@ -346,7 +372,7 @@ pub fn is_mix_id(playlist_id: &str) -> bool {
     playlist_id.starts_with("RD") && !playlist_id.starts_with("RDCLAK")
 }
 
-fn check_playlist_id(playlist_id: &str) -> Result<()> {
+pub fn check_playlist_id(playlist_id: &str) -> Result<()> {
     // Watch later, liked videos etc. exist only for signed-in YouTube accounts.
     let account_list = playlist_id.len() == 2;
     if account_list || validate::playlist_id(playlist_id).is_err() {

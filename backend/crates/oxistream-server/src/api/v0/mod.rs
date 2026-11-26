@@ -9,6 +9,7 @@ use crate::AppState;
 
 mod auth;
 mod cursor;
+mod follows;
 mod history;
 mod manifest;
 mod oidc;
@@ -28,6 +29,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(subscriptions::router())
         .merge(history::router())
         .merge(playlists::router())
+        .merge(follows::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]

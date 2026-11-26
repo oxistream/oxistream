@@ -244,6 +244,19 @@ async fn playlist_paginates() {
     assert_video_metadata(&page["items"]);
 }
 
+#[tokio::test]
+#[ignore = "network"]
+async fn followed_playlist_fetch_follows_continuations() {
+    use oxistream_server::feed::{MAX_STORED_PLAYLIST_ITEMS, PlaylistSource};
+
+    let youtube = YouTube::new(&YouTubeConfig::default()).unwrap();
+    let fetch = youtube.fetch_playlist(LONG_PLAYLIST_ID).await.unwrap();
+    assert_eq!(fetch.playlist.id, LONG_PLAYLIST_ID);
+    assert!(fetch.items.len() > 100, "{}", fetch.items.len());
+    assert!(fetch.items.len() <= MAX_STORED_PLAYLIST_ITEMS);
+    assert!(fetch.items.iter().all(|i| i.video_id.len() == 11));
+}
+
 async fn assert_paginates(path: &str) -> Value {
     let (status, json) = get_json(path).await;
     assert_eq!(status, StatusCode::OK, "{path}: {json}");
