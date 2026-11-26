@@ -431,5 +431,12 @@
 	"playlist_remove_item": "Aus Playlist entfernen",
 	"playlist_reorder_handle": "{title} verschieben",
 	"playlist_reorder_hint": "Zum Sortieren ziehen, oder Pfeiltasten, Pos1 und Ende verwenden.",
-	"playlist_moved": "{title} an Position {index} von {total} verschoben"
+	"playlist_moved": "{title} an Position {index} von {total} verschoben",
+	"home_subscription_shorts": "Shorts deiner Abos",
+	"feed_shorts": "Shorts",
+	"shorts_player_label": "Shorts-Player",
+	"shorts_previous": "Vorheriger Short",
+	"shorts_next": "Nächster Short",
+	"shorts_open_watch": "Auf der Wiedergabeseite öffnen",
+	"shorts_loading": "Short wird geladen"
 }

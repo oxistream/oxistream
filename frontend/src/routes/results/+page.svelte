@@ -90,7 +90,7 @@
 				</p>
 			{/if}
 			{#if type === 'shorts'}
-				<ShortGrid {shorts} label={m.search_results_label()} />
+				<ShortGrid {shorts} label={m.search_results_label()} playAsList />
 			{:else if type === 'playlists'}
 				<ChannelPlaylistGrid {playlists} label={m.search_results_label()} />
 			{:else}

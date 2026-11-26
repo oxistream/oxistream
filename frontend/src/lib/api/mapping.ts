@@ -1,3 +1,4 @@
+import { pickPortrait } from '#lib/channel-tabs.js';
 import type { ChannelSummary, VideoSummary } from '#lib/video.js';
 import type { components } from './schema';
 
@@ -78,6 +79,15 @@ export function toVideo(
 		description: video.description ?? undefined,
 		thumbnailUrl: pickImage(video.thumbnails, 480)
 	};
+}
+
+/** Maps a short, preferring its portrait thumbnail. */
+export function toShort(
+	video: Schemas['VideoSummary'],
+	fallbackChannel?: ChannelSummary
+): VideoSummary {
+	const mapped = toVideo(video, fallbackChannel);
+	return { ...mapped, thumbnailUrl: pickPortrait(video.thumbnails)?.url ?? mapped.thumbnailUrl };
 }
 
 /** Drops repeated items; YouTube now and then returns an item again on a later page. */

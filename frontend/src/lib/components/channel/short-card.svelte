@@ -9,10 +9,13 @@
 	let {
 		short,
 		headingLevel = 3,
+		onopen,
 		class: className
 	}: {
 		short: VideoSummary;
 		headingLevel?: 2 | 3 | 4;
+		/** Called when the short is opened, e.g. to queue up the list it is in. */
+		onopen?: () => void;
 		class?: string;
 	} = $props();
 
@@ -55,6 +58,7 @@
 				href={resolve('/shorts/[id=videoid]', { id: short.id })}
 				data-card-link
 				title={short.title}
+				onclick={onopen}
 				class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 			>
 				{short.title}

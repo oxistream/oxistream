@@ -103,7 +103,9 @@ async function mockApi(page: Page, options: { signedIn?: boolean; list?: unknown
 		return route.fulfill({ status: 204 });
 	});
 	await page.route('**/api/v0/feed?*', (route) => {
-		const continuation = new URL(route.request().url()).searchParams.get('continuation');
+		const params = new URL(route.request().url()).searchParams;
+		if (params.get('kind') === 'shorts') return json(route, { items: [], continuation: null });
+		const continuation = params.get('continuation');
 		state.feed.push(continuation);
 		if (!continuation) {
 			return json(route, {

@@ -4,11 +4,11 @@ import {
 	useQueryClient,
 	type QueryClient
 } from '@tanstack/svelte-query';
-import { apiTabSegment, pickPortrait, type ChannelSort, type VideoTab } from '#lib/channel-tabs.js';
+import { apiTabSegment, type ChannelSort, type VideoTab } from '#lib/channel-tabs.js';
 import { getLocale } from '#lib/paraglide/runtime.js';
 import type { ChannelSummary, VideoSummary } from '#lib/video.js';
 import { api } from './client';
-import { ApiError, pickImage, toChannel, toVideo, unwrap } from './mapping';
+import { ApiError, pickImage, toChannel, toShort, toVideo, unwrap } from './mapping';
 import type { PlaylistResult } from './search';
 import type { components } from './schema';
 
@@ -81,10 +81,7 @@ export function toChannelVideo(
 	owner: ChannelSummary,
 	tab: VideoTab
 ): VideoSummary {
-	const mapped = toVideo(video, owner);
-	return tab === 'shorts'
-		? { ...mapped, thumbnailUrl: pickPortrait(video.thumbnails)?.url ?? mapped.thumbnailUrl }
-		: mapped;
+	return tab === 'shorts' ? toShort(video, owner) : toVideo(video, owner);
 }
 
 export function toChannelPlaylist(playlist: ApiPlaylist): PlaylistResult {
