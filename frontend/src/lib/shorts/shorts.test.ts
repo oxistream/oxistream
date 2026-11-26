@@ -3,7 +3,10 @@ import type { VideoSummary } from '#lib/video.js';
 import { createWheelPager, dragOffset, isVerticalDrag, keyStep, releaseStep } from './gestures';
 import {
 	buildQueue,
+	discoveryQueue,
+	markShortSeen,
 	needsMore,
+	seenShorts,
 	rememberShortsList,
 	shortSlots,
 	shortStub,
@@ -48,6 +51,15 @@ describe('shorts queue', () => {
 			['c', 1, true]
 		]);
 		expect(shape(shortSlots(a, undefined, undefined))).toEqual([['a', 0, true]]);
+	});
+
+	it('skips discovered shorts shown earlier in the session', () => {
+		markShortSeen('a');
+		markShortSeen('a');
+		const seen = seenShorts();
+		expect([...seen]).toEqual(['a']);
+		const items = ['a', 'b', 'b', 'c'].map(short);
+		expect(discoveryQueue(items, seen).map((s) => s.id)).toEqual(['b', 'c']);
 	});
 
 	it('asks for more near the end', () => {

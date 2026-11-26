@@ -167,7 +167,10 @@ test('results without a known channel render without channel links', async ({ pa
 	await expect(results.getByRole('link', { name: /No channel/ })).toBeVisible();
 	await expect(results.locator('a[href^="/channel/"]')).toHaveCount(1);
 
-	await page.getByRole('link', { name: 'Shorts' }).click();
+	await page
+		.getByRole('navigation', { name: 'Result types' })
+		.getByRole('link', { name: 'Shorts' })
+		.click();
 	await expect(results.getByRole('link', { name: 'Forge short 22' })).toHaveAttribute(
 		'href',
 		'/shorts/vid0000022A'

@@ -761,6 +761,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/shorts/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Endless shorts to swipe through, like YouTube's shorts player. Each page continues the
+         *     current sequence and starts a new one from the next seed, interleaved. Seeds are the
+         *     signed-in user's liked shorts and the latest shorts of their subscriptions, plus trending
+         *     videos; anonymous users get trending seeds only. Nothing about the user is sent to YouTube
+         *     but the seed video IDs. Shorts of blocked channels are left out, so a page may be empty
+         *     while more follow.
+         */
+        get: operations["discover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/shorts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The shorts player overlay of a short: its title and the full video it links to. */
+        get: operations["short"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/subscriptions": {
         parameters: {
             query?: never;
@@ -1056,6 +1097,15 @@ export interface components {
             /** @description 3 to 32 letters, digits, dots, dashes or underscores. Case-insensitive for sign-in. */
             username: string;
         };
+        /**
+         * @description A short to discover. YouTube sends no title or channel name with it; load them with
+         *     `GET /videos/{id}` when it is shown.
+         */
+        DiscoveredShort: {
+            channel_id?: string | null;
+            id: string;
+            thumbnails: components["schemas"]["Thumbnail"][];
+        };
         ErrorBody: {
             code: components["schemas"]["ErrorCode"];
             /** @description Per-field errors for `validation_failed`. */
@@ -1201,6 +1251,11 @@ export interface components {
              * @description Number of liked videos in all pages.
              */
             total: number;
+        };
+        /** @description A full-length video a short links to. */
+        LinkedVideo: {
+            id: string;
+            title: string;
         };
         LoggedOut: {
             /**
@@ -1376,6 +1431,16 @@ export interface components {
             max_quality?: number | null;
             /** @description No duplicates. */
             video_codecs?: components["schemas"]["VideoCodec"][];
+        };
+        /** @description What the shorts player shows over a short. */
+        ShortDetails: {
+            id: string;
+            linked_video?: components["schemas"]["LinkedVideo"] | null;
+            title?: string | null;
+        };
+        ShortsPage: {
+            continuation?: string | null;
+            items: components["schemas"]["DiscoveredShort"][];
         };
         /** @description Behaviour per skippable category. */
         SkipCategories: {
@@ -4441,6 +4506,119 @@ export interface operations {
             };
             /** @description Foreign origin */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    discover: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShortsPage"];
+                };
+            };
+            /** @description Invalid continuation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    short: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube video ID of the short */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShortDetails"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or not a short */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

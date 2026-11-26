@@ -285,3 +285,103 @@ test('a short without a channel plays on its own', async ({ page }) => {
 	await page.keyboard.press('ArrowDown');
 	await expect(page).toHaveURL(new RegExp(`/shorts/${shortId(1)}$`));
 });
+
+const LINKED = 'fullVideo01';
+
+function discovered(n: number) {
+	return {
+		id: shortId(n),
+		channel_id: CHANNEL,
+		thumbnails: [{ url: `/proxy/image/s${n}-tall`, width: 405, height: 720 }]
+	};
+}
+
+/** Discovery in two pages; the first short links a full video. */
+async function mockDiscovery(page: Page, { signedIn = false } = {}) {
+	const requests: string[] = [];
+	await page.route('**/api/v0/auth/me', (route) =>
+		signedIn
+			? json(route, {
+					id: '0193a8e4-7f00-7000-8000-000000000001',
+					username: 'mara',
+					role: 'user',
+					created_at: '2026-11-26T10:00:00Z'
+				})
+			: json(route, { code: 'unauthorized', message: '' }, 401)
+	);
+	await page.route('**/api/v0/shorts/discover*', (route) => {
+		const continuation = new URL(route.request().url()).searchParams.get('continuation');
+		requests.push(continuation ?? '');
+		return continuation === 'p2'
+			? json(route, { items: [3, 4].map(discovered), continuation: null })
+			: json(route, { items: [1, 2].map(discovered), continuation: 'p2' });
+	});
+	await page.route(/\/api\/v0\/shorts\/sho[^/]+$/, (route) => {
+		const id = new URL(route.request().url()).pathname.split('/').pop()!;
+		return json(route, {
+			id,
+			title: null,
+			linked_video:
+				id === shortId(1) ? { id: LINKED, title: 'Forging the knife, start to end' } : null
+		});
+	});
+	await page.route('**/api/v0/feed?*', (route) =>
+		json(route, { items: [summary(7)], continuation: null })
+	);
+	return requests;
+}
+
+test('the shorts entry opens endless discovery with the linked full video', async ({ page }) => {
+	await mockApi(page);
+	const requests = await mockDiscovery(page);
+	await page.goto('/shorts');
+
+	const nav = page.getByRole('navigation', { name: 'Navigation' });
+	await expect(nav.getByRole('link', { name: 'Shorts' })).toHaveAttribute('aria-current', 'page');
+	await expect(viewer(page).getByRole('heading', { name: 'Forge short 1' })).toBeVisible();
+	await expect(page.getByTestId('shorts-feeds')).toHaveCount(0);
+	const chip = activeShort(page).getByTestId('short-linked-video');
+	await expect(chip).toHaveText('Full video: Forging the knife, start to end');
+	await expect(chip).toHaveAttribute('href', `/watch?v=${LINKED}`);
+
+	// The second page loads as the end of the first comes near.
+	await expect.poll(() => requests).toEqual(['', 'p2']);
+	for (const n of [2, 3, 4]) {
+		await page.keyboard.press('ArrowDown');
+		await expect(viewer(page).getByRole('heading', { name: `Forge short ${n}` })).toBeVisible();
+		await expect(activeShort(page).getByTestId('short-linked-video')).toHaveCount(0);
+	}
+	await expect(page).toHaveURL(/\/shorts$/);
+	await expect(page.getByTestId('shorts-next')).toBeDisabled();
+
+	// Shorts shown in this session do not come again.
+	await page.reload();
+	await expect(page.getByTestId('shorts-feed-state')).toContainText('No shorts right now');
+
+	await page.goto(`/shorts/${shortId(1)}`);
+	await activeShort(page).getByTestId('short-linked-video').click();
+	await expect(page).toHaveURL(new RegExp(`/watch\\?v=${LINKED}$`));
+});
+
+test('signed-in users switch between discovery and subscriptions', async ({ page }) => {
+	await mockApi(page);
+	await mockDiscovery(page, { signedIn: true });
+	await page.goto('/shorts');
+
+	const feeds = page.getByTestId('shorts-feeds');
+	await expect(feeds.getByRole('link', { name: 'For you' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(viewer(page).getByRole('heading', { name: 'Forge short 1' })).toBeVisible();
+
+	const feed = page.waitForRequest((r) => r.url().includes('/api/v0/feed?'));
+	await feeds.getByRole('link', { name: 'Subscriptions' }).click();
+	expect(new URL((await feed).url()).searchParams.get('kind')).toBe('shorts');
+	await expect(page).toHaveURL(/\/shorts\?feed=subscriptions$/);
+	await expect(feeds.getByRole('link', { name: 'Subscriptions' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(viewer(page).getByRole('heading', { name: 'Forge short 7' })).toBeVisible();
+});
