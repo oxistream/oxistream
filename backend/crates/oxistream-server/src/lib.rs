@@ -6,7 +6,8 @@ use std::sync::Arc;
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
-    PgPool, PgSessionRepository, PgUserRepository, PgVideoRepository, VideoRepository,
+    PgChannelRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
+    PgVideoRepository, SubscriptionRepository, VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -17,6 +18,7 @@ use tracing::Level;
 pub mod api;
 pub mod auth;
 pub mod config;
+pub mod feed;
 mod ops;
 pub mod proxy;
 pub mod rate_limit;
@@ -32,6 +34,8 @@ pub struct AppState {
     pub metrics: PrometheusHandle,
     pub youtube: youtube::YouTube,
     pub videos: Arc<dyn VideoRepository>,
+    pub subscriptions: Arc<dyn SubscriptionRepository>,
+    pub feed: feed::Feed,
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
     pub rate_limit: Option<rate_limit::RateLimit>,
@@ -123,6 +127,16 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         tracing::warn!("rustypipe-botguard not found, PO tokens are unavailable");
     }
 
+    let channels = Arc::new(PgChannelRepository::new(db.clone()));
+    let (feed, feed_requests) = feed::Feed::new(channels.clone());
+    feed::FeedWorker::new(
+        db.clone(),
+        channels,
+        Arc::new(youtube.clone()),
+        config.feed.interval,
+    )
+    .spawn(feed_requests);
+
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(addr = %listener.local_addr()?, "listening");
 
@@ -130,6 +144,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         listener,
         app(AppState {
             videos: Arc::new(PgVideoRepository::new(db.clone())),
+            subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
+            feed,
             db: db.clone(),
             metrics,
             youtube,

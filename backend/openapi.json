@@ -584,6 +584,73 @@
         }
       }
     },
+    "/api/v0/feed": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Videos of subscribed channels, newest first.",
+        "operationId": "feed",
+        "parameters": [
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100; default 30.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid continuation or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/instance": {
       "get": {
         "tags": [
@@ -822,6 +889,233 @@
             }
           }
         }
+      }
+    },
+    "/api/v0/subscriptions": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Channels the signed-in user subscribed to, ordered by name.",
+        "operationId": "list_subscriptions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubscribedChannel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/subscriptions/{channel_id}": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Whether the signed-in user is subscribed to a channel.",
+        "operationId": "subscription_state",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Subscribe to a channel. Idempotent; new channels are fetched in the background.",
+        "operationId": "subscribe",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Was already subscribed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscribedChannel"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Subscribed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscribedChannel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Unsubscribe from a channel. Succeeds if not subscribed, too.",
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not subscribed anymore"
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/api/v0/videos/{id}": {
@@ -1335,6 +1629,28 @@
           "internal"
         ]
       },
+      "FeedPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass to `continuation` to fetch the next page; absent on the last page."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoSummary"
+            },
+            "description": "Newest first; `channel` is always set."
+          }
+        }
+      },
       "FieldError": {
         "type": "string",
         "description": "Why a request field was rejected.",
@@ -1571,6 +1887,66 @@
             "items": {
               "$ref": "#/components/schemas/SearchItem"
             }
+          }
+        }
+      },
+      "SubscribedChannel": {
+        "type": "object",
+        "description": "A channel the signed-in user subscribed to.",
+        "required": [
+          "id",
+          "avatar",
+          "verified",
+          "subscribed_at"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` until the channel was fetched once, shortly after the first subscription."
+          },
+          "subscribed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subscriber_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SubscriptionState": {
+        "type": "object",
+        "required": [
+          "subscribed"
+        ],
+        "properties": {
+          "subscribed": {
+            "type": "boolean"
           }
         }
       },
