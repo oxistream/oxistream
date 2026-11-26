@@ -15,10 +15,12 @@ oxistream-dash = { path = "crates/oxistream-dash" }
 oxistream-db = { path = "crates/oxistream-db" }
 
 anyhow = "1.0.105"
+argon2 = "0.6.0"
 async-trait = "0.1.92"
 axum = "0.8.9"
 base64 = "0.23.1"
 futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
+getrandom = "0.4.3"
 governor = { version = "0.10.4", default-features = false }
 hmac = "0.13.0"
 http-body-util = "0.1.5"
@@ -46,6 +48,7 @@ sqlx = { version = "0.9.1", default-features = false, features = [
   "migrate",
   "macros",
   "time",
+  "uuid",
 ] }
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 thiserror = "2.0.21"
@@ -56,10 +59,18 @@ tower_governor = { version = "0.8.0", default-features = false, features = ["axu
 tower-http = { version = "0.7.1", features = ["trace", "compression-full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
-utoipa = { version = "6.0.0", features = ["time"] }
+utoipa = { version = "6.0.0", features = ["time", "uuid"] }
 utoipa-axum = "0.3.0"
 utoipa-scalar = { version = "0.4.0", features = ["axum"] }
+uuid = { version = "1.29.3", features = ["serde"] }
 webpki-roots = "1.0.12"
+
+# Password hashing is unusably slow without optimizations.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

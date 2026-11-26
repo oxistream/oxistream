@@ -6,8 +6,15 @@ pub use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 
+mod sessions;
+mod users;
 mod videos;
 
+pub use sessions::{
+    ActiveSession, NewSession, PgSessionRepository, Session, SessionRepository, TokenHash,
+};
+pub use users::{NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository};
+pub use uuid::Uuid;
 pub use videos::{PgVideoRepository, Video, VideoRepository, VideoUpsert};
 
 pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
@@ -16,6 +23,8 @@ pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 pub enum Error {
     #[error("database error")]
     Sqlx(#[from] sqlx::Error),
+    #[error("username is already taken")]
+    UsernameTaken,
     #[error("migration failed")]
     Migrate(#[from] sqlx::migrate::MigrateError),
 }
