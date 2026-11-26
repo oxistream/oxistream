@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use oxistream_db::{NewPlaylist, PlaylistItem, PlaylistUpdate, VideoUpsert, Visibility};
+use oxistream_db::{NewPlaylist, PlaylistItem, PlaylistUpdate, Video, VideoUpsert, Visibility};
 use rustypipe::model::richtext::ToPlaintext;
 use rustypipe::validate;
 use serde::{Deserialize, Serialize};
@@ -194,30 +194,34 @@ fn playlist_dto(
     }
 }
 
+/// A video from the metadata cache; `channel` is always set, view counts are not.
+pub(super) fn cached_video_summary(v: Video, img: &impl Fn(&str) -> String) -> VideoSummary {
+    VideoSummary {
+        thumbnails: video_thumbnails(&v.id, img),
+        channel: Some(ChannelRef {
+            id: v.channel_id,
+            name: v.channel_name,
+            avatar: Vec::new(),
+            subscriber_count: None,
+            verified: false,
+        }),
+        duration_seconds: v.duration_seconds.and_then(|d| u32::try_from(d).ok()),
+        published_at: v.published_at,
+        published_text: None,
+        view_count: None,
+        viewers: None,
+        is_live: false,
+        is_short: false,
+        is_upcoming: false,
+        description: None,
+        id: v.id,
+        title: v.title,
+    }
+}
+
 fn entry_dto(item: PlaylistItem, img: &impl Fn(&str) -> String) -> PlaylistEntry {
-    let v = item.video;
     PlaylistEntry {
-        video: VideoSummary {
-            thumbnails: video_thumbnails(&v.id, img),
-            channel: Some(ChannelRef {
-                id: v.channel_id,
-                name: v.channel_name,
-                avatar: Vec::new(),
-                subscriber_count: None,
-                verified: false,
-            }),
-            duration_seconds: v.duration_seconds.and_then(|d| u32::try_from(d).ok()),
-            published_at: v.published_at,
-            published_text: None,
-            view_count: None,
-            viewers: None,
-            is_live: false,
-            is_short: false,
-            is_upcoming: false,
-            description: None,
-            id: v.id,
-            title: v.title,
-        },
+        video: cached_video_summary(item.video, img),
         added_at: item.added_at,
     }
 }
@@ -243,7 +247,7 @@ fn check_playlist_id(id: &str) -> Result<(), ApiError> {
     }
 }
 
-fn check_video_id(id: &str) -> Result<(), ApiError> {
+pub(super) fn check_video_id(id: &str) -> Result<(), ApiError> {
     validate::video_id(id).map_err(|_| ApiError::bad_request("invalid video id"))
 }
 
@@ -284,7 +288,7 @@ fn map_limit(err: oxistream_db::Error, message: impl FnOnce() -> String) -> ApiE
 }
 
 /// Caches the video's metadata unless already known, so it can be listed without YouTube.
-async fn ensure_cached(
+pub(super) async fn ensure_cached(
     state: &AppState,
     video_id: &str,
     lang: rustypipe::param::Language,

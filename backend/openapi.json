@@ -1444,6 +1444,304 @@
         }
       }
     },
+    "/api/v0/likes": {
+      "get": {
+        "tags": [
+          "likes"
+        ],
+        "summary": "The signed-in user's liked videos, most recently liked first. Likes stay on this\ninstance and are never sent to YouTube.",
+        "operationId": "list_likes",
+        "parameters": [
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100; default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikedVideosPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid continuation or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/likes/{video_id}": {
+      "get": {
+        "tags": [
+          "likes"
+        ],
+        "summary": "Whether the signed-in user liked a video.",
+        "operationId": "like_state",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikeState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "likes"
+        ],
+        "summary": "Like a video, shorts included. Idempotent; liking again keeps the original date.",
+        "operationId": "like",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Was already liked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikeState"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Liked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikeState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such video",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "likes"
+        ],
+        "summary": "Remove a like. Succeeds if the video was not liked, too.",
+        "operationId": "unlike",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not liked anymore"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/playlist-follows": {
       "get": {
         "tags": [
@@ -4437,6 +4735,72 @@
         "properties": {
           "video_id": {
             "type": "string"
+          }
+        }
+      },
+      "LikeState": {
+        "type": "object",
+        "description": "Whether the signed-in user liked a video.",
+        "required": [
+          "liked"
+        ],
+        "properties": {
+          "liked": {
+            "type": "boolean"
+          },
+          "liked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "`null` unless liked."
+          }
+        }
+      },
+      "LikedVideoEntry": {
+        "type": "object",
+        "required": [
+          "video",
+          "liked_at"
+        ],
+        "properties": {
+          "liked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoSummary",
+            "description": "From the metadata cache: `channel` is always set; view counts are not."
+          }
+        }
+      },
+      "LikedVideosPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass to `continuation` to fetch the next page; absent on the last page."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LikedVideoEntry"
+            },
+            "description": "Most recently liked first."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of liked videos in all pages.",
+            "minimum": 0
           }
         }
       },
