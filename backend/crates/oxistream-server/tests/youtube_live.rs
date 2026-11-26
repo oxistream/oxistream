@@ -74,6 +74,83 @@ async fn search_paginates() {
     let (status, page) = get_json(&format!("/api/v0/search?continuation={token}")).await;
     assert_eq!(status, StatusCode::OK, "{page}");
     assert_ne!(page["items"].as_array().unwrap().len(), 0);
+    assert_video_metadata(&page["items"]);
+}
+
+/// Most items carry duration, views and a date; single ones may legitimately lack them.
+fn assert_video_metadata(items: &Value) {
+    let items = items.as_array().unwrap();
+    for field in ["duration_seconds", "view_count", "published_text"] {
+        let present = items.iter().filter(|v| !v[field].is_null()).count();
+        assert!(
+            present * 5 >= items.len() * 4,
+            "{field} missing in {items:#?}"
+        );
+    }
+}
+
+const MKBHD_ID: &str = "UCBJycsmduvYEL83R_U4JriQ";
+
+#[tokio::test]
+#[ignore = "network"]
+async fn channel_reports_subscribers_and_video_metadata() {
+    for lang in ["en", "de"] {
+        let request = Request::get(format!("/api/v0/channels/{MKBHD_ID}"))
+            .header(header::ACCEPT_LANGUAGE, lang)
+            .body(Body::empty())
+            .unwrap();
+        let response = app_without_db().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: Value = serde_json::from_slice(&body).unwrap();
+
+        let subscribers = json["subscriber_count"].as_u64().unwrap_or_default();
+        assert!(subscribers > 1_000_000, "{lang}: {subscribers} subscribers");
+        let videos = json["video_count"].as_u64().unwrap_or_default();
+        assert!(
+            (100..subscribers / 100).contains(&videos),
+            "{lang}: {videos} videos"
+        );
+        assert_video_metadata(&json["videos"]["items"]);
+    }
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn related_videos_carry_metadata() {
+    let (status, json) = get_json(&format!("/api/v0/videos/{VIDEO_ID}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let related = &json["related"];
+    assert_video_metadata(related);
+    let with_channel = related
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|v| {
+            v["channel"]["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("UC"))
+        })
+        .count();
+    assert!(with_channel > 0, "no channels in {related:#?}");
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn live_items_report_viewers_not_views() {
+    let (status, json) = get_json("/api/v0/search?q=lofi+hip+hop+radio+live").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let live: Vec<&Value> = json["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|item| item["is_live"] == true)
+        .collect();
+    assert_ne!(live.len(), 0, "no live items in {json:#}");
+    for item in live {
+        assert!(item["view_count"].is_null(), "{item:#}");
+        assert!(item["viewers"].as_u64().is_some(), "{item:#}");
+    }
 }
 
 #[tokio::test]
