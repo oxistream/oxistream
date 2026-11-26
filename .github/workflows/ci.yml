@@ -1,0 +1,201 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            ci: &ci
+              - '.github/workflows/ci.yml'
+            backend:
+              - *ci
+              - 'backend/**'
+            frontend:
+              - *ci
+              - 'frontend/**'
+              # API types are generated from the backend spec.
+              - 'backend/openapi.json'
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    name: backend (postgres ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['18', '19']
+        include:
+          - postgres: '18'
+            lint: true
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: oxistream
+          POSTGRES_PASSWORD: oxistream
+          POSTGRES_DB: oxistream
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oxistream"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Tests use this DB when set and fall back to testcontainers otherwise.
+      OXISTREAM_TEST_DATABASE_URL: postgres://oxistream:oxistream@localhost:5432/oxistream
+      DATABASE_URL: postgres://oxistream:oxistream@localhost:5432/oxistream
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: pg${{ matrix.postgres }}
+      - name: Use sqlx offline data
+        if: hashFiles('backend/.sqlx/**') != ''
+        run: echo "SQLX_OFFLINE=true" >> "$GITHUB_ENV"
+      # Without offline data the sqlx macros check queries against a migrated DB.
+      - name: Install sqlx-cli
+        if: hashFiles('backend/.sqlx/**') == '' && hashFiles('backend/migrations/**') != ''
+        uses: taiki-e/install-action@v2
+        with:
+          tool: sqlx-cli
+      - name: Run migrations
+        if: hashFiles('backend/.sqlx/**') == '' && hashFiles('backend/migrations/**') != ''
+        run: sqlx migrate run
+      - name: cargo fmt
+        if: matrix.lint
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        if: matrix.lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: cargo test
+        run: cargo test --all-features -- --include-ignored
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+
+  e2e:
+    needs: [changes, frontend]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Get Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 14
+
+  openapi:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:api
+      - name: Check generated API types are up to date
+        run: git diff --exit-code src/lib/api/schema.d.ts
+
+  ci-ok:
+    needs: [changes, backend, frontend, e2e, openapi]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
