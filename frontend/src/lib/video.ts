@@ -1,20 +1,26 @@
-// UI-facing shapes for lists of videos. They will be mapped from the generated API types once the
-// backend endpoints exist.
+// UI-facing shapes for lists of videos, mapped from the generated API types in `#lib/api/mapping.ts`.
 
 export type ChannelSummary = {
 	id: string;
 	name: string;
 	handle?: string;
 	avatarUrl?: string;
+	verified?: boolean;
+	subscriberCount?: number;
 };
 
 export type VideoSummary = {
 	id: string;
 	title: string;
 	channel: ChannelSummary;
-	durationSeconds: number;
-	viewCount: number;
-	publishedAt: string;
+	/** Missing for live streams and in channel listings that do not report it. */
+	durationSeconds?: number;
+	viewCount?: number;
+	publishedAt?: string;
+	/** YouTube's own localized date text, used when no exact date is known. */
+	publishedText?: string;
+	isLive?: boolean;
+	description?: string;
 	thumbnailUrl?: string;
 	/** Watched share between 0 and 1, when the user has started the video. */
 	progress?: number;
