@@ -58,7 +58,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - PostgreSQL only for now (sqlx, migrations in `backend/migrations`). Minimum version 18; CI also tests 19.
 - Repositories behind traits so SQLite can be added later.
 - Tables:
-  - `users`, `sessions` (incl. OIDC `sid`), `user_settings` (codec/quality prefs, history paused), `oidc_logout_jti`
+  - `users`, `user_identities` (OIDC `(issuer, sub)`), `sessions` (incl. OIDC `sid` and ID token), `user_settings` (codec/quality prefs, history paused), `oidc_logout_jti`
   - `videos`: metadata upsert cache (no media)
   - `channels`, `subscriptions`, `channel_videos` (feed)
   - `playlists`, `playlist_items` (ordered)
@@ -68,6 +68,12 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 - Local accounts (argon2id) and OIDC, each toggleable via ENV. Registration toggleable. First user becomes admin.
 - Exactly one OIDC provider, by design. Authorization code flow with PKCE (`openidconnect`), auto-provisioning, identity is `(issuer, sub)`, never email. Admin role via configurable groups claim.
+  - Enabled iff issuer and client ID are set; then `OXISTREAM_PUBLIC_URL` is required (redirect URI `{PUBLIC_URL}/api/v0/auth/oidc/callback`, post-logout redirect `{PUBLIC_URL}/`). Discovery runs in the background with backoff; `/readyz` fails until it succeeds.
+  - ENV: `OXISTREAM_OIDC_ISSUER`, `OXISTREAM_OIDC_CLIENT_ID`, `OXISTREAM_OIDC_CLIENT_SECRET` (omit for public clients), `OXISTREAM_OIDC_SCOPES` (default `openid profile email`), `OXISTREAM_OIDC_NAME` (button label, default `SSO`), `OXISTREAM_OIDC_ADMIN_GROUP`, `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`, dotted paths like `realm_access.roles` work).
+  - `user_identities (issuer, subject) → user_id` links accounts; never linked to existing local accounts. OIDC users have no password. Username from `preferred_username`, else `name`, email local part, `sub`; sanitized, suffixed `-2`, `-3`… when taken.
+  - Pending login (state, nonce, PKCE verifier, redirect) is an HMAC-signed `oxistream_oidc` cookie keyed with `OXISTREAM_PROXY_SECRET`, so any replica can finish it.
+  - First user becomes admin for OIDC too (same table lock as local registration); the registration toggle does not block provisioning. With an admin group set, the role is synced from the groups claim (ID token, else userinfo) on every login, but the last admin is never demoted. Disabled users cannot sign in.
+  - Sessions store the `sid` claim and the ID token; `POST /auth/logout` returns `end_session_url` (with `id_token_hint`) when the provider has an end-session endpoint.
 - Back-channel logout: validate the logout token manually against JWKS. Check `iss`, `aud`, `iat`, the `events` claim, presence of `sid` or `sub`, and absence of `nonce`; store `jti` to reject replays. Then end matching sessions.
 - Server-side sessions in DB; httpOnly, Secure, SameSite=Lax cookie; Origin check. No JWT sessions.
   - Cookie `oxistream_session`: random 256-bit token, only its SHA-256 is stored. Sliding expiry (`OXISTREAM_SESSION_TTL_DAYS`, default 30), renewed at most every 5 min.
