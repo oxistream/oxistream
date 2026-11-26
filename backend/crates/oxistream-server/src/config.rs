@@ -1,5 +1,6 @@
 use std::fmt;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 const BIND: &str = "OXISTREAM_BIND";
@@ -7,6 +8,8 @@ const DATABASE_URL: &str = "OXISTREAM_DATABASE_URL";
 const DATABASE_MAX_CONNECTIONS: &str = "OXISTREAM_DATABASE_MAX_CONNECTIONS";
 const LOG: &str = "OXISTREAM_LOG";
 const LOG_FORMAT: &str = "OXISTREAM_LOG_FORMAT";
+const BOTGUARD_BIN: &str = "OXISTREAM_BOTGUARD_BIN";
+const YOUTUBE_CACHE_DIR: &str = "OXISTREAM_YOUTUBE_CACHE_DIR";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ConfigError {
@@ -46,6 +49,15 @@ pub struct Config {
     pub database_max_connections: u32,
     pub log_filter: String,
     pub log_format: LogFormat,
+    pub youtube: YouTubeConfig,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct YouTubeConfig {
+    /// `rustypipe-botguard` binary; looked up in the working directory and `PATH` when unset.
+    pub botguard_bin: Option<PathBuf>,
+    /// Persists RustyPipe's client cache and botguard snapshot; in-memory and temp dir when unset.
+    pub cache_dir: Option<PathBuf>,
 }
 
 impl fmt::Debug for Config {
@@ -56,6 +68,7 @@ impl fmt::Debug for Config {
             .field("database_max_connections", &self.database_max_connections)
             .field("log_filter", &self.log_filter)
             .field("log_format", &self.log_format)
+            .field("youtube", &self.youtube)
             .finish()
     }
 }
@@ -78,6 +91,10 @@ impl Config {
             )?,
             log_filter: get(LOG).unwrap_or_else(|| "info".into()),
             log_format: parse_or(get(LOG_FORMAT), LOG_FORMAT, LogFormat::default())?,
+            youtube: YouTubeConfig {
+                botguard_bin: get(BOTGUARD_BIN).map(PathBuf::from),
+                cache_dir: get(YOUTUBE_CACHE_DIR).map(PathBuf::from),
+            },
         })
     }
 }
@@ -119,6 +136,7 @@ mod tests {
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.log_filter, "info");
         assert_eq!(config.log_format, LogFormat::Pretty);
+        assert_eq!(config.youtube, YouTubeConfig::default());
     }
 
     #[test]
@@ -129,12 +147,22 @@ mod tests {
             (DATABASE_MAX_CONNECTIONS, "4"),
             (LOG, "debug,sqlx=warn"),
             (LOG_FORMAT, "JSON"),
+            (BOTGUARD_BIN, "/usr/local/bin/rustypipe-botguard"),
+            (YOUTUBE_CACHE_DIR, "/var/lib/oxistream"),
         ])
         .unwrap();
         assert_eq!(config.bind, "127.0.0.1:3000".parse().unwrap());
         assert_eq!(config.database_max_connections, 4);
         assert_eq!(config.log_filter, "debug,sqlx=warn");
         assert_eq!(config.log_format, LogFormat::Json);
+        assert_eq!(
+            config.youtube.botguard_bin.as_deref(),
+            Some("/usr/local/bin/rustypipe-botguard".as_ref())
+        );
+        assert_eq!(
+            config.youtube.cache_dir.as_deref(),
+            Some("/var/lib/oxistream".as_ref())
+        );
     }
 
     #[test]

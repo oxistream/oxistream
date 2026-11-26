@@ -6,7 +6,11 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
-use oxistream_db::{PgPool, PoolOptions};
+use std::sync::Arc;
+
+use oxistream_db::{PgPool, PgVideoRepository, PoolOptions};
+use oxistream_server::config::YouTubeConfig;
+use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
@@ -51,8 +55,10 @@ pub async fn test_pool() -> TestDb {
 
 pub fn app_with_pool(db: PgPool) -> Router {
     oxistream_server::app(AppState {
+        videos: Arc::new(PgVideoRepository::new(db.clone())),
         db,
         metrics: telemetry::detached_metrics_handle(),
+        youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),
     })
 }
 
