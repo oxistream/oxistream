@@ -995,6 +995,705 @@
         }
       }
     },
+    "/api/v0/playlists": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "The signed-in user's playlists, most recently changed first.",
+        "operationId": "list_playlists",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "query",
+            "description": "Report for each playlist whether it contains this video, in `contains_video`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Playlist"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Create a playlist.",
+        "operationId": "create_playlist",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlaylist"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too many playlists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid title or description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/playlists/{id}": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "A playlist with its items. Private playlists are only visible to their owner; unlisted\nones to anyone with the ID, including anonymous users.",
+        "operationId": "get_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist, or not visible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Delete a playlist.",
+        "operationId": "delete_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Change title, description or visibility.",
+        "operationId": "update_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlaylist"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid title or description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/playlists/{id}/items/{video_id}": {
+      "put": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Append a video. Idempotent; a video appears at most once per playlist.",
+        "operationId": "add_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Was already in the playlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user, or no such video",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Playlist is full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Remove a video. Succeeds if it is not in the playlist, too.",
+        "operationId": "remove_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not in the playlist anymore"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/playlists/{id}/items/{video_id}/position": {
+      "put": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Move a video to another position.",
+        "operationId": "move_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Moved"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user, or video not in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/playlists/{id}/last-played": {
+      "put": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Remember which item the owner is playing, for continuing later.",
+        "operationId": "set_last_played",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LastPlayed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Remembered"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist of the user, or video not in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/progress": {
       "get": {
         "tags": [
@@ -2190,6 +2889,36 @@
           }
         }
       },
+      "CreatePlaylist": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Up to 5000 characters."
+          },
+          "title": {
+            "type": "string",
+            "description": "1 to 150 characters."
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlaylistVisibility",
+                "description": "Default `private`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "Credentials": {
         "type": "object",
         "required": [
@@ -2259,6 +2988,7 @@
           "local_auth_disabled",
           "registration_disabled",
           "too_many_requests",
+          "limit_reached",
           "internal"
         ]
       },
@@ -2430,6 +3160,17 @@
           }
         }
       },
+      "LastPlayed": {
+        "type": "object",
+        "required": [
+          "video_id"
+        ],
+        "properties": {
+          "video_id": {
+            "type": "string"
+          }
+        }
+      },
       "LoggedOut": {
         "type": "object",
         "properties": {
@@ -2454,6 +3195,20 @@
           }
         }
       },
+      "MoveItem": {
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Zero-based target position; past the end moves the item to the end.",
+            "minimum": 0
+          }
+        }
+      },
       "OAuthError": {
         "type": "object",
         "description": "OAuth 2.0 error response, as the back-channel logout spec asks for.",
@@ -2467,6 +3222,118 @@
           },
           "error_description": {
             "type": "string"
+          }
+        }
+      },
+      "Playlist": {
+        "type": "object",
+        "description": "A local playlist.",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "visibility",
+          "item_count",
+          "thumbnails",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "contains_video": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the playlist contains the video asked for with `video_id`; absent otherwise."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Random ID, used in `/playlist?list=`."
+          },
+          "item_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "last_video_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The item the owner last played, to continue from. Only shown to the owner."
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            },
+            "description": "Of the first item; empty for an empty playlist."
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/PlaylistVisibility"
+          }
+        }
+      },
+      "PlaylistDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Playlist"
+          },
+          {
+            "type": "object",
+            "required": [
+              "owner",
+              "is_owner",
+              "items"
+            ],
+            "properties": {
+              "is_owner": {
+                "type": "boolean",
+                "description": "Whether the signed-in user owns the playlist and so may change it."
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PlaylistEntry"
+                }
+              },
+              "owner": {
+                "type": "string",
+                "description": "Username of the owner."
+              }
+            }
+          }
+        ],
+        "description": "A playlist with its items, in order."
+      },
+      "PlaylistEntry": {
+        "type": "object",
+        "required": [
+          "video",
+          "added_at"
+        ],
+        "properties": {
+          "added_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoSummary",
+            "description": "`channel` is always set; view counts and dates are not."
           }
         }
       },
@@ -2509,6 +3376,13 @@
             "minimum": 0
           }
         }
+      },
+      "PlaylistVisibility": {
+        "type": "string",
+        "enum": [
+          "private",
+          "unlisted"
+        ]
       },
       "ProgressReport": {
         "type": "object",
@@ -2791,6 +3665,34 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "UpdatePlaylist": {
+        "type": "object",
+        "description": "Fields to change; absent fields stay as they are.",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlaylistVisibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
