@@ -188,7 +188,17 @@ test('playlist results link to the playlist page', async ({ page }) => {
 					title: 'Forge basics',
 					thumbnails: thumbs('pl'),
 					channel: forge,
-					video_count: 24
+					video_count: 24,
+					is_course: false
+				},
+				{
+					type: 'playlist',
+					id: 'PLforgecourse',
+					title: 'Knife making course',
+					thumbnails: thumbs('course'),
+					channel: forge,
+					video_count: 12,
+					is_course: true
 				}
 			],
 			continuation: null
@@ -200,6 +210,13 @@ test('playlist results link to the playlist page', async ({ page }) => {
 		'href',
 		'/playlist?list=PLforgebasics'
 	);
+	const cards = page.getByRole('listitem');
+	await expect(
+		cards.filter({ hasText: 'Knife making course' }).getByText('Course', { exact: true })
+	).toBeVisible();
+	await expect(
+		cards.filter({ hasText: 'Forge basics' }).getByText('Course', { exact: true })
+	).toHaveCount(0);
 	await expect(page.getByText('End of results')).toBeVisible();
 });
 

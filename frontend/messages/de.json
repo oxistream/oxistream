@@ -402,6 +402,7 @@
 	"playlist_mix_title": "Mixe lassen sich nicht als Playlist öffnen",
 	"playlist_mix_body": "YouTube stellt Mixe für jede Person neu zusammen, deshalb haben sie keine feste Videoliste.",
 	"playlist_source_youtube": "YouTube-Playlist",
+	"playlist_course": "Kurs",
 	"playlist_hidden_videos": "Nicht verfügbare Videos werden ausgeblendet.",
 	"playlist_unavailable_title": "Playlist nicht verfügbar",
 	"playlist_unavailable_body": "Sie wurde gelöscht, auf privat gestellt, oder der Link ist falsch.",

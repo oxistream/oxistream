@@ -95,6 +95,12 @@
 	<div class="@container max-w-5xl p-6"><PlaylistResult {playlist} /></div>
 </Story>
 
+<Story name="Course row" asChild>
+	<div class="@container max-w-5xl p-6">
+		<PlaylistResult playlist={{ ...playlist, isCourse: true }} />
+	</div>
+</Story>
+
 <Story name="Loading" asChild>
 	<div class="max-w-5xl p-6"><SearchResults loading skeletonCount={3} /></div>
 </Story>

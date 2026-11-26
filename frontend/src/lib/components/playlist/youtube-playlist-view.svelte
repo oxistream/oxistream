@@ -17,6 +17,7 @@
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import CourseBadge from './course-badge.svelte';
 	import { playlistWatchHref } from './links';
 	import PlaylistCover from './playlist-cover.svelte';
 	import PlaylistItems from './playlist-items.svelte';
@@ -80,6 +81,7 @@
 		{#snippet hero()}
 			<PlaylistCover src={data.thumbnailUrl} count={data.videoCount} class="max-w-md" />
 			<div class="flex min-w-0 flex-col gap-1.5">
+				{#if data.isCourse}<CourseBadge />{/if}
 				<h1 class="text-xl font-semibold tracking-tight text-pretty break-words">{data.title}</h1>
 				<p class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
 					{#if data.channel}

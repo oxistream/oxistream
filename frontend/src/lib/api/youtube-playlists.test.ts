@@ -33,6 +33,7 @@ const first = toYouTubePlaylistPage({
 	thumbnails: [{ url: '/proxy/image/cover', width: 336, height: 188 }],
 	last_update: '2026-11-20',
 	last_update_text: 'Last updated on Nov 20, 2026',
+	is_course: true,
 	videos: { items: [summary('a'), summary('b')], continuation: 'next' }
 });
 
@@ -46,7 +47,8 @@ describe('toYouTubePlaylistPage', () => {
 			videoCount: 5,
 			thumbnailUrl: '/proxy/image/cover',
 			lastUpdate: '2026-11-20',
-			lastUpdateText: 'Last updated on Nov 20, 2026'
+			lastUpdateText: 'Last updated on Nov 20, 2026',
+			isCourse: true
 		});
 		expect(first.items.map((v) => v.id)).toEqual(['a', 'b']);
 		expect(first.items[0].channel.name).toBe('Northbound');
