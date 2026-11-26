@@ -16,6 +16,7 @@
 	import {
 		selectPlayback,
 		selectPlaybackRate,
+		selectQuality,
 		selectTextTrack,
 		selectTime,
 		selectVolume
@@ -27,6 +28,7 @@
 	import { cn } from '#lib/utils.js';
 	import { readPreferences, savePreferences } from './preferences';
 	import { bridgeDashAudioTracks, type AudioTrackHost } from './dash-audio-tracks';
+	import { applyPlaybackPreferences, pickRendition, type PlaybackPreferences } from './playback';
 	import { createProgressEmitter, type ProgressReport } from './progress';
 	import { categoryColor } from '#lib/sponsorblock/categories.js';
 	import { createSkipper, type AutoSkip, type PlayerSegment } from '#lib/sponsorblock/skip.js';
@@ -40,6 +42,7 @@
 		startTime = 0,
 		autoplay = false,
 		dashSettings,
+		playback,
 		theater = false,
 		globalHotkeys = true,
 		variant = 'video',
@@ -63,6 +66,8 @@
 		autoplay?: boolean;
 		/** dash.js settings, e.g. codec and quality preferences from the user's settings. */
 		dashSettings?: DashEngineConfig['dashJs'];
+		/** Codec and quality preferences, read once when the player mounts. */
+		playback?: PlaybackPreferences;
 		theater?: boolean;
 		/** Keyboard shortcuts work anywhere on the page, not only while the player has focus. */
 		globalHotkeys?: boolean;
@@ -201,6 +206,12 @@
 		const report = onprogress;
 		const progress = createProgressEmitter((r) => report?.(r));
 
+		const unapplyPlayback = applyPlaybackPreferences(
+			media as unknown as { engine?: unknown },
+			playback
+		);
+		const defaultQuality = playback?.defaultQuality ?? null;
+		let qualityApplied = defaultQuality === null;
 		let restoredVolume = false;
 		let restoredCaptions = false;
 		let startApplied = false;
@@ -231,6 +242,14 @@
 			if (!prefs.captions || prefs.captions === 'off') return;
 			const match = list.find((t) => t.language === prefs.captions);
 			if (match) tracks.selectSubtitlesTrack(match.id);
+		};
+
+		const applyDefaultQuality = () => {
+			const quality = selectQuality(store.state);
+			if (qualityApplied || defaultQuality === null || !quality?.videoRenditionList.length) return;
+			qualityApplied = true;
+			const rendition = pickRendition(quality.videoRenditionList, defaultQuality);
+			if (rendition) quality.selectVideoRendition(rendition.id);
 		};
 
 		const persist = () => {
@@ -266,6 +285,7 @@
 			if (!paused) playWhenReady = false;
 			restoreVolume();
 			restoreCaptions();
+			applyDefaultQuality();
 			persist();
 		});
 
@@ -331,6 +351,7 @@
 			onUnload();
 			unsubscribe();
 			unbridgeAudio();
+			unapplyPlayback();
 			media.removeEventListener('loadedmetadata', onLoadedMetadata);
 			media.removeEventListener('timeupdate', onTimeUpdate);
 			media.removeEventListener('seeking', onSeeking);
