@@ -36,8 +36,9 @@ MVP:
 - Watch history, resume, continue watching; pause and clear history
 - Accounts, account self-deletion, minimal admin (user list with role/disable/delete, status page)
 - Discovery: home page (continue watching, subscriptions; trending for guests), search and channel tabs, shorts player, follow or import YouTube playlists
+- SponsorBlock: segment markers, auto-skip or skip button per category
 
-Later: comments, SponsorBlock, DeArrow, livestreams (HLS passthrough), SQLite.
+Later: comments, DeArrow, livestreams (HLS passthrough), SQLite.
 
 Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@handle`, `/playlist?list=`, `/results?search_query=`, `/shorts/{id}`, `/{videoId}`.
 
@@ -117,6 +118,14 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 - Subtitles are not in the MPD; they are side-loaded as VTT (`&fmt=vtt`) via the proxy.
 - Snapshot-tested with `insta` against fixture data.
 - References: Invidious `manifest.cr`, Piped `DashUtils.js`, YouTube.js `DashManifest.tsx`.
+
+### SponsorBlock
+
+- Server-side only: clients never contact SponsorBlock. `GET /api/v0/videos/{id}/segments` asks `/api/skipSegments/{first 4 hex chars of sha256(id)}` for all categories (action types `skip`, `poi`, `full`) and keeps only the requested video. Generic User-Agent, no user data.
+- Cached in memory (`moka`) per video: 1 h, 15 min when empty, 1 min after errors. Upstream errors yield no segments and a warning, never a failed request.
+- Preferences per skip category `auto | button | off` (default: `sponsor` auto, the rest button), plus highlight marker and full-video label toggles. Stored in `user_sponsorblock_settings` (JSONB, missing keys take defaults) via `GET/PUT /api/v0/settings/sponsorblock`; guests use localStorage.
+- Player: markers on the progress bar, auto-skip with undo, skip button inside `button` segments; a segment the user seeks into or undoes is not auto-skipped again. Shorts only auto-skip.
+- ENV: `OXISTREAM_SPONSORBLOCK_ENABLED` (default `true`), `OXISTREAM_SPONSORBLOCK_API_URL` (default `https://sponsor.ajay.app`). `GET /api/v0/instance` reports `sponsorblock`.
 
 ## Frontend
 
