@@ -2,7 +2,7 @@
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
-	import type { RelatedVideo } from './related';
+	import type { VideoSummary } from '#lib/video.js';
 	import RelatedVideoCard from './related-video-card.svelte';
 
 	let {
@@ -11,7 +11,7 @@
 		now,
 		class: className
 	}: {
-		videos?: RelatedVideo[];
+		videos?: VideoSummary[];
 		loading?: boolean;
 		now?: Date;
 		class?: string;

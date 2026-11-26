@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { ApiError } from '#lib/api/video.js';
+	import { ApiError } from '#lib/api/mapping.js';
 	import { mockVideos } from '#lib/mocks/videos.js';
 	import ChannelRow from './channel-row.svelte';
 	import { describeProblem, liveProblem } from './errors';
@@ -72,7 +72,7 @@
 				verified: true
 			}}
 		/>
-		<ChannelRow channel={{ id: 'UCnone', name: 'Bindery Hours', subscriberCount: null }} />
+		<ChannelRow channel={{ id: 'UCnone', name: 'Bindery Hours' }} />
 	</div>
 </Story>
 

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { page } from '$app/state';
-	import { manifestUrl, pickThumbnail, useManifest, useVideo } from '#lib/api/video.js';
+	import { pickImage } from '#lib/api/mapping.js';
+	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
 	import type { ProgressReport } from '#lib/components/player/progress.js';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
@@ -41,7 +42,7 @@
 		if (manifest.isError) return describeProblem(manifest.error);
 		return null;
 	});
-	const poster = $derived(details ? pickThumbnail(details.thumbnails, 1280) : undefined);
+	const poster = $derived(details ? pickImage(details.thumbnails, 1280) : undefined);
 	const subtitles = $derived<PlayerSubtitle[]>(
 		(details?.subtitles ?? []).map((s) => ({
 			id: s.id,

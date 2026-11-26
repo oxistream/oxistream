@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ThumbsUpIcon from '@lucide/svelte/icons/thumbs-up';
-	import { pickThumbnail, type VideoDetails } from '#lib/api/video.js';
+	import { toChannel } from '#lib/api/mapping.js';
+	import type { VideoDetails } from '#lib/api/video.js';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
@@ -23,13 +24,7 @@
 	} = $props();
 
 	const locale = getLocale();
-	const channel = $derived({
-		id: video.channel.id,
-		name: video.channel.name,
-		avatarUrl: pickThumbnail(video.channel.avatar, 80),
-		subscriberCount: video.channel.subscriber_count,
-		verified: video.channel.verified
-	});
+	const channel = $derived(toChannel(video.channel));
 </script>
 
 <div class={cn('flex min-w-0 flex-col gap-3', className)}>

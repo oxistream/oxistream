@@ -75,7 +75,8 @@ describe('toLocalPath', () => {
 		],
 		['https://www.youtube.com/@mrbeast/videos', '/@mrbeast'],
 		['https://www.youtube.com/playlist?list=PL123', '/playlist?list=PL123'],
-		['https://www.youtube.com/results?search_query=a+b', '/results?search_query=a%20b']
+		['https://www.youtube.com/results?search_query=a+b', '/results?search_query=a+b'],
+		['https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', '/watch?v=dQw4w9WgXcQ']
 	])('%s → %s', (input, expected) => {
 		expect(toLocalPath(input)).toBe(expected);
 	});
