@@ -537,3 +537,48 @@ async fn trending_follows_configured_region() {
         .unwrap();
     assert!(Arc::ptr_eq(&first, &cached));
 }
+
+#[tokio::test]
+#[ignore = "network"]
+async fn shorts_discovery_paginates() {
+    let (status, json) = get_json("/api/v0/shorts/discover").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let items = json["items"].as_array().unwrap();
+    assert!(items.len() >= 3, "{json}");
+    for item in items {
+        assert!(
+            item["id"].as_str().is_some_and(|id| id.len() == 11),
+            "{item}"
+        );
+        assert!(
+            item["channel_id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("UC"))
+        );
+        let thumb = item["thumbnails"][0]["url"].as_str().unwrap();
+        assert!(thumb.starts_with("/proxy/image/"), "{thumb}");
+    }
+    let token = json["continuation"].as_str().expect("continuation token");
+
+    let (status, page) = get_json(&format!("/api/v0/shorts/discover?continuation={token}")).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_ne!(page["items"].as_array().unwrap().len(), 0, "{page}");
+    assert!(page["continuation"].is_string());
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn short_details_link_the_full_video() {
+    let (status, json) = get_json("/api/v0/shorts/sHpEqeSByPI").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["linked_video"]["id"], "q6fgVVmdpgY");
+    assert!(
+        json["linked_video"]["title"]
+            .as_str()
+            .is_some_and(|t| !t.is_empty())
+    );
+
+    let (status, json) = get_json("/api/v0/shorts/kQO5P-qsyiA").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert!(json["linked_video"].is_null(), "{json}");
+}

@@ -9,8 +9,8 @@ use moka::future::Cache;
 use rustypipe::client::{ClientType, RustyPipe, RustyPipeQuery};
 use rustypipe::model::paginator::{ContinuationEndpoint, Paginator};
 use rustypipe::model::{
-    Channel, Playlist, PlaylistItem, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer,
-    YouTubeItem,
+    Channel, Playlist, PlaylistItem, SearchResult, ShortDetails, ShortItem, UrlTarget,
+    VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
 };
 use rustypipe::param::search_filter::{ItemType, SearchFilter};
 use rustypipe::param::{ChannelOrder, ChannelVideoTab, Country, Language, TrendingCategory};
@@ -159,6 +159,29 @@ impl YouTube {
     pub async fn video_details(&self, video_id: &str, lang: Language) -> Result<VideoDetails> {
         check_video_id(video_id)?;
         Ok(self.query(lang).video_details(video_id).await?)
+    }
+
+    /// Shorts YouTube's shorts player plays after `seed`, a short or video.
+    pub async fn reel_sequence(&self, seed: &str, lang: Language) -> Result<Paginator<ShortItem>> {
+        check_video_id(seed)?;
+        Ok(self.query(lang).reel_sequence(seed).await?)
+    }
+
+    pub async fn reel_sequence_continuation(
+        &self,
+        token: &str,
+        lang: Language,
+    ) -> Result<Paginator<ShortItem>> {
+        Ok(self
+            .query(lang)
+            .reel_sequence_continuation(token, None)
+            .await?)
+    }
+
+    /// The shorts player overlay of a short, with the full video it links to.
+    pub async fn short_details(&self, video_id: &str, lang: Language) -> Result<ShortDetails> {
+        check_video_id(video_id)?;
+        Ok(self.query(lang).short_details(video_id).await?)
     }
 
     /// Searches everything, or only one item type.
