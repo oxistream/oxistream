@@ -172,6 +172,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Videos of subscribed channels, newest first. */
+        get: operations["feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/instance": {
         parameters: {
             query?: never;
@@ -235,6 +252,42 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Channels the signed-in user subscribed to, ordered by name. */
+        get: operations["list_subscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/subscriptions/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the signed-in user is subscribed to a channel. */
+        get: operations["subscription_state"];
+        /** Subscribe to a channel. Idempotent; new channels are fetched in the background. */
+        put: operations["subscribe"];
+        post?: never;
+        /** Unsubscribe from a channel. Succeeds if not subscribed, too. */
+        delete: operations["unsubscribe"];
         options?: never;
         head?: never;
         patch?: never;
@@ -368,6 +421,12 @@ export interface components {
         };
         /** @enum {string} */
         ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "internal";
+        FeedPage: {
+            /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
+            continuation?: string | null;
+            /** @description Newest first; `channel` is always set. */
+            items: components["schemas"]["VideoSummary"][];
+        };
         /**
          * @description Why a request field was rejected.
          * @enum {string}
@@ -431,6 +490,22 @@ export interface components {
             /** @description Set when YouTube searched for a corrected query instead. */
             corrected_query?: string | null;
             items: components["schemas"]["SearchItem"][];
+        };
+        /** @description A channel the signed-in user subscribed to. */
+        SubscribedChannel: {
+            avatar: components["schemas"]["Thumbnail"][];
+            handle?: string | null;
+            id: string;
+            /** @description `null` until the channel was fetched once, shortly after the first subscription. */
+            name?: string | null;
+            /** Format: date-time */
+            subscribed_at: string;
+            /** Format: int64 */
+            subscriber_count?: number | null;
+            verified: boolean;
+        };
+        SubscriptionState: {
+            subscribed: boolean;
         };
         Subtitle: {
             auto_generated: boolean;
@@ -937,6 +1012,48 @@ export interface operations {
             };
         };
     };
+    feed: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+                /** @description Page size, 1 to 100; default 30. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedPage"];
+                };
+            };
+            /** @description Invalid continuation or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     instance: {
         parameters: {
             query?: never;
@@ -1103,6 +1220,181 @@ export interface operations {
             };
             /** @description Rate limited by YouTube */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_subscriptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribedChannel"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    subscription_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionState"];
+                };
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Was already subscribed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribedChannel"];
+                };
+            };
+            /** @description Subscribed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribedChannel"];
+                };
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not subscribed anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

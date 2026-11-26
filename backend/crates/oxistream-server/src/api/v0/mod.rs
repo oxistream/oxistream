@@ -11,6 +11,7 @@ mod auth;
 mod manifest;
 mod oidc;
 mod storyboard;
+mod subscriptions;
 mod youtube;
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -21,6 +22,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(youtube::router())
         .merge(manifest::router())
         .merge(storyboard::router())
+        .merge(subscriptions::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]

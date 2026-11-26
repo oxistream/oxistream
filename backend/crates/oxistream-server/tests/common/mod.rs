@@ -10,9 +10,13 @@ use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use std::sync::Arc;
 
-use oxistream_db::{PgPool, PgSessionRepository, PgUserRepository, PgVideoRepository, PoolOptions};
+use oxistream_db::{
+    PgChannelRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
+    PgVideoRepository, PoolOptions,
+};
 use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, YouTubeConfig};
+use oxistream_server::feed::Feed;
 use oxistream_server::proxy::Proxy;
 use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
@@ -107,6 +111,9 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
             None,
         ),
         videos: Arc::new(PgVideoRepository::new(db.clone())),
+        subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
+        // Fetch requests go nowhere unless a test swaps in its own feed.
+        feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
         db,
         metrics: telemetry::detached_metrics_handle(),
         youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),

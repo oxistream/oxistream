@@ -34,6 +34,7 @@ const OIDC_SCOPES: &str = "OXISTREAM_OIDC_SCOPES";
 const OIDC_NAME: &str = "OXISTREAM_OIDC_NAME";
 const OIDC_ADMIN_GROUP: &str = "OXISTREAM_OIDC_ADMIN_GROUP";
 const OIDC_GROUPS_CLAIM: &str = "OXISTREAM_OIDC_GROUPS_CLAIM";
+const FEED_INTERVAL: &str = "OXISTREAM_FEED_INTERVAL_MINUTES";
 
 pub const MIN_PROXY_SECRET_LEN: usize = 32;
 
@@ -85,6 +86,25 @@ pub struct Config {
     /// `None` disables rate limiting.
     pub rate_limit: Option<RateLimitConfig>,
     pub auth: AuthConfig,
+    pub feed: FeedConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeedConfig {
+    /// How often each subscribed channel is fetched.
+    pub interval: Duration,
+}
+
+impl FeedConfig {
+    pub const DEFAULT_INTERVAL: Duration = Duration::from_mins(30);
+}
+
+impl Default for FeedConfig {
+    fn default() -> Self {
+        Self {
+            interval: Self::DEFAULT_INTERVAL,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -272,6 +292,7 @@ impl fmt::Debug for Config {
             .field("proxy", &self.proxy)
             .field("rate_limit", &self.rate_limit)
             .field("auth", &self.auth)
+            .field("feed", &self.feed)
             .finish()
     }
 }
@@ -330,6 +351,17 @@ impl Config {
             },
             rate_limit,
             auth: auth_config(&get, &secret)?,
+            feed: FeedConfig {
+                interval: Duration::from_mins(
+                    parse_or(
+                        get(FEED_INTERVAL),
+                        FEED_INTERVAL,
+                        NonZeroU32::new(30).unwrap(),
+                    )?
+                    .get()
+                    .into(),
+                ),
+            },
         })
     }
 }
@@ -539,6 +571,7 @@ mod tests {
         assert_eq!(config.rate_limit, Some(RateLimitConfig::default()));
         assert_eq!(config.auth, AuthConfig::default());
         assert_eq!(config.auth.session_ttl, Duration::from_hours(720));
+        assert_eq!(config.feed, FeedConfig::default());
     }
 
     #[test]
@@ -586,8 +619,10 @@ mod tests {
             (RATE_LIMIT_PER_SECOND, "5"),
             (RATE_LIMIT_BURST, "10"),
             (TRUSTED_PROXY_HEADER, "X-Forwarded-For"),
+            (FEED_INTERVAL, "5"),
         ])
         .unwrap();
+        assert_eq!(config.feed.interval, Duration::from_mins(5));
         assert_eq!(config.bind, "127.0.0.1:3000".parse().unwrap());
         assert_eq!(config.database_max_connections, 4);
         assert_eq!(config.log_filter, "debug,sqlx=warn");
@@ -672,6 +707,7 @@ mod tests {
             (REQUIRE_LOGIN, "maybe"),
             (PUBLIC_URL, "tube.example.com"),
             (PUBLIC_URL, "ftp://tube.example.com"),
+            (FEED_INTERVAL, "0"),
         ] {
             let err = with(&[(var, value)]).unwrap_err();
             assert!(

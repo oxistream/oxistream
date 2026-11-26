@@ -6,13 +6,21 @@ pub use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 
+mod lock;
 mod sessions;
+mod subscriptions;
 mod users;
 mod videos;
 
+pub use lock::{AdvisoryLock, LockKey};
 pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
     SessionRepository, TokenHash,
+};
+pub use subscriptions::{
+    Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedStatus,
+    FeedVideo, Image, PgChannelRepository, PgSubscriptionRepository, Subscription,
+    SubscriptionRepository,
 };
 pub use users::{
     Identity, NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository,
