@@ -62,7 +62,7 @@
 		</h3>
 		<p class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground tabular">
 			<span class="shrink-0">{m.search_playlist()}</span>
-			{#if playlist.channel}
+			{#if playlist.channel?.name}
 				<span aria-hidden="true">·</span>
 				<span class="truncate">{playlist.channel.name}</span>
 				{#if playlist.channel.verified}<VerifiedBadge class="text-sm" />{/if}
