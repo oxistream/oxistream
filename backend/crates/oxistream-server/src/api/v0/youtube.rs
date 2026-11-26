@@ -72,7 +72,10 @@ async fn video(
     Ok(Json(video))
 }
 
-fn video_record(details: &rp::VideoDetails, player: Option<&rp::VideoPlayer>) -> VideoUpsert {
+pub(super) fn video_record(
+    details: &rp::VideoDetails,
+    player: Option<&rp::VideoPlayer>,
+) -> VideoUpsert {
     VideoUpsert {
         id: details.id.clone(),
         title: details.name.clone(),

@@ -6,9 +6,10 @@ use std::sync::Arc;
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
-    HistoryRepository, PgChannelRepository, PgHistoryRepository, PgPool, PgSessionRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    SubscriptionRepository, UserSettingsRepository, VideoRepository,
+    HistoryRepository, PgChannelRepository, PgHistoryRepository, PgPlaylistRepository, PgPool,
+    PgSessionRepository, PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository,
+    PgVideoRepository, PlaylistRepository, SubscriptionRepository, UserSettingsRepository,
+    VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -39,6 +40,7 @@ pub struct AppState {
     pub subscriptions: Arc<dyn SubscriptionRepository>,
     pub history: Arc<dyn HistoryRepository>,
     pub settings: Arc<dyn UserSettingsRepository>,
+    pub playlists: Arc<dyn PlaylistRepository>,
     pub feed: feed::Feed,
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
@@ -151,6 +153,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
             history: Arc::new(PgHistoryRepository::new(db.clone())),
             settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
+            playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
             feed,
             db: db.clone(),
             metrics,

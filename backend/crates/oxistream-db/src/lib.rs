@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 
 mod history;
 mod lock;
+mod playlists;
 mod sessions;
 mod settings;
 mod subscriptions;
@@ -19,6 +20,10 @@ pub use history::{
     WatchProgress,
 };
 pub use lock::{AdvisoryLock, LockKey};
+pub use playlists::{
+    NewPlaylist, PgPlaylistRepository, Playlist, PlaylistItem, PlaylistRepository, PlaylistUpdate,
+    Visibility,
+};
 pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
     SessionRepository, TokenHash,
@@ -44,6 +49,8 @@ pub enum Error {
     Sqlx(#[from] sqlx::Error),
     #[error("username is already taken")]
     UsernameTaken,
+    #[error("limit reached")]
+    LimitReached,
     #[error("migration failed")]
     Migrate(#[from] sqlx::migrate::MigrateError),
 }

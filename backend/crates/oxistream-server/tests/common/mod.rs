@@ -11,7 +11,7 @@ use http_body_util::BodyExt;
 use std::sync::Arc;
 
 use oxistream_db::{
-    PgChannelRepository, PgHistoryRepository, PgPool, PgSessionRepository,
+    PgChannelRepository, PgHistoryRepository, PgPlaylistRepository, PgPool, PgSessionRepository,
     PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
     PoolOptions,
 };
@@ -115,6 +115,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
         history: Arc::new(PgHistoryRepository::new(db.clone())),
         settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
+        playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
         db,

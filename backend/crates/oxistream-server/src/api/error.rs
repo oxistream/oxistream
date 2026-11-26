@@ -33,6 +33,8 @@ pub enum ErrorCode {
     LocalAuthDisabled,
     RegistrationDisabled,
     TooManyRequests,
+    /// A per-user limit, e.g. on playlist size, is reached.
+    LimitReached,
     Internal,
 }
 

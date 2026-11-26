@@ -12,6 +12,7 @@ mod cursor;
 mod history;
 mod manifest;
 mod oidc;
+mod playlists;
 mod storyboard;
 mod subscriptions;
 mod youtube;
@@ -26,6 +27,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(storyboard::router())
         .merge(subscriptions::router())
         .merge(history::router())
+        .merge(playlists::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
