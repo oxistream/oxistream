@@ -38,7 +38,7 @@
 					<ul class="flex flex-col gap-6 @xl:gap-5" aria-label={day.label}>
 						{#each day.videos as video (video.id)}
 							<li class="flex min-w-0 items-start gap-2">
-								<VideoResult {video} {now} class="flex-1" />
+								<VideoResult {video} {now} actions={false} class="flex-1" />
 								{#if onremove}
 									<Button
 										variant="ghost"

@@ -12,13 +12,16 @@
 	let {
 		short,
 		active,
-		preload
+		preload,
+		onblocked
 	}: {
 		short: VideoSummary;
 		/** The visible short plays; the others stay paused and only keep what they loaded. */
 		active: boolean;
 		/** Load the stream while not visible yet. A player, once created, is kept either way. */
 		preload: boolean;
+		/** The user blocked the short's channel from its overlay. */
+		onblocked?: (channelId: string) => void;
 	} = $props();
 
 	// The slot is keyed by the short's id, so it never changes.
@@ -94,7 +97,12 @@
 			{/if}
 		</div>
 	{/if}
-	<ShortOverlay videoId={id} {title} {channel} />
+	<ShortOverlay
+		videoId={id}
+		{title}
+		{channel}
+		onblocked={() => channel?.id && onblocked?.(channel.id)}
+	/>
 </div>
 
 <style>

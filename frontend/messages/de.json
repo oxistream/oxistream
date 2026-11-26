@@ -462,5 +462,32 @@
 	"liked_sign_in": "Melde dich an, um deine Videos mit „Mag ich“ zu sehen.",
 	"liked_error_load": "Videos mit „Mag ich“ konnten nicht geladen werden",
 	"liked_remove": "Aus „Mag ich“ entfernen",
-	"liked_private_hint": "Nur du siehst diese Liste. „Mag ich“ bleibt auf dieser Instanz und wird nie an YouTube gesendet."
+	"liked_private_hint": "Nur du siehst diese Liste. „Mag ich“ bleibt auf dieser Instanz und wird nie an YouTube gesendet.",
+	"block_channel": "Kanal blockieren",
+	"block_unblock_channel": "Blockierung aufheben",
+	"block_unblock": "Freigeben",
+	"block_unblock_named": "{name} freigeben",
+	"block_sign_in": "Melde dich an, um Kanäle zu blockieren",
+	"block_more_actions": "Weitere Aktionen",
+	"block_video_actions": "Weitere Aktionen für {title}",
+	"block_notice_title": "Du hast {name} blockiert",
+	"block_notice_body": "Seine Videos, Shorts und Playlists erscheinen nicht in Suche, ähnlichen Videos und Trends. Ein Abo hebt die Blockierung ebenfalls auf.",
+	"block_manage": "Blockierte Kanäle verwalten",
+	"blocked_title": "Blockierte Kanäle",
+	"blocked_description": "Blockierte Kanäle erscheinen nicht in Suche, ähnlichen Videos und Trends.",
+	"blocked_count": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} blockierter Kanal",
+				"countPlural=*": "{count} blockierte Kanäle"
+			}
+		}
+	],
+	"blocked_since": "Blockiert am {date}",
+	"blocked_loading": "Blockierte Kanäle werden geladen",
+	"blocked_empty_title": "Keine blockierten Kanäle",
+	"blocked_empty_body": "Blockiere einen Kanal auf seiner Seite oder im Menü eines Videos, um ihn nicht mehr zu sehen.",
+	"blocked_sign_in_body": "Melde dich an, um Kanäle zu blockieren und hier zu verwalten."
 }

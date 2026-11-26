@@ -462,5 +462,32 @@
 	"liked_sign_in": "Sign in to see the videos you liked.",
 	"liked_error_load": "Liked videos could not be loaded",
 	"liked_remove": "Remove from liked videos",
-	"liked_private_hint": "Only you can see this list. Likes stay on this instance and are never sent to YouTube."
+	"liked_private_hint": "Only you can see this list. Likes stay on this instance and are never sent to YouTube.",
+	"block_channel": "Block channel",
+	"block_unblock_channel": "Unblock channel",
+	"block_unblock": "Unblock",
+	"block_unblock_named": "Unblock {name}",
+	"block_sign_in": "Sign in to block channels",
+	"block_more_actions": "More actions",
+	"block_video_actions": "More actions for {title}",
+	"block_notice_title": "You blocked {name}",
+	"block_notice_body": "Its videos, shorts and playlists stay out of search, related videos and trending. Subscribing unblocks it, too.",
+	"block_manage": "Manage blocked channels",
+	"blocked_title": "Blocked channels",
+	"blocked_description": "Blocked channels stay out of search, related videos and trending.",
+	"blocked_count": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} blocked channel",
+				"countPlural=*": "{count} blocked channels"
+			}
+		}
+	],
+	"blocked_since": "Blocked {date}",
+	"blocked_loading": "Loading blocked channels",
+	"blocked_empty_title": "No blocked channels",
+	"blocked_empty_body": "Block a channel from its page or a video's menu to stop seeing it.",
+	"blocked_sign_in_body": "Sign in to block channels and manage them here."
 }

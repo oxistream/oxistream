@@ -6,6 +6,7 @@ import {
 } from '@tanstack/svelte-query';
 import { session } from '#lib/session.svelte.js';
 import type { VideoSummary } from '#lib/video.js';
+import { blockKeys } from './blocks';
 import { api } from './client';
 import { toShort, toVideo, unwrap } from './mapping';
 import type { operations } from './schema';
@@ -150,9 +151,15 @@ export function createSubscriptionMutation() {
 			);
 		},
 		// Not awaited, so the button settles without waiting for the refetch.
-		onSettled: () => {
+		onSettled: (
+			_data: SubscribedChannel | null | undefined,
+			_error: Error | null,
+			{ subscribe }: SubscriptionChange
+		) => {
 			void client.invalidateQueries({ queryKey: subscriptionKeys.all });
 			void client.invalidateQueries({ queryKey: subscriptionKeys.feed });
+			// Subscribing lifts a block of the channel.
+			if (subscribe) void client.invalidateQueries({ queryKey: blockKeys.list });
 		}
 	}));
 }

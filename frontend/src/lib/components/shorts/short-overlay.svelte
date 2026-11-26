@@ -2,6 +2,7 @@
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { resolve } from '$app/paths';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
+	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
 	import LikeButton from '#lib/components/like/like-button.svelte';
 	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
@@ -14,12 +15,15 @@
 		videoId,
 		title,
 		channel,
+		onblocked,
 		class: className
 	}: {
 		videoId: string;
 		title: string;
 		/** Without an id, the channel is shown without link and subscribe button. */
 		channel?: ChannelSummary;
+		/** The user just blocked the channel. */
+		onblocked?: () => void;
 		class?: string;
 	} = $props();
 
@@ -79,5 +83,14 @@
 		>
 			<TvMinimalPlayIcon />
 		</Button>
+		{#if channel?.id}
+			<ChannelActionsMenu
+				{channel}
+				variant="overlay"
+				size="icon-lg"
+				class="pointer-events-auto"
+				{onblocked}
+			/>
+		{/if}
 	</div>
 </div>
