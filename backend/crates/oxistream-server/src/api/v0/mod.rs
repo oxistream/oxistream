@@ -8,6 +8,8 @@ use utoipa_axum::routes;
 use crate::AppState;
 
 mod auth;
+mod cursor;
+mod history;
 mod manifest;
 mod oidc;
 mod storyboard;
@@ -23,6 +25,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(manifest::router())
         .merge(storyboard::router())
         .merge(subscriptions::router())
+        .merge(history::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
