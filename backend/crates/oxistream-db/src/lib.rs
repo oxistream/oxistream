@@ -11,7 +11,8 @@ mod users;
 mod videos;
 
 pub use sessions::{
-    ActiveSession, NewSession, PgSessionRepository, Session, SessionRepository, TokenHash,
+    ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
+    SessionRepository, TokenHash,
 };
 pub use users::{
     Identity, NewUser, PgUserRepository, Role, User, UserCredentials, UserRepository,

@@ -3,7 +3,7 @@ use axum::extract::rejection::FormRejection;
 use axum::extract::{Form, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{Identity, Role, User};
+use oxistream_db::{BackchannelLogout, LogoutOutcome, Role, User};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::{IntoParams, ToSchema};
@@ -100,7 +100,7 @@ async fn backchannel_logout(
             );
         }
     };
-    match end_sessions(&state, oidc.config().issuer.clone(), logout).await {
+    match end_sessions(&state, &oidc.config().issuer, &logout).await {
         Ok(Some(count)) => {
             tracing::info!(count, "sessions ended by back-channel logout");
             no_store(StatusCode::OK, None)
@@ -116,40 +116,28 @@ async fn backchannel_logout(
 /// `None` if the token was replayed.
 async fn end_sessions(
     state: &AppState,
-    issuer: String,
-    logout: Logout,
+    issuer: &str,
+    logout: &Logout,
 ) -> Result<Option<u64>, oxistream_db::Error> {
-    let auth = &state.auth;
-    let until = OffsetDateTime::from_unix_timestamp(
+    let expires_at = OffsetDateTime::from_unix_timestamp(
         i64::try_from(logout.replayable_until).unwrap_or(i64::MAX),
     )
     .unwrap_or(OffsetDateTime::now_utc() + time::Duration::hours(1));
-    if !auth
+    let outcome = state
+        .auth
         .sessions()
-        .record_logout_jti(&logout.jti, until)
-        .await?
-    {
-        return Ok(None);
-    }
-    let user_id = match &logout.sub {
-        Some(subject) => {
-            let identity = Identity {
-                issuer,
-                subject: subject.clone(),
-            };
-            match auth.users().find_by_identity(&identity).await? {
-                Some(user) => Some(user.id),
-                None => return Ok(Some(0)),
-            }
-        }
-        None => None,
-    };
-    let count = match (&logout.sid, user_id) {
-        (Some(sid), user_id) => auth.sessions().delete_by_oidc_sid(sid, user_id).await?,
-        (None, Some(user_id)) => auth.sessions().delete_for_user(user_id).await?,
-        (None, None) => 0,
-    };
-    Ok(Some(count))
+        .end_sessions_for_logout(&BackchannelLogout {
+            jti: &logout.jti,
+            expires_at,
+            issuer,
+            sid: logout.sid.as_deref(),
+            subject: logout.sub.as_deref(),
+        })
+        .await?;
+    Ok(match outcome {
+        LogoutOutcome::Replayed => None,
+        LogoutOutcome::Ended(count) => Some(count),
+    })
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
