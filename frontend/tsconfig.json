@@ -7,11 +7,14 @@
 	"include": [
 		"src",
 		"e2e",
+		"e2e-storybook",
+		".storybook/*.svelte",
 		".storybook/main.ts",
 		".storybook/preview.ts",
 		"vite.config.ts",
 		"prettier.config.js",
 		"eslint.config.js",
-		"playwright.config.ts"
+		"playwright.config.ts",
+		"playwright.storybook.config.ts"
 	]
 }
