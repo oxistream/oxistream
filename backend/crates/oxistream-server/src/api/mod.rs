@@ -1,7 +1,8 @@
 use axum::routing::get;
 use axum::{Json, Router};
-use utoipa::OpenApi;
 use utoipa::openapi::OpenApi as Spec;
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
+use utoipa::{Modify, OpenApi};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};
 
@@ -13,11 +14,31 @@ mod lang;
 mod v0;
 
 #[derive(OpenApi)]
-#[openapi(info(
-    title = "Oxistream API",
-    description = "HTTP API of the Oxistream server."
-))]
+#[openapi(
+    info(
+        title = "Oxistream API",
+        description = "HTTP API of the Oxistream server. State-changing requests must send an \
+            `Origin` (or `Referer`) header of this instance."
+    ),
+    modifiers(&SessionCookie)
+)]
 struct ApiDoc;
+
+struct SessionCookie;
+
+impl Modify for SessionCookie {
+    fn modify(&self, openapi: &mut Spec) {
+        openapi
+            .components
+            .get_or_insert_default()
+            .add_security_scheme(
+                "session",
+                SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new(
+                    crate::auth::cookie::SESSION_COOKIE,
+                ))),
+            );
+    }
+}
 
 fn split() -> (Router<AppState>, Spec) {
     OpenApiRouter::with_openapi(ApiDoc::openapi())

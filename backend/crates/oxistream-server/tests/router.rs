@@ -1,7 +1,9 @@
 mod common;
 
-use axum::http::StatusCode;
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
 use common::{app_without_db, get};
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn healthz_is_ok_without_database() {
@@ -79,4 +81,53 @@ async fn empty_search_suggestions() {
     let (status, body) = get(app_without_db(), "/api/v0/search/suggestions?q=").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "[]");
+}
+
+#[tokio::test]
+async fn instance_reports_auth_capabilities() {
+    let (_, body) = get(app_without_db(), "/api/v0/instance").await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        json["auth"],
+        serde_json::json!({
+            "local_enabled": true,
+            "registration_enabled": true,
+            "require_login": false,
+            "oidc_enabled": false,
+        })
+    );
+}
+
+#[tokio::test]
+async fn state_changing_requests_need_a_matching_origin() {
+    for origin in [None, Some("https://evil.example"), Some("null")] {
+        let mut req = Request::post("/api/v0/auth/logout").header(header::HOST, "tube.test");
+        if let Some(origin) = origin {
+            req = req.header(header::ORIGIN, origin);
+        }
+        let response = app_without_db()
+            .oneshot(req.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{origin:?}");
+    }
+
+    let response = app_without_db()
+        .oneshot(
+            Request::post("/api/v0/auth/logout")
+                .header(header::HOST, "tube.test")
+                .header(header::ORIGIN, "http://tube.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn me_without_session_is_unauthorized() {
+    let (status, body) = get(app_without_db(), "/api/v0/auth/me").await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(body.contains("\"unauthorized\""));
 }
