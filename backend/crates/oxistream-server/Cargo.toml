@@ -16,12 +16,15 @@ embed-frontend = ["dep:rust-embed"]
 anyhow.workspace = true
 axum.workspace = true
 metrics.workspace = true
+moka.workspace = true
 metrics-exporter-prometheus.workspace = true
 oxistream-db.workspace = true
 rust-embed = { workspace = true, optional = true }
+rustypipe.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
