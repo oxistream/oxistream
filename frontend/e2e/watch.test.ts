@@ -118,6 +118,7 @@ test('watch page renders details, player and related videos', async ({ page }) =
 
 test('description expands and links timestamps and URLs', async ({ page }) => {
 	await mockApi(page);
+	await page.setViewportSize({ width: 900, height: 900 });
 	await page.goto(`/watch?v=${ID}`);
 
 	const description = page.getByTestId('video-description');
@@ -141,6 +142,23 @@ test('description expands and links timestamps and URLs', async ({ page }) => {
 
 	await page.getByRole('button', { name: 'Show less' }).click();
 	await expect(description).toHaveAttribute('data-expanded', 'false');
+});
+
+test('the description is shown in full without a toggle beside the related column', async ({
+	page
+}) => {
+	await mockApi(page);
+	await page.setViewportSize({ width: 1700, height: 900 });
+	await page.goto(`/watch?v=${ID}`);
+
+	const description = page.getByTestId('video-description');
+	await expect(description.getByRole('button', { name: 'Jump to 14:05' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Show more' })).toBeHidden();
+	await expect(description).toHaveCSS('-webkit-line-clamp', 'none');
+
+	await page.setViewportSize({ width: 900, height: 900 });
+	await expect(page.getByRole('button', { name: 'Show more' })).toBeVisible();
+	await expect(description).not.toHaveCSS('-webkit-line-clamp', 'none');
 });
 
 test('livestreams show a not-supported state instead of the player', async ({ page }) => {
