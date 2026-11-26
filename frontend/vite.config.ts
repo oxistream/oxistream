@@ -28,7 +28,7 @@ export default defineConfig({
 	],
 	server: {
 		proxy: {
-			'/api': backend,
+			'/api': { target: backend, ws: true },
 			'/proxy': backend,
 			'/healthz': backend
 		}
