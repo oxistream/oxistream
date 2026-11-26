@@ -11,6 +11,7 @@ mod auth;
 mod cursor;
 mod follows;
 mod history;
+mod likes;
 mod manifest;
 mod oidc;
 mod playlists;
@@ -30,6 +31,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(history::router())
         .merge(playlists::router())
         .merge(follows::router())
+        .merge(likes::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
