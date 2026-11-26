@@ -10,6 +10,7 @@ use crate::AppState;
 mod auth;
 mod manifest;
 mod oidc;
+mod storyboard;
 mod youtube;
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -19,6 +20,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(oidc::router())
         .merge(youtube::router())
         .merge(manifest::router())
+        .merge(storyboard::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]

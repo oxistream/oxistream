@@ -7,6 +7,7 @@ use utoipa::IntoParams;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{ChannelDetails, Resolved, SearchPage, VideoDetails, VideoPage};
 use crate::api::error::{ApiError, ErrorBody};
@@ -61,12 +62,14 @@ async fn video(
         }
     });
 
-    Ok(Json(VideoDetails::from_rp(
+    let mut video = VideoDetails::from_rp(
         details,
         player.as_deref(),
         &|url| state.image_url(url),
         &|subtitle| state.subtitle_url(&id, subtitle),
-    )))
+    );
+    video.storyboard_url = player.as_deref().and_then(storyboard::track_url);
+    Ok(Json(video))
 }
 
 fn video_record(details: &rp::VideoDetails, player: Option<&rp::VideoPlayer>) -> VideoUpsert {

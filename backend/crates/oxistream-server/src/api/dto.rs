@@ -48,6 +48,8 @@ pub struct VideoDetails {
     pub keywords: Vec<String>,
     /// Empty when the player data could not be fetched.
     pub subtitles: Vec<Subtitle>,
+    /// `WebVTT` thumbnails track for seek previews; absent without storyboard.
+    pub storyboard_url: Option<String>,
     pub related: Vec<VideoSummary>,
 }
 
@@ -247,6 +249,7 @@ impl VideoDetails {
                         .collect()
                 })
                 .unwrap_or_default(),
+            storyboard_url: None,
             related: details
                 .recommended
                 .items

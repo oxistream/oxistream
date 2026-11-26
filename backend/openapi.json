@@ -978,6 +978,78 @@
           }
         }
       }
+    },
+    "/api/v0/videos/{id}/storyboard.vtt": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets.",
+        "operationId": "storyboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WebVTT thumbnails track",
+            "content": {
+              "text/vtt": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, unavailable or without storyboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1632,6 +1704,13 @@
             "items": {
               "$ref": "#/components/schemas/VideoSummary"
             }
+          },
+          "storyboard_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`WebVTT` thumbnails track for seek previews; absent without storyboard."
           },
           "subtitles": {
             "type": "array",

@@ -50,6 +50,7 @@ webpki-roots.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+insta.workspace = true
 rsa.workspace = true
 sqlx.workspace = true
 testcontainers-modules.workspace = true
