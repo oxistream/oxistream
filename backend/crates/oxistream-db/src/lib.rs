@@ -6,6 +6,7 @@ pub use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 
+mod blocks;
 mod follows;
 mod history;
 mod likes;
@@ -17,6 +18,7 @@ mod subscriptions;
 mod users;
 mod videos;
 
+pub use blocks::{ChannelBlock, ChannelBlockRepository, NewChannelBlock, PgChannelBlockRepository};
 pub use follows::{
     FollowedPlaylist, PgPlaylistFollowRepository, PgYouTubePlaylistRepository,
     PlaylistFollowRepository, YouTubePlaylist, YouTubePlaylistItem, YouTubePlaylistItemUpsert,
