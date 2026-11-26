@@ -34,7 +34,15 @@
 	"user_register": "Registrieren",
 	"user_sign_out": "Abmelden",
 	"home_continue_watching": "Weiterschauen",
-	"home_recent": "Neue Videos",
+	"home_show_all": "Alle anzeigen",
+	"home_latest_subscriptions": "Neu von deinen Abos",
+	"home_find_channels": "Kanäle finden",
+	"home_trending_news": "Nachrichten",
+	"home_trending_gaming": "Gaming",
+	"home_trending_podcasts": "Podcasts",
+	"home_search_title": "Was möchtest du sehen?",
+	"home_search_body": "Suche nach Videos, Kanälen und Playlists oder füge einen YouTube-Link ein.",
+	"home_recently_watched": "Zuletzt angesehen",
 	"video_views": [
 		{
 			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],

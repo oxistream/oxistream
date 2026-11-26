@@ -34,7 +34,15 @@
 	"user_register": "Register",
 	"user_sign_out": "Sign out",
 	"home_continue_watching": "Continue watching",
-	"home_recent": "Recent videos",
+	"home_show_all": "Show all",
+	"home_latest_subscriptions": "Latest from your subscriptions",
+	"home_find_channels": "Find channels",
+	"home_trending_news": "News",
+	"home_trending_gaming": "Gaming",
+	"home_trending_podcasts": "Podcasts",
+	"home_search_title": "What do you want to watch?",
+	"home_search_body": "Search for videos, channels and playlists, or paste a YouTube link.",
+	"home_recently_watched": "Recently watched",
 	"video_views": [
 		{
 			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],

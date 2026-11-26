@@ -1,4 +1,4 @@
-// Typed stand-in data until the backend feed endpoints land. Thumbnails are licensed photographs
+// Typed stand-in data for stories and tests. Thumbnails are licensed photographs
 // (see ./thumbnails/credits.ts), bundled locally so nothing is fetched from YouTube.
 import type { SubscribedChannel } from '#lib/api/subscription-list.js';
 import type { ChannelSummary, User, VideoSummary } from '#lib/video.js';
@@ -201,8 +201,6 @@ export const mockVideos: VideoSummary[] = [
 ];
 
 export const mockContinueWatching = mockVideos.filter((video) => video.progress !== undefined);
-
-export const mockRecent = mockVideos.filter((video) => video.progress === undefined);
 
 export const mockUser: User = {
 	id: 'usr_01',

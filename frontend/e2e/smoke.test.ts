@@ -2,6 +2,13 @@ import { expect, test } from '@playwright/test';
 
 test.use({ locale: 'en-US' });
 
+// No backend: every API call fails, so guests get the home page's search fallback.
+test.beforeEach(async ({ page }) => {
+	await page.route('**/api/v0/**', (route) =>
+		route.fulfill({ status: 502, contentType: 'application/json', body: '{}' })
+	);
+});
+
 test('app shell loads and the language can be switched', async ({ page }) => {
 	await page.goto('/');
 
@@ -9,13 +16,18 @@ test('app shell loads and the language can be switched', async ({ page }) => {
 	await expect(sidebar).toBeVisible();
 	await expect(sidebar.getByRole('link', { name: 'Subscriptions' })).toBeVisible();
 	await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeAttached();
-	await expect(page.getByRole('heading', { level: 2, name: 'Recent videos' })).toBeVisible();
+	await expect(
+		page.getByRole('heading', { level: 2, name: 'What do you want to watch?' })
+	).toBeVisible();
 	await expect(page).toHaveTitle('Oxistream');
 
 	await page.getByTestId('language-switch').click();
 	await page.getByRole('menuitemradio', { name: 'Deutsch' }).click();
 
 	await expect(page.getByRole('heading', { level: 1, name: 'Startseite' })).toBeAttached();
+	await expect(
+		page.getByRole('heading', { level: 2, name: 'Was möchtest du sehen?' })
+	).toBeVisible();
 	await expect(sidebar.getByRole('link', { name: 'Abos' })).toBeVisible();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 });

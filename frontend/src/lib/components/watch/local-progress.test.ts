@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	PROGRESS_KEY,
 	readLocalProgress,
+	recentLocalVideos,
 	resumePosition,
 	saveLocalProgress
 } from './local-progress';
@@ -51,6 +52,32 @@ describe('local progress', () => {
 			saveLocalProgress('a', { position: 1, duration: 2, finished: false, reason: 'pause' })
 		).not.toThrow();
 		expect(readLocalProgress('a')).toBeNull();
+	});
+
+	it('lists watched videos with their details, most recent first', () => {
+		const video = { title: 'First', channel: { id: 'UC1', name: 'One' }, durationSeconds: 100 };
+		const report = { position: 50, duration: 100, finished: false, reason: 'pause' } as const;
+		saveLocalProgress('a', report, 1, video);
+		saveLocalProgress('b', report, 3, { ...video, title: 'Second' });
+		saveLocalProgress('c', report, 2);
+		// A later report without details keeps the stored ones.
+		saveLocalProgress('a', { ...report, finished: true }, 4);
+
+		const recent = recentLocalVideos(5);
+		expect(recent.map((v) => v.id)).toEqual(['a', 'b']);
+		expect(recent[0]).toMatchObject({ title: 'First', progress: 1, durationSeconds: 100 });
+		expect(recent[1]).toMatchObject({ title: 'Second', progress: 0.5 });
+		expect(recentLocalVideos(1)).toHaveLength(1);
+	});
+
+	it('skips malformed video details', () => {
+		localStorage.setItem(
+			PROGRESS_KEY,
+			JSON.stringify({
+				a: { position: 1, duration: 2, finished: false, updatedAt: 1, video: { title: 3 } }
+			})
+		);
+		expect(recentLocalVideos(5)).toEqual([]);
 	});
 
 	it('resumes unfinished videos a little earlier', () => {
