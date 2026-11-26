@@ -13,8 +13,8 @@ use axum::http::{Method, Request, StatusCode, header};
 use common::{isolated_test_pool, state_with_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    AdvisoryLock, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, Image, LockKey,
-    NewSession, NewUser, PgChannelRepository, PgPool, PgSessionRepository,
+    AdvisoryLock, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
+    Image, LockKey, NewSession, NewUser, PgChannelRepository, PgPool, PgSessionRepository,
     PgSubscriptionRepository, PgUserRepository, SessionRepository, SubscriptionRepository, User,
     UserRepository,
 };
@@ -158,7 +158,7 @@ async fn feed_is_newest_first_paginated_and_per_user() {
         .await
         .unwrap();
 
-    let first = subs.feed(alice.id, None, 2).await.unwrap();
+    let first = subs.feed(alice.id, FeedFilter::All, None, 2).await.unwrap();
     let ids: Vec<_> = first.iter().map(|v| v.video_id.as_str()).collect();
     assert_eq!(ids, ["aaaaaaaaaa2", "bbbbbbbbbb1"]);
     assert_eq!(first[1].channel_name.as_deref(), Some("Bravo"));
@@ -166,13 +166,13 @@ async fn feed_is_newest_first_paginated_and_per_user() {
     assert_eq!(first[1].thumbnails.len(), 1);
 
     let rest = subs
-        .feed(alice.id, Some(&first[1].cursor()), 2)
+        .feed(alice.id, FeedFilter::All, Some(&first[1].cursor()), 2)
         .await
         .unwrap();
     let ids: Vec<_> = rest.iter().map(|v| v.video_id.as_str()).collect();
     assert_eq!(ids, ["aaaaaaaaaa1"]);
 
-    let bobs = subs.feed(bob.id, None, 10).await.unwrap();
+    let bobs = subs.feed(bob.id, FeedFilter::All, None, 10).await.unwrap();
     assert_eq!(bobs.len(), 1);
     assert_eq!(bobs[0].video_id, "cccccccccc1");
 
@@ -180,8 +180,62 @@ async fn feed_is_newest_first_paginated_and_per_user() {
         sort_at: datetime!(2026-01-02 00:00 UTC),
         video_id: "bbbbbbbbbb1".into(),
     };
-    let after = subs.feed(alice.id, Some(&cursor), 10).await.unwrap();
+    let after = subs
+        .feed(alice.id, FeedFilter::All, Some(&cursor), 10)
+        .await
+        .unwrap();
     assert_eq!(after.len(), 1, "the cursor itself is excluded");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn feed_filters_shorts_and_keeps_their_channel_order() {
+    let db = isolated_test_pool().await;
+    let subs = PgSubscriptionRepository::new(db.pool.clone());
+    let channels = PgChannelRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    subs.subscribe(alice.id, CHANNEL_A).await.unwrap();
+    let short = |id: &str| ChannelVideoUpsert {
+        published_at: None,
+        published_text: None,
+        is_short: true,
+        ..video(id, datetime!(2026-01-01 00:00 UTC))
+    };
+    channels
+        .store_fetch(
+            &channel(CHANNEL_A, "Alpha"),
+            &[
+                video("aaaaaaaaaa1", datetime!(2026-01-01 00:00 UTC)),
+                short("aaaaaaaaas1"),
+                short("aaaaaaaaas0"),
+                short("aaaaaaaaas2"),
+            ],
+        )
+        .await
+        .unwrap();
+
+    let ids = |videos: Vec<oxistream_db::FeedVideo>| {
+        videos.into_iter().map(|v| v.video_id).collect::<Vec<_>>()
+    };
+    let shorts = subs
+        .feed(alice.id, FeedFilter::Shorts, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        ids(shorts),
+        ["aaaaaaaaas1", "aaaaaaaaas0", "aaaaaaaaas2"],
+        "undated shorts keep the channel's order"
+    );
+    let videos = subs
+        .feed(alice.id, FeedFilter::Videos, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(ids(videos), ["aaaaaaaaaa1"]);
+    let all = subs
+        .feed(alice.id, FeedFilter::All, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(all.len(), 4);
 }
 
 #[tokio::test]
@@ -225,7 +279,10 @@ async fn refetch_keeps_publish_date_and_owner() {
         .await
         .unwrap();
 
-    let feed = subs.feed(alice.id, None, 10).await.unwrap();
+    let feed = subs
+        .feed(alice.id, FeedFilter::All, None, 10)
+        .await
+        .unwrap();
     assert_eq!(feed.len(), 1);
     assert_eq!(feed[0].channel_id, CHANNEL_A);
     assert_eq!(feed[0].channel_name.as_deref(), Some("Alpha renamed"));
@@ -322,8 +379,20 @@ async fn worker_fetches_each_subscribed_channel_once() {
     );
     assert_eq!(source.fetches(CHANNEL_A), 1, "once despite two subscribers");
     assert_eq!(source.fetches(CHANNEL_B), 1);
-    assert_eq!(subs.feed(alice.id, None, 10).await.unwrap().len(), 1);
-    assert_eq!(subs.feed(bob.id, None, 10).await.unwrap().len(), 2);
+    assert_eq!(
+        subs.feed(alice.id, FeedFilter::All, None, 10)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        subs.feed(bob.id, FeedFilter::All, None, 10)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
 
     let failed = channels.get(CHANNEL_C).await.unwrap().unwrap();
     assert!(failed.last_error.unwrap().contains("gone"));
@@ -349,7 +418,13 @@ async fn worker_prunes_unsubscribed_channels() {
     let source = Arc::new(FakeSource::default());
     let worker = worker(&db.pool, &source);
     worker.run_once().await.unwrap().unwrap();
-    assert_eq!(subs.feed(alice.id, None, 10).await.unwrap().len(), 1);
+    assert_eq!(
+        subs.feed(alice.id, FeedFilter::All, None, 10)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 
     subs.unsubscribe(alice.id, CHANNEL_A).await.unwrap();
     let summary = worker.run_once().await.unwrap().unwrap();
@@ -635,6 +710,7 @@ async fn api_rejects_bad_input() {
         (Method::GET, "/api/v0/feed?limit=0"),
         (Method::GET, "/api/v0/feed?limit=101"),
         (Method::GET, "/api/v0/feed?continuation=garbage"),
+        (Method::GET, "/api/v0/feed?kind=reels"),
     ] {
         let (status, json) = api.send(method.clone(), uri, true).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{method} {uri}: {json}");
