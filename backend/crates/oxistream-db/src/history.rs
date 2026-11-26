@@ -59,7 +59,7 @@ pub struct HistoryCursor {
 #[async_trait::async_trait]
 pub trait HistoryRepository: Send + Sync {
     /// Stores the latest progress of a video. Returns `false`, storing nothing, while the
-    /// user paused their history.
+    /// user paused their history or for a video known to be a short.
     async fn record(&self, user_id: Uuid, update: &ProgressUpdate) -> Result<bool, Error>;
 
     /// Progress of the given videos; videos never watched are left out.
@@ -78,6 +78,7 @@ pub trait HistoryRepository: Send + Sync {
     ) -> Result<Vec<HistoryEntry>, Error>;
 
     /// Unfinished videos watched for at least `min_position` seconds, most recent first.
+    /// Videos known to be shorts are left out.
     async fn unfinished(
         &self,
         user_id: Uuid,
@@ -121,6 +122,8 @@ impl HistoryRepository for PgHistoryRepository {
              SELECT $1, $2, $3, $4, $5 \
              WHERE NOT EXISTS (SELECT 1 FROM user_settings \
                 WHERE user_id = $1 AND history_paused) \
+                AND NOT EXISTS (SELECT 1 FROM channel_videos \
+                WHERE video_id = $2 AND is_short) \
              ON CONFLICT (user_id, video_id) DO UPDATE SET \
                 position_seconds = EXCLUDED.position_seconds, \
                 duration_seconds = EXCLUDED.duration_seconds, \
@@ -189,6 +192,8 @@ impl HistoryRepository for PgHistoryRepository {
             sqlx::query_as::<_, HistoryEntry>(sqlx::AssertSqlSafe(format!(
                 "{ENTRY_QUERY} \
              WHERE p.user_id = $1 AND NOT p.finished AND p.position_seconds >= $2 \
+                AND NOT EXISTS (SELECT 1 FROM channel_videos cv \
+                WHERE cv.video_id = p.video_id AND cv.is_short) \
              ORDER BY p.updated_at DESC, p.video_id DESC \
              LIMIT $3"
             )))

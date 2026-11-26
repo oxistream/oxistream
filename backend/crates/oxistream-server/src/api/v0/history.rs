@@ -160,7 +160,8 @@ fn check_limit(limit: Option<u32>, default: u32, max: u32) -> Result<u32, ApiErr
     }
 }
 
-/// Record how far the signed-in user got into a video. Ignored while history is paused.
+/// Record how far the signed-in user got into a video. Ignored while history is paused and for
+/// videos known to be shorts.
 ///
 /// The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
 #[utoipa::path(
@@ -392,7 +393,8 @@ struct ContinueParams {
     limit: Option<u32>,
 }
 
-/// Started but unfinished videos, most recently watched first.
+/// Started but unfinished videos, most recently watched first. Videos known to be shorts are
+/// left out.
 #[utoipa::path(
     get,
     path = "/history/continue",

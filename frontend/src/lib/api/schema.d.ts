@@ -282,7 +282,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Started but unfinished videos, most recently watched first. */
+        /**
+         * Started but unfinished videos, most recently watched first. Videos known to be shorts are
+         *     left out.
+         */
         get: operations["continue_watching"];
         put?: never;
         post?: never;
@@ -527,7 +530,8 @@ export interface paths {
         get: operations["batch_progress"];
         put?: never;
         /**
-         * Record how far the signed-in user got into a video. Ignored while history is paused.
+         * Record how far the signed-in user got into a video. Ignored while history is paused and for
+         *     videos known to be shorts.
          * @description The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
          */
         post: operations["report_progress"];

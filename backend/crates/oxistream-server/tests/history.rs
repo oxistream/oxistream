@@ -8,11 +8,11 @@ use axum::http::{Method, Request, StatusCode, header};
 use common::{app_with_pool, isolated_test_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    ChannelRepository, ChannelUpdate, HistoryRepository, NewSession, NewUser, PgChannelRepository,
-    PgHistoryRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
-    PgUserSettingsRepository, PgVideoRepository, ProgressUpdate, SessionRepository,
-    SubscriptionRepository, User, UserRepository, UserSettingsRepository, VideoRepository,
-    VideoUpsert,
+    ChannelRepository, ChannelUpdate, ChannelVideoUpsert, HistoryRepository, NewSession, NewUser,
+    PgChannelRepository, PgHistoryRepository, PgPool, PgSessionRepository,
+    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
+    ProgressUpdate, SessionRepository, SubscriptionRepository, User, UserRepository,
+    UserSettingsRepository, VideoRepository, VideoUpsert,
 };
 use oxistream_server::auth::cookie;
 use serde_json::{Value, json};
@@ -228,6 +228,64 @@ async fn entries_use_subscribed_channel_metadata() {
     assert_eq!(list[0].channel_name.as_deref(), Some("Alpha renamed"));
     assert_eq!(list[0].channel_avatar.len(), 1);
     assert!(list[0].channel_verified);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn known_shorts_are_neither_recorded_nor_continued() {
+    let db = isolated_test_pool().await;
+    let history = PgHistoryRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    // B was watched before the feed worker learned it is a short.
+    for id in [VIDEO_A, VIDEO_B] {
+        assert!(
+            history
+                .record(alice.id, &update(id, 30.0, false))
+                .await
+                .unwrap()
+        );
+    }
+    let short = |id: &str| ChannelVideoUpsert {
+        video_id: id.into(),
+        title: format!("Short {id}"),
+        duration_seconds: Some(30),
+        published_at: None,
+        published_text: None,
+        thumbnails: vec![],
+        view_count: None,
+        is_live: false,
+        is_upcoming: false,
+        is_short: true,
+    };
+    PgChannelRepository::new(db.pool.clone())
+        .store_fetch(
+            &ChannelUpdate {
+                id: CHANNEL.into(),
+                name: "Alpha".into(),
+                handle: None,
+                avatar: vec![],
+                subscriber_count: None,
+                verified: false,
+            },
+            &[short(VIDEO_B), short(VIDEO_C)],
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !history
+            .record(alice.id, &update(VIDEO_C, 30.0, false))
+            .await
+            .unwrap()
+    );
+    let unfinished = history.unfinished(alice.id, 10.0, 10).await.unwrap();
+    let ids: Vec<_> = unfinished
+        .iter()
+        .map(|e| e.progress.video_id.as_str())
+        .collect();
+    assert_eq!(ids, [VIDEO_A]);
+    let list = history.list(alice.id, None, 10).await.unwrap();
+    assert_eq!(list.len(), 2, "earlier history stays");
 }
 
 struct Api {
