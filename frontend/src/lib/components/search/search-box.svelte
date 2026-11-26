@@ -13,8 +13,17 @@
 	let {
 		input = $bindable(null),
 		debounceMs = 180,
+		size = 'default',
 		class: className
-	}: { input?: HTMLInputElement | null; debounceMs?: number; class?: string } = $props();
+	}: {
+		input?: HTMLInputElement | null;
+		debounceMs?: number;
+		/** `lg` is a standalone box in page content, without the `/` shortcut of the header's. */
+		size?: 'default' | 'lg';
+		class?: string;
+	} = $props();
+
+	const large = $derived(size === 'lg');
 
 	const uid = $props.id();
 	const listboxId = `${uid}-suggestions`;
@@ -134,16 +143,26 @@
 	}
 </script>
 
-<form role="search" class={cn('relative min-w-0 flex-1 md:max-w-xl', className)} {onsubmit}>
+<form
+	role="search"
+	class={cn('relative min-w-0 flex-1', !large && 'md:max-w-xl', className)}
+	{onsubmit}
+>
 	<div class="relative">
 		{#if resolving}
 			<LoaderCircleIcon
-				class="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+				class={cn(
+					'pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground',
+					large && 'start-4 size-5'
+				)}
 				aria-hidden="true"
 			/>
 		{:else}
 			<SearchIcon
-				class="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+				class={cn(
+					'pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground',
+					large && 'start-4 size-5'
+				)}
 				aria-hidden="true"
 			/>
 		{/if}
@@ -162,10 +181,13 @@
 			spellcheck="false"
 			placeholder={m.search_placeholder()}
 			aria-label={m.search_label()}
-			aria-keyshortcuts="/"
+			aria-keyshortcuts={large ? undefined : '/'}
 			enterkeyhint="search"
-			data-testid="search-input"
-			class="peer bg-muted/60 ps-8 md:pe-9 dark:bg-input/30"
+			data-testid={large ? 'search-input-large' : 'search-input'}
+			class={cn(
+				'peer bg-muted/60 ps-8 md:pe-9 dark:bg-input/30',
+				large && 'h-12 rounded-xl ps-12 text-base md:pe-4 md:text-base'
+			)}
 			oninput={() => {
 				dismissed = false;
 				active = -1;
@@ -177,13 +199,15 @@
 			onblur={() => (focused = false)}
 			{onkeydown}
 		/>
-		<kbd
-			class="pointer-events-none absolute end-2 top-1/2 hidden h-5 -translate-y-1/2 items-center rounded border bg-background px-1.5 font-sans text-xs text-muted-foreground peer-focus:opacity-0 md:inline-flex"
-			title={m.search_shortcut()}
-			aria-hidden="true"
-		>
-			/
-		</kbd>
+		{#if !large}
+			<kbd
+				class="pointer-events-none absolute end-2 top-1/2 hidden h-5 -translate-y-1/2 items-center rounded border bg-background px-1.5 font-sans text-xs text-muted-foreground peer-focus:opacity-0 md:inline-flex"
+				title={m.search_shortcut()}
+				aria-hidden="true"
+			>
+				/
+			</kbd>
+		{/if}
 	</div>
 	<ul
 		id={listboxId}

@@ -1,47 +1,46 @@
 <script lang="ts">
-	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-	import { resolve } from '$app/paths';
-	import { createContinueWatchingQuery } from '#lib/api/history.js';
+	import { createTrendingStatus, type TrendingCategory } from '#lib/api/trending.js';
+	import GuestFallback from '#lib/components/home/guest-fallback.svelte';
+	import HomeSection from '#lib/components/home/home-section.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import VideoGrid from '#lib/components/video/video-grid.svelte';
-	import { mockRecent } from '#lib/mocks/videos.js';
+	import { recentLocalVideos } from '#lib/components/watch/local-progress.js';
+	import { homeSections, showGuestFallback, trendingCategory } from '#lib/home/sections.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
 
-	const continueWatching = createContinueWatchingQuery();
-	const showContinue = $derived(
-		session.user !== null && (continueWatching.isPending || !!continueWatching.data?.length)
+	const RECENT_LIMIT = 12;
+
+	const guest = $derived(session.ready && !session.user);
+	const sections = $derived(homeSections(session.user ? 'user' : 'guest'));
+	const categories = $derived(
+		sections.map(trendingCategory).filter((c): c is TrendingCategory => c !== undefined)
 	);
+	const trending = createTrendingStatus(
+		() => categories,
+		() => guest
+	);
+	const fallback = $derived(guest && showGuestFallback(trending));
+	const recent = $derived(fallback ? recentLocalVideos(RECENT_LIMIT) : []);
 </script>
 
 <div class="flex flex-col gap-8 px-(--page-gutter) py-6">
 	<PageHeader title={m.nav_home()} documentTitle={pageTitle()} class="sr-only" />
 
-	{#if showContinue}
-		<section aria-labelledby="continue-heading" class="flex flex-col gap-3">
-			<div class="flex items-center justify-between gap-4">
-				<h2 id="continue-heading" class="text-base font-semibold tracking-tight">
-					{m.home_continue_watching()}
-				</h2>
-				<Button href={resolve('/feed/history')} variant="ghost" size="sm">
-					{m.history_view_all()}
-					<ArrowRightIcon />
-				</Button>
+	{#if !session.ready}
+		{#each { length: 2 }, i (i)}
+			<div class="flex flex-col gap-3">
+				<div class="flex min-h-8 items-center"><Skeleton class="h-5 w-40" /></div>
+				<VideoGrid loading layout="row" skeletonCount={5} />
 			</div>
-			<VideoGrid
-				videos={continueWatching.data ?? []}
-				loading={continueWatching.isPending}
-				skeletonCount={4}
-				layout="row"
-				label={m.home_continue_watching()}
-			/>
-		</section>
+		{/each}
+	{:else if fallback}
+		<GuestFallback {recent} />
+	{:else}
+		{#each sections as key (key)}
+			<HomeSection {key} />
+		{/each}
 	{/if}
-
-	<section aria-labelledby="recent-heading" class="flex flex-col gap-3">
-		<h2 id="recent-heading" class="text-base font-semibold tracking-tight">{m.home_recent()}</h2>
-		<VideoGrid videos={mockRecent} />
-	</section>
 </div>

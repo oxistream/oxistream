@@ -166,14 +166,17 @@ test('home shows continue watching for signed-in users only', async ({ page }) =
 	const row = page.getByRole('list', { name: 'Continue watching' });
 	await expect(row.getByRole('listitem')).toHaveCount(2);
 	await expect(row.getByRole('link', { name: /Watched video 2.*50% watched/ })).toBeVisible();
-	await page.getByRole('link', { name: 'View all' }).click();
+	await page
+		.getByRole('region', { name: 'Continue watching' })
+		.getByRole('link', { name: 'Show all' })
+		.click();
 	await expect(page).toHaveURL(/\/feed\/history$/);
 });
 
 test('anonymous users see no continue watching row', async ({ page }) => {
 	await mockApi(page, { signedIn: false });
 	await page.goto('/');
-	await expect(page.getByRole('heading', { name: 'Recent videos' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'What do you want to watch?' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Continue watching' })).toHaveCount(0);
 });
 

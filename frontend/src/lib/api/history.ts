@@ -7,7 +7,11 @@ import {
 	type InfiniteData
 } from '@tanstack/svelte-query';
 import type { ProgressReport } from '#lib/components/player/progress.js';
-import { readLocalProgress, saveLocalProgress } from '#lib/components/watch/local-progress.js';
+import {
+	readLocalProgress,
+	saveLocalProgress,
+	type LocalVideo
+} from '#lib/components/watch/local-progress.js';
 import { session } from '#lib/session.svelte.js';
 import { api } from './client';
 import {
@@ -18,7 +22,8 @@ import {
 	type HistoryVideo,
 	type WatchProgress
 } from './history-list';
-import { uniqueBy, unwrap } from './mapping';
+import { pickImage, uniqueBy, unwrap } from './mapping';
+import type { VideoDetails } from './video';
 
 export type HistoryPage = { items: HistoryVideo[]; continuation?: string };
 
@@ -166,6 +171,24 @@ function sendReport(videoId: string, report: ProgressReport) {
 	void api.POST('/api/v0/progress', { body }).catch(() => undefined);
 }
 
+/** The loaded video's card details, kept with anonymous progress for the home page. */
+function cachedLocalVideo(
+	client: ReturnType<typeof useQueryClient>,
+	videoId: string
+): LocalVideo | undefined {
+	const details = client
+		.getQueriesData<VideoDetails>({ queryKey: ['video', videoId] })
+		.find(([, data]) => data)?.[1];
+	if (!details) return undefined;
+	return {
+		title: details.title,
+		channel: { id: details.channel.id, name: details.channel.name },
+		durationSeconds: details.is_live ? undefined : (details.duration_seconds ?? undefined),
+		isLive: details.is_live,
+		thumbnailUrl: pickImage(details.thumbnails, 480)
+	};
+}
+
 /**
  * Stores player progress: on the server for signed-in users, in this browser otherwise. Lists
  * showing progress are marked stale, so they refetch when shown next.
@@ -175,7 +198,7 @@ export function createProgressReporter() {
 	const paused = createHistorySettingsQuery();
 	return (videoId: string) => (report: ProgressReport) => {
 		if (!session.user) {
-			saveLocalProgress(videoId, report);
+			saveLocalProgress(videoId, report, Date.now(), cachedLocalVideo(client, videoId));
 			return;
 		}
 		if (paused.data) return;

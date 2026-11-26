@@ -25,6 +25,8 @@
 	} = $props();
 
 	const locale = getLocale();
+	// Some listings (e.g. trending) carry videos without a known channel.
+	const channelShown = $derived(showChannel && video.channel.id !== '');
 	const watched = $derived(
 		video.progress === undefined
 			? undefined
@@ -44,7 +46,7 @@
 		progress={video.progress}
 	/>
 	<div class="flex gap-3">
-		{#if showChannel}
+		{#if channelShown}
 			<ChannelAvatar name={video.channel.name} src={video.channel.avatarUrl} class="mt-0.5" />
 		{/if}
 		<div class="min-w-0 flex-1">
@@ -65,7 +67,7 @@
 					</span>
 				</a>
 			</svelte:element>
-			{#if showChannel}
+			{#if channelShown}
 				<a
 					href={resolve('/channel/[id]', { id: video.channel.id })}
 					class="relative z-10 mt-1 block w-fit max-w-full truncate rounded-sm text-xs text-muted-foreground transition-colors duration-(--motion-in) ease-ui hover:text-foreground focus-visible:outline-offset-1"
