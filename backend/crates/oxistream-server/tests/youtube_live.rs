@@ -181,6 +181,49 @@ async fn channel_paginates() {
     assert_ne!(page["items"].as_array().unwrap().len(), 0);
 }
 
+const LONG_PLAYLIST_ID: &str = "PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI";
+
+#[tokio::test]
+#[ignore = "network"]
+async fn playlist_paginates() {
+    let (status, json) = get_json(&format!("/api/v0/youtube/playlists/{LONG_PLAYLIST_ID}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["id"], LONG_PLAYLIST_ID);
+    assert!(json["title"].as_str().is_some_and(|t| !t.is_empty()));
+    assert!(json["video_count"].as_u64().is_some_and(|n| n > 100));
+    assert!(
+        json["channel"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("UC"))
+    );
+    assert!(json["last_update"].as_str().is_some());
+    let thumbnail = json["thumbnails"][0]["url"].as_str().unwrap();
+    assert!(thumbnail.starts_with("/proxy/image/"), "{thumbnail}");
+    let first = json["videos"]["items"].as_array().unwrap();
+    assert_eq!(first.len(), 100);
+    let token = json["videos"]["continuation"]
+        .as_str()
+        .expect("continuation");
+
+    let (status, page) = get_json(&format!(
+        "/api/v0/youtube/playlists/{LONG_PLAYLIST_ID}/videos?continuation={token}"
+    ))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let next = page["items"].as_array().unwrap();
+    assert_ne!(next.len(), 0);
+    assert_ne!(next[0]["id"], first[0]["id"]);
+    assert_video_metadata(&page["items"]);
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn unknown_playlist_is_not_found() {
+    let (status, json) =
+        get_json("/api/v0/youtube/playlists/PLzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{json}");
+}
+
 #[tokio::test]
 #[ignore = "network"]
 async fn resolves_urls() {

@@ -11,7 +11,8 @@ use utoipa_axum::routes;
 use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{
-    ChannelDetails, Resolved, SearchPage, TrendingCategory, TrendingVideos, VideoDetails, VideoPage,
+    ChannelDetails, Resolved, SearchPage, TrendingCategory, TrendingVideos, VideoDetails,
+    VideoPage, YouTubePlaylist,
 };
 use crate::api::error::{ApiError, ErrorBody};
 use crate::api::lang::ContentLanguage;
@@ -23,6 +24,8 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(search_suggestions))
         .routes(routes!(channel))
         .routes(routes!(channel_videos))
+        .routes(routes!(playlist))
+        .routes(routes!(playlist_videos))
         .routes(routes!(resolve))
         .routes(routes!(trending))
 }
@@ -284,6 +287,71 @@ async fn channel_videos(
                 .await?
         }
         None => state.youtube.channel_videos(&id, lang).await?.content,
+    };
+    Ok(Json(VideoPage::from_rp(page, &img)))
+}
+
+/// A YouTube playlist with the first page of its videos.
+#[utoipa::path(
+    get,
+    path = "/youtube/playlists/{id}",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube playlist ID (`PL…`, `UU…`, `OLAK…`, …)"),
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = YouTubePlaylist),
+        (status = BAD_REQUEST, description = "Invalid playlist ID", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found, private, or a mix (`reason` is `mix`)", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn playlist(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<YouTubePlaylist>, ApiError> {
+    let playlist = state.youtube.playlist(&id, lang).await?;
+    Ok(Json(YouTubePlaylist::from_rp(playlist, &|url| {
+        state.image_url(url)
+    })))
+}
+
+/// A further page of a YouTube playlist's videos.
+#[utoipa::path(
+    get,
+    path = "/youtube/playlists/{id}/videos",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube playlist ID"),
+        ContinuationParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = VideoPage),
+        (status = BAD_REQUEST, description = "Invalid playlist ID", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found, private, or a mix", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn playlist_videos(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<ContinuationParams>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<VideoPage>, ApiError> {
+    let img = |url: &str| state.image_url(url);
+    let page = match non_empty(params.continuation.as_deref()) {
+        Some(token) => {
+            state
+                .youtube
+                .playlist_continuation(&id, token, lang)
+                .await?
+        }
+        None => state.youtube.playlist(&id, lang).await?.videos,
     };
     Ok(Json(VideoPage::from_rp(page, &img)))
 }

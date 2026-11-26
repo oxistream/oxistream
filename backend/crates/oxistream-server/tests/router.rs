@@ -63,6 +63,10 @@ async fn youtube_endpoints_validate_input_without_upstream() {
         "/api/v0/videos/not-an-id",
         "/api/v0/channels/not-a-channel",
         "/api/v0/channels/not-a-channel/videos",
+        "/api/v0/youtube/playlists/not-a-playlist",
+        "/api/v0/youtube/playlists/WL",
+        "/api/v0/youtube/playlists/Rd7xQ2mKp9LsVb3N",
+        "/api/v0/youtube/playlists/not-a-playlist/videos?continuation=x",
         "/api/v0/search",
         "/api/v0/search?q=%20",
         "/api/v0/resolve",
@@ -73,6 +77,22 @@ async fn youtube_endpoints_validate_input_without_upstream() {
             error_code(uri).await,
             (StatusCode::BAD_REQUEST, "bad_request".to_owned()),
             "{uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn youtube_mixes_are_unavailable_without_upstream() {
+    for uri in [
+        "/api/v0/youtube/playlists/RDdQw4w9WgXcQ",
+        "/api/v0/youtube/playlists/RDdQw4w9WgXcQ/videos?continuation=x",
+    ] {
+        let (status, body) = get(app_without_db(), uri).await;
+        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
+        assert_eq!(
+            (json["code"].as_str(), json["reason"].as_str()),
+            (Some("unavailable"), Some("mix"))
         );
     }
 }
