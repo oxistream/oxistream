@@ -86,6 +86,16 @@ export function formatRelativeTime(
 	return rtf.format(0, 'second');
 }
 
+/** A calendar day (`YYYY-MM-DD`) relative to today: "today", "yesterday", "3 weeks ago". */
+export function formatRelativeDay(day: string, locale: string, now: Date = new Date()): string {
+	const [year, month, date] = day.split('-').map(Number);
+	const then = new Date(year, month - 1, date, 12);
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+	const days = Math.round((today.getTime() - then.getTime()) / (24 * 3600 * 1000));
+	if (days >= 7) return formatRelativeTime(then, locale, today);
+	return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(-Math.max(days, 0), 'day');
+}
+
 /** Absolute date for tooltips: "March 4, 2026" / "4. März 2026". */
 export function formatDate(date: Date | string, locale: string): string {
 	const value = typeof date === 'string' ? new Date(date) : date;

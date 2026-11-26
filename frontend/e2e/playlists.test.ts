@@ -218,13 +218,8 @@ test('anonymous users get a sign-in prompt but can open unlisted playlists', asy
 	);
 });
 
-test('YouTube playlist IDs and unknown playlists get their own states', async ({ page }) => {
+test('unknown playlists get a not-found state', async ({ page }) => {
 	await mockApi(page);
-
-	await page.goto('/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf');
-	await expect(
-		page.getByRole('heading', { name: "YouTube playlists aren't supported yet" })
-	).toBeVisible();
 
 	await page.goto('/playlist?list=Zz9Zz9Zz9Zz9Zz9Z');
 	await expect(page.getByRole('heading', { name: 'Playlist not found' })).toBeVisible();

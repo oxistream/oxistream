@@ -283,9 +283,10 @@ test('app routes are not taken for video ids or handles', async ({ page }) => {
 	await expect(page).toHaveURL(/\/settings$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
 
+	await page.route('**/api/v0/youtube/playlists/*', (route) =>
+		json(route, { code: 'not_found', message: 'not found' }, 404)
+	);
 	await page.goto('/playlist?list=PLforgebasics');
 	await expect(page.getByRole('heading', { level: 1, name: 'Playlist' })).toBeVisible();
-	await expect(
-		page.getByRole('heading', { name: "YouTube playlists aren't supported yet" })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Playlist not found' })).toBeVisible();
 });
