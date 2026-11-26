@@ -35,10 +35,11 @@ MVP:
 - Local playlists, visibility `private` or `unlisted` (share link)
 - Watch history, resume, continue watching; pause and clear history
 - Accounts, account self-deletion, minimal admin (user list with role/disable/delete, status page)
+- Discovery: home page (continue watching, subscriptions; trending for guests), search and channel tabs, shorts player, follow or import YouTube playlists
 
-Later: comments, SponsorBlock, DeArrow, livestreams (HLS passthrough), YouTube playlist import, SQLite, shorts UI.
+Later: comments, SponsorBlock, DeArrow, livestreams (HLS passthrough), SQLite.
 
-Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@handle`, `/playlist?list=`, `/results?search_query=`, `/shorts/{id}` (redirects to watch), `/{videoId}`.
+Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@handle`, `/playlist?list=`, `/results?search_query=`, `/shorts/{id}`, `/{videoId}`.
 
 ## Backend
 
@@ -88,6 +89,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 - RustyPipe via `oxipipe`, our maintained fork (upstream is inactive), used as `rustypipe = { package = "oxipipe", git, rev }`. YouTube-side fixes (deobfuscation, clients, parsing) go into the fork, then bump the pinned `rev`.
 - `.unauthenticated()` only. Never use YouTube accounts or cookies.
+- Fixtures from live responses must be scrubbed before committing: no IP addresses (e.g. googlevideo `ip=`), `visitorData` set to `redacted`, tracking params dropped. Grep the diff for IPv4 patterns before every push.
 - Player clients: VisionOS first, TV as fallback; WEB is SABR-only. TV streams may only become valid after a pre-roll ad, so the proxy waits for `VideoPlayer::available_at`.
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.
 - Player responses cached in memory (`moka`) per instance. On an upstream 403 the proxy re-fetches player data.
