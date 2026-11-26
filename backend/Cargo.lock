@@ -2382,7 +2382,7 @@ dependencies = [
 [[package]]
 name = "oxipipe"
 version = "0.11.4"
-source = "git+https://github.com/oxistream/oxipipe?rev=a50fe249b0a317e2d6f11bbc6aa91904c9b6ada9#a50fe249b0a317e2d6f11bbc6aa91904c9b6ada9"
+source = "git+https://github.com/oxistream/oxipipe?rev=b934391c8fc70a33073becee47f403fc93b710bf#b934391c8fc70a33073becee47f403fc93b710bf"
 dependencies = [
  "data-encoding",
  "fancy-regex",

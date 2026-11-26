@@ -17,9 +17,7 @@ use time::OffsetDateTime;
 
 use crate::config::YouTubeConfig;
 
-mod capture;
 mod error;
-mod layout;
 
 pub use error::YouTubeError;
 
@@ -56,9 +54,10 @@ impl YouTube {
     }
 
     pub fn new(config: &YouTubeConfig) -> anyhow::Result<Self> {
+        // The default reporter writes report files into the working directory.
         let mut builder = RustyPipe::builder()
             .unauthenticated()
-            .reporter(Box::new(capture::CaptureReporter))
+            .no_reporter()
             .po_token_cache();
         builder = match &config.cache_dir {
             Some(dir) => builder.storage_dir(dir),
@@ -118,26 +117,9 @@ impl YouTube {
         self.players.invalidate(video_id).await;
     }
 
-    /// Runs `f` with a reporting query and reads what RustyPipe misses from the raw responses.
-    async fn with_fixes<T, F>(
-        &self,
-        lang: Language,
-        f: impl FnOnce(RustyPipeQuery) -> F,
-    ) -> Result<(T, layout::Fixes)>
-    where
-        F: Future<Output = std::result::Result<T, rustypipe::error::Error>>,
-    {
-        let (result, bodies) = capture::capture(f(self.query(lang).report())).await;
-        Ok((result?, layout::Fixes::from_bodies(&bodies, lang)))
-    }
-
     pub async fn video_details(&self, video_id: &str, lang: Language) -> Result<VideoDetails> {
         check_video_id(video_id)?;
-        let (mut details, fixes) = self
-            .with_fixes(lang, |q| async move { q.video_details(video_id).await })
-            .await?;
-        fixes.apply(&mut details.recommended.items);
-        Ok(details)
+        Ok(self.query(lang).video_details(video_id).await?)
     }
 
     pub async fn search(&self, query: &str, lang: Language) -> Result<SearchResult<YouTubeItem>> {
@@ -166,15 +148,7 @@ impl YouTube {
     ) -> Result<Channel<Paginator<VideoItem>>> {
         validate::channel_id(channel_id)
             .map_err(|_| YouTubeError::InvalidInput("invalid channel id".into()))?;
-        let (mut channel, fixes) = self
-            .with_fixes(lang, |q| async move { q.channel_videos(channel_id).await })
-            .await?;
-        fixes.apply(&mut channel.content.items);
-        if let Some(counts) = fixes.channel_counts {
-            channel.subscriber_count = counts.subscribers;
-            channel.video_count = counts.videos;
-        }
-        Ok(channel)
+        Ok(self.query(lang).channel_videos(channel_id).await?)
     }
 
     pub async fn channel_videos_continuation(
@@ -182,14 +156,10 @@ impl YouTube {
         token: &str,
         lang: Language,
     ) -> Result<Paginator<VideoItem>> {
-        let (mut page, fixes) = self
-            .with_fixes(lang, |q| async move {
-                q.continuation(token, ContinuationEndpoint::Browse, None)
-                    .await
-            })
-            .await?;
-        fixes.apply(&mut page.items);
-        Ok(page)
+        Ok(self
+            .query(lang)
+            .continuation(token, ContinuationEndpoint::Browse, None)
+            .await?)
     }
 
     /// Resolves a YouTube URL, URL path (`/@handle`), ID or handle.
