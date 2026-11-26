@@ -13,13 +13,14 @@ use std::sync::Arc;
 use oxistream_db::{
     PgChannelBlockRepository, PgChannelRepository, PgHistoryRepository, PgLikeRepository,
     PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgSessionRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PoolOptions,
+    PgSponsorBlockSettingsRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PoolOptions,
 };
 use oxistream_server::auth::Auth;
-use oxistream_server::config::{AuthConfig, ProxyConfig, YouTubeConfig};
+use oxistream_server::config::{AuthConfig, ProxyConfig, SponsorBlockConfig, YouTubeConfig};
 use oxistream_server::feed::Feed;
 use oxistream_server::proxy::Proxy;
+use oxistream_server::sponsorblock::SponsorBlock;
 use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
 use serde_json::json;
@@ -122,11 +123,18 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
-        db,
         metrics: telemetry::detached_metrics_handle(),
         youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),
         proxy: Proxy::new(&ProxyConfig::new(TEST_PROXY_SECRET)).expect("build proxy"),
         rate_limit: None,
+        // Unreachable, so no test talks to the real SponsorBlock by accident.
+        sponsorblock: SponsorBlock::new(&SponsorBlockConfig {
+            enabled: true,
+            api_url: "http://127.0.0.1:1".into(),
+        })
+        .expect("build SponsorBlock client"),
+        sponsorblock_settings: Arc::new(PgSponsorBlockSettingsRepository::new(db.clone())),
+        db,
     }
 }
 

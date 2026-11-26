@@ -3510,6 +3510,104 @@
         }
       }
     },
+    "/api/v0/settings/sponsorblock": {
+      "get": {
+        "tags": [
+          "sponsorblock"
+        ],
+        "summary": "The signed-in user's SponsorBlock preferences.",
+        "operationId": "settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorBlockSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "sponsorblock"
+        ],
+        "summary": "Replace the signed-in user's SponsorBlock preferences.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorBlockSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorBlockSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/subscriptions": {
       "get": {
         "tags": [
@@ -4108,6 +4206,47 @@
         }
       }
     },
+    "/api/v0/videos/{id}/segments": {
+      "get": {
+        "tags": [
+          "sponsorblock"
+        ],
+        "summary": "SponsorBlock segments of a video. The server looks them up by hash prefix, so SponsorBlock\nnever learns the video ID.",
+        "operationId": "segments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoSegments"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/videos/{id}/storyboard.vtt": {
       "get": {
         "tags": [
@@ -4384,6 +4523,14 @@
           }
         }
       },
+      "Action": {
+        "type": "string",
+        "enum": [
+          "skip",
+          "poi",
+          "full"
+        ]
+      },
       "AuthCapabilities": {
         "type": "object",
         "description": "Which sign-in methods this instance offers.",
@@ -4447,6 +4594,22 @@
             "description": "As it was when the channel was blocked."
           }
         }
+      },
+      "Category": {
+        "type": "string",
+        "enum": [
+          "sponsor",
+          "selfpromo",
+          "interaction",
+          "intro",
+          "outro",
+          "preview",
+          "hook",
+          "music_offtopic",
+          "filler",
+          "poi_highlight",
+          "exclusive_access"
+        ]
       },
       "ChannelDetails": {
         "type": "object",
@@ -4955,7 +5118,8 @@
         "required": [
           "name",
           "version",
-          "auth"
+          "auth",
+          "sponsorblock"
         ],
         "properties": {
           "auth": {
@@ -4964,6 +5128,10 @@
           "name": {
             "type": "string",
             "description": "Software name."
+          },
+          "sponsorblock": {
+            "type": "boolean",
+            "description": "SponsorBlock segments are available."
           },
           "version": {
             "type": "string",
@@ -5456,6 +5624,135 @@
           }
         }
       },
+      "Segment": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "action",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "end": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          },
+          "id": {
+            "type": "string",
+            "description": "SponsorBlock UUID."
+          },
+          "start": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          }
+        }
+      },
+      "SkipCategories": {
+        "type": "object",
+        "description": "Behaviour per skippable category.",
+        "required": [
+          "sponsor",
+          "selfpromo",
+          "interaction",
+          "intro",
+          "outro",
+          "preview",
+          "hook",
+          "music_offtopic",
+          "filler"
+        ],
+        "properties": {
+          "filler": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "hook": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "interaction": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "intro": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "music_offtopic": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "outro": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "selfpromo": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "button"
+          },
+          "sponsor": {
+            "$ref": "#/components/schemas/SkipMode",
+            "default": "auto"
+          }
+        }
+      },
+      "SkipMode": {
+        "type": "string",
+        "description": "What the player does in a segment.",
+        "enum": [
+          "auto",
+          "button",
+          "off"
+        ]
+      },
+      "SponsorBlockSettings": {
+        "type": "object",
+        "description": "SponsorBlock preferences. Missing fields take their defaults.",
+        "required": [
+          "categories",
+          "highlight",
+          "full_video_label"
+        ],
+        "properties": {
+          "categories": {
+            "$ref": "#/components/schemas/SkipCategories",
+            "default": {
+              "filler": "button",
+              "hook": "button",
+              "interaction": "button",
+              "intro": "button",
+              "music_offtopic": "button",
+              "outro": "button",
+              "preview": "button",
+              "selfpromo": "button",
+              "sponsor": "auto"
+            }
+          },
+          "full_video_label": {
+            "type": "boolean",
+            "description": "Label videos that are entirely about a product or service.",
+            "default": true
+          },
+          "highlight": {
+            "type": "boolean",
+            "description": "Mark the highlight and offer to jump to it.",
+            "default": true
+          }
+        }
+      },
       "SubscribedChannel": {
         "type": "object",
         "description": "A channel the signed-in user subscribed to.",
@@ -5799,6 +6096,21 @@
           },
           "video_id": {
             "type": "string"
+          }
+        }
+      },
+      "VideoSegments": {
+        "type": "object",
+        "required": [
+          "segments"
+        ],
+        "properties": {
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "description": "Sorted by start; empty when SponsorBlock is disabled or unreachable."
           }
         }
       },

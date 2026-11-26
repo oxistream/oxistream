@@ -14,6 +14,7 @@ mod lock;
 mod playlists;
 mod sessions;
 mod settings;
+mod sponsorblock;
 mod subscriptions;
 mod users;
 mod videos;
@@ -39,6 +40,7 @@ pub use sessions::{
     SessionRepository, TokenHash,
 };
 pub use settings::{PgUserSettingsRepository, UserSettings, UserSettingsRepository};
+pub use sponsorblock::{PgSponsorBlockSettingsRepository, SponsorBlockSettingsRepository};
 pub use subscriptions::{
     Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
     FeedStatus, FeedVideo, Image, ImportedChannel, PgChannelRepository, PgSubscriptionRepository,

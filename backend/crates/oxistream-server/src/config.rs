@@ -37,6 +37,8 @@ const OIDC_NAME: &str = "OXISTREAM_OIDC_NAME";
 const OIDC_ADMIN_GROUP: &str = "OXISTREAM_OIDC_ADMIN_GROUP";
 const OIDC_GROUPS_CLAIM: &str = "OXISTREAM_OIDC_GROUPS_CLAIM";
 const FEED_INTERVAL: &str = "OXISTREAM_FEED_INTERVAL_MINUTES";
+const SPONSORBLOCK_ENABLED: &str = "OXISTREAM_SPONSORBLOCK_ENABLED";
+const SPONSORBLOCK_API_URL: &str = "OXISTREAM_SPONSORBLOCK_API_URL";
 
 pub const MIN_PROXY_SECRET_LEN: usize = 32;
 
@@ -89,6 +91,27 @@ pub struct Config {
     pub rate_limit: Option<RateLimitConfig>,
     pub auth: AuthConfig,
     pub feed: FeedConfig,
+    pub sponsorblock: SponsorBlockConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SponsorBlockConfig {
+    pub enabled: bool,
+    /// Base URL of the SponsorBlock API server, without a trailing slash.
+    pub api_url: String,
+}
+
+impl SponsorBlockConfig {
+    pub const DEFAULT_API_URL: &str = "https://sponsor.ajay.app";
+}
+
+impl Default for SponsorBlockConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            api_url: Self::DEFAULT_API_URL.to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -323,6 +346,7 @@ impl fmt::Debug for Config {
             .field("rate_limit", &self.rate_limit)
             .field("auth", &self.auth)
             .field("feed", &self.feed)
+            .field("sponsorblock", &self.sponsorblock)
             .finish()
     }
 }
@@ -397,6 +421,18 @@ impl Config {
                     .get()
                     .into(),
                 ),
+            },
+            sponsorblock: SponsorBlockConfig {
+                enabled: parse_or(
+                    get(SPONSORBLOCK_ENABLED),
+                    SPONSORBLOCK_ENABLED,
+                    Toggle(true),
+                )?
+                .0,
+                api_url: get(SPONSORBLOCK_API_URL).map_or_else(
+                    || Ok(SponsorBlockConfig::DEFAULT_API_URL.to_owned()),
+                    |value| sponsorblock_api_url(&value),
+                )?,
             },
         })
     }
@@ -497,6 +533,19 @@ fn public_origin(value: &str) -> Result<String, ConfigError> {
         return Err(invalid("expected an http or https URL"));
     }
     Ok(url.origin().ascii_serialization())
+}
+
+fn sponsorblock_api_url(value: &str) -> Result<String, ConfigError> {
+    match reqwest::Url::parse(value.trim()) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") && url.host_str().is_some() => {
+            Ok(url.as_str().trim_end_matches('/').to_owned())
+        }
+        _ => Err(ConfigError::Invalid {
+            var: SPONSORBLOCK_API_URL,
+            value: value.to_owned(),
+            reason: "expected an http or https URL".into(),
+        }),
+    }
 }
 
 fn proxy_secret(value: Option<String>) -> Result<String, ConfigError> {
@@ -608,6 +657,7 @@ mod tests {
         assert_eq!(config.auth, AuthConfig::default());
         assert_eq!(config.auth.session_ttl, Duration::from_hours(720));
         assert_eq!(config.feed, FeedConfig::default());
+        assert_eq!(config.sponsorblock, SponsorBlockConfig::default());
     }
 
     #[test]
@@ -683,6 +733,24 @@ mod tests {
     }
 
     #[test]
+    fn sponsorblock() {
+        let config = with(&[
+            (SPONSORBLOCK_ENABLED, "false"),
+            (SPONSORBLOCK_API_URL, " https://sb.example.com/ "),
+        ])
+        .unwrap();
+        assert_eq!(
+            config.sponsorblock,
+            SponsorBlockConfig {
+                enabled: false,
+                api_url: "https://sb.example.com".into(),
+            }
+        );
+        let config = with(&[(SPONSORBLOCK_API_URL, "http://127.0.0.1:9000/sb/")]).unwrap();
+        assert_eq!(config.sponsorblock.api_url, "http://127.0.0.1:9000/sb");
+    }
+
+    #[test]
     fn rate_limit_can_be_disabled() {
         let config = with(&[(RATE_LIMIT, "false")]).unwrap();
         assert_eq!(config.rate_limit, None);
@@ -753,6 +821,8 @@ mod tests {
             (TRENDING_REGION, "XX"),
             (TRENDING_REGION, "ZZ"),
             (TRENDING_REGION, "Germany"),
+            (SPONSORBLOCK_ENABLED, "maybe"),
+            (SPONSORBLOCK_API_URL, "sponsor.ajay.app"),
         ] {
             let err = with(&[(var, value)]).unwrap_err();
             assert!(

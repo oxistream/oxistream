@@ -16,6 +16,7 @@ mod likes;
 mod manifest;
 mod oidc;
 mod playlists;
+mod sponsorblock;
 mod storyboard;
 mod subscriptions;
 mod youtube;
@@ -34,6 +35,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(follows::router())
         .merge(blocks::router())
         .merge(likes::router())
+        .merge(sponsorblock::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -43,6 +45,8 @@ pub struct InstanceInfo {
     /// Server version.
     pub version: &'static str,
     pub auth: AuthCapabilities,
+    /// SponsorBlock segments are available.
+    pub sponsorblock: bool,
 }
 
 /// Which sign-in methods this instance offers.
@@ -80,5 +84,6 @@ async fn instance(State(state): State<AppState>) -> Json<InstanceInfo> {
             oidc_enabled: config.oidc.is_some(),
             oidc_name: config.oidc.as_ref().map(|oidc| oidc.name.clone()),
         },
+        sponsorblock: state.sponsorblock.enabled(),
     })
 }
