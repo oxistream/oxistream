@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ThumbsUpIcon from '@lucide/svelte/icons/thumbs-up';
+	import type { Snippet } from 'svelte';
 	import { toChannel } from '#lib/api/mapping.js';
 	import type { VideoDetails } from '#lib/api/video.js';
 	import { formatCompactNumber } from '#lib/format.js';
@@ -14,12 +15,15 @@
 		descriptionExpanded = $bindable(false),
 		now,
 		onseek,
+		actions,
 		class: className
 	}: {
 		video: VideoDetails;
 		descriptionExpanded?: boolean;
 		now?: Date;
 		onseek?: (seconds: number) => void;
+		/** Buttons beside the like count, e.g. saving to a playlist. */
+		actions?: Snippet;
 		class?: string;
 	} = $props();
 
@@ -33,17 +37,20 @@
 	</h1>
 	<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
 		<ChannelRow {channel} />
-		{#if video.like_count != null}
-			<p
-				class="inline-flex h-8 items-center gap-1.5 rounded-full bg-muted px-3 text-sm font-medium tabular"
-			>
-				<ThumbsUpIcon class="size-4 text-muted-foreground" aria-hidden="true" />
-				{m.watch_likes({
-					count: video.like_count,
-					formatted: formatCompactNumber(video.like_count, locale)
-				})}
-			</p>
-		{/if}
+		<div class="flex flex-wrap items-center gap-2">
+			{#if video.like_count != null}
+				<p
+					class="inline-flex h-8 items-center gap-1.5 rounded-full bg-muted px-3 text-sm font-medium tabular"
+				>
+					<ThumbsUpIcon class="size-4 text-muted-foreground" aria-hidden="true" />
+					{m.watch_likes({
+						count: video.like_count,
+						formatted: formatCompactNumber(video.like_count, locale)
+					})}
+				</p>
+			{/if}
+			{@render actions?.()}
+		</div>
 	</div>
 	<VideoDescription
 		description={video.description}

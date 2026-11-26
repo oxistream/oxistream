@@ -41,6 +41,7 @@
 		ontheatertoggle,
 		ontimeupdate,
 		onprogress,
+		onended,
 		class: className
 	}: {
 		/** DASH manifest URL. */
@@ -62,6 +63,8 @@
 		ontimeupdate?: (currentTime: number, duration: number) => void;
 		/** Fires every ~10 s while playing, and on pause, end and unload. */
 		onprogress?: (report: ProgressReport) => void;
+		/** Fires when playback reaches the end. */
+		onended?: () => void;
 		class?: string;
 	} = $props();
 
@@ -184,7 +187,11 @@
 			progress.flush(position, duration, reason);
 		};
 		const onPause = flush('pause');
-		const onEnded = flush('ended');
+		const flushEnded = flush('ended');
+		const onEnded = () => {
+			flushEnded();
+			onended?.();
+		};
 		const onUnload = flush('unload');
 		const onVisibility = () => {
 			if (document.visibilityState === 'hidden') onUnload();

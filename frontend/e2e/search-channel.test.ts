@@ -285,5 +285,7 @@ test('app routes are not taken for video ids or handles', async ({ page }) => {
 
 	await page.goto('/playlist?list=PLforgebasics');
 	await expect(page.getByRole('heading', { level: 1, name: 'Playlist' })).toBeVisible();
-	await expect(page.getByText('Playlists from YouTube arrive in a later release.')).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: "YouTube playlists aren't supported yet" })
+	).toBeVisible();
 });

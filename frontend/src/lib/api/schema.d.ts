@@ -276,6 +276,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's playlists, most recently changed first. */
+        get: operations["list_playlists"];
+        put?: never;
+        /** Create a playlist. */
+        post: operations["create_playlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A playlist with its items. Private playlists are only visible to their owner; unlisted
+         *     ones to anyone with the ID, including anonymous users.
+         */
+        get: operations["get_playlist"];
+        put?: never;
+        post?: never;
+        /** Delete a playlist. */
+        delete: operations["delete_playlist"];
+        options?: never;
+        head?: never;
+        /** Change title, description or visibility. */
+        patch: operations["update_playlist"];
+        trace?: never;
+    };
+    "/api/v0/playlists/{id}/items/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Append a video. Idempotent; a video appears at most once per playlist. */
+        put: operations["add_item"];
+        post?: never;
+        /** Remove a video. Succeeds if it is not in the playlist, too. */
+        delete: operations["remove_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlists/{id}/items/{video_id}/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move a video to another position. */
+        put: operations["move_item"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlists/{id}/last-played": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Remember which item the owner is playing, for continuing later. */
+        put: operations["set_last_played"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/progress": {
         parameters: {
             query?: never;
@@ -554,6 +646,13 @@ export interface components {
             subscriber_count?: number | null;
             verified: boolean;
         };
+        CreatePlaylist: {
+            /** @description Up to 5000 characters. */
+            description?: string | null;
+            /** @description 1 to 150 characters. */
+            title: string;
+            visibility?: components["schemas"]["PlaylistVisibility"] | null;
+        };
         Credentials: {
             /** @description 12 to 256 characters. */
             password: string;
@@ -571,7 +670,7 @@ export interface components {
             reason?: string | null;
         };
         /** @enum {string} */
-        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "internal";
+        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "limit_reached" | "internal";
         FeedPage: {
             /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
             continuation?: string | null;
@@ -642,6 +741,9 @@ export interface components {
             /** @description Server version. */
             version: string;
         };
+        LastPlayed: {
+            video_id: string;
+        };
         LoggedOut: {
             /**
              * @description For sessions started via single sign-on: the provider's end-session URL to navigate
@@ -653,10 +755,51 @@ export interface components {
             /** @description Signed logout token (JWT) from the provider. */
             logout_token: string;
         };
+        MoveItem: {
+            /**
+             * Format: int32
+             * @description Zero-based target position; past the end moves the item to the end.
+             */
+            index: number;
+        };
         /** @description OAuth 2.0 error response, as the back-channel logout spec asks for. */
         OAuthError: {
             error: string;
             error_description: string;
+        };
+        /** @description A local playlist. */
+        Playlist: {
+            /** @description Whether the playlist contains the video asked for with `video_id`; absent otherwise. */
+            contains_video?: boolean | null;
+            /** Format: date-time */
+            created_at: string;
+            description: string;
+            /** @description Random ID, used in `/playlist?list=`. */
+            id: string;
+            /** Format: int32 */
+            item_count: number;
+            /** @description The item the owner last played, to continue from. Only shown to the owner. */
+            last_video_id?: string | null;
+            /** @description Of the first item; empty for an empty playlist. */
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+            visibility: components["schemas"]["PlaylistVisibility"];
+        };
+        /** @description A playlist with its items, in order. */
+        PlaylistDetails: components["schemas"]["Playlist"] & {
+            /** @description Whether the signed-in user owns the playlist and so may change it. */
+            is_owner: boolean;
+            items: components["schemas"]["PlaylistEntry"][];
+            /** @description Username of the owner. */
+            owner: string;
+        };
+        PlaylistEntry: {
+            /** Format: date-time */
+            added_at: string;
+            /** @description `channel` is always set; view counts and dates are not. */
+            video: components["schemas"]["VideoSummary"];
         };
         PlaylistSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
@@ -666,6 +809,8 @@ export interface components {
             /** Format: int64 */
             video_count?: number | null;
         };
+        /** @enum {string} */
+        PlaylistVisibility: "private" | "unlisted";
         /** @description A progress report from the player. */
         ProgressReport: {
             /** Format: double */
@@ -746,6 +891,12 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        /** @description Fields to change; absent fields stay as they are. */
+        UpdatePlaylist: {
+            description?: string | null;
+            title?: string | null;
+            visibility?: components["schemas"]["PlaylistVisibility"] | null;
         };
         /** @enum {string} */
         UserRole: "user" | "admin";
@@ -1550,6 +1701,529 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceInfo"];
+                };
+            };
+        };
+    };
+    list_playlists: {
+        parameters: {
+            query?: {
+                /** @description Report for each playlist whether it contains this video, in `contains_video`. */
+                video_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"][];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlaylist"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many playlists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid title or description */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistDetails"];
+                };
+            };
+            /** @description No such playlist, or not visible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlaylist"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid title or description */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_item: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description Playlist ID */
+                id: string;
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Was already in the playlist */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user, or no such video */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Playlist is full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not in the playlist anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveItem"];
+            };
+        };
+        responses: {
+            /** @description Moved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user, or video not in it */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_last_played: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LastPlayed"];
+            };
+        };
+        responses: {
+            /** @description Remembered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist of the user, or video not in it */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
