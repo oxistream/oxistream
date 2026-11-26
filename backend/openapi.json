@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oxistream API",
-    "description": "HTTP API of the Oxistream server.",
+    "description": "HTTP API of the Oxistream server. State-changing requests must send an `Origin` (or `Referer`) header of this instance.",
     "license": {
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
@@ -10,6 +10,241 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v0/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign in with a local account.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in, session cookie set",
+            "headers": {
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`oxistream_session` cookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown username or wrong password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account disabled, local accounts disabled, or foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "End the current session. Succeeds without a session, too.",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Signed out, session cookie cleared",
+            "headers": {
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Expired `oxistream_session` cookie"
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "The signed-in account.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create a local account and sign in. The first account of an instance becomes an admin.",
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account created, session cookie set",
+            "headers": {
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`oxistream_session` cookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local accounts or registration disabled, or foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Username taken (`fields.username = taken`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid username or password, see `fields`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/channels/{id}": {
       "get": {
         "tags": [
@@ -583,6 +818,60 @@
   },
   "components": {
     "schemas": {
+      "Account": {
+        "type": "object",
+        "description": "The signed-in account.",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthCapabilities": {
+        "type": "object",
+        "description": "Which sign-in methods this instance offers.",
+        "required": [
+          "local_enabled",
+          "registration_enabled",
+          "require_login",
+          "oidc_enabled"
+        ],
+        "properties": {
+          "local_enabled": {
+            "type": "boolean",
+            "description": "Local accounts with username and password."
+          },
+          "oidc_enabled": {
+            "type": "boolean",
+            "description": "Single sign-on via `OpenID` Connect."
+          },
+          "registration_enabled": {
+            "type": "boolean",
+            "description": "New local accounts can be created."
+          },
+          "require_login": {
+            "type": "boolean",
+            "description": "Anonymous users cannot use the API or proxy."
+          }
+        }
+      },
       "ChannelDetails": {
         "type": "object",
         "required": [
@@ -731,6 +1020,23 @@
           }
         }
       },
+      "Credentials": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "12 to 256 characters."
+          },
+          "username": {
+            "type": "string",
+            "description": "3 to 32 letters, digits, dots, dashes or underscores. Case-insensitive for sign-in."
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "required": [
@@ -740,6 +1046,19 @@
         "properties": {
           "code": {
             "$ref": "#/components/schemas/ErrorCode"
+          },
+          "fields": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Per-field errors for `validation_failed`.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "message": {
             "type": "string"
@@ -761,16 +1080,40 @@
           "unavailable",
           "rate_limited",
           "botguard_failed",
-          "upstream_error"
+          "upstream_error",
+          "unauthorized",
+          "origin_rejected",
+          "invalid_credentials",
+          "account_disabled",
+          "validation_failed",
+          "local_auth_disabled",
+          "registration_disabled",
+          "too_many_requests",
+          "internal"
+        ]
+      },
+      "FieldError": {
+        "type": "string",
+        "description": "Why a request field was rejected.",
+        "enum": [
+          "required",
+          "format",
+          "length",
+          "too_long",
+          "taken"
         ]
       },
       "InstanceInfo": {
         "type": "object",
         "required": [
           "name",
-          "version"
+          "version",
+          "auth"
         ],
         "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/AuthCapabilities"
+          },
           "name": {
             "type": "string",
             "description": "Software name."
@@ -1002,6 +1345,13 @@
           }
         }
       },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "user",
+          "admin"
+        ]
+      },
       "VideoDetails": {
         "type": "object",
         "required": [
@@ -1194,6 +1544,13 @@
             "minimum": 0
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "oxistream_session"
       }
     }
   }
