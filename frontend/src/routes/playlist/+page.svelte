@@ -11,7 +11,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { isNotFound } from '#lib/api/mapping.js';
-	import { isLocalPlaylistId, resumeVideo } from '#lib/api/playlist-order.js';
+	import { isLikedListId, isLocalPlaylistId, resumeVideo } from '#lib/api/playlist-order.js';
 	import {
 		createDeletePlaylistMutation,
 		createMoveItemMutation,
@@ -22,6 +22,7 @@
 		type PlaylistFields
 	} from '#lib/api/playlists.js';
 	import { playlistHref, playlistWatchHref } from '#lib/components/playlist/links.js';
+	import LikedVideosView from '#lib/components/like/liked-videos-view.svelte';
 	import PlaylistCover from '#lib/components/playlist/playlist-cover.svelte';
 	import PlaylistFormDialog from '#lib/components/playlist/playlist-form-dialog.svelte';
 	import PlaylistItems from '#lib/components/playlist/playlist-items.svelte';
@@ -43,6 +44,7 @@
 	const client = useQueryClient();
 	const listId = $derived(page.url.searchParams.get('list'));
 	const local = $derived(isLocalPlaylistId(listId));
+	const liked = $derived(isLikedListId(listId));
 	const playlist = createPlaylistQuery(() => listId);
 	const update = createUpdatePlaylistMutation();
 	const remove = createDeletePlaylistMutation();
@@ -108,6 +110,8 @@
 			title={m.playlist_none_title()}
 			description={m.playlist_none_body()}
 		/>
+	{:else if liked}
+		<LikedVideosView />
 	{:else if !local}
 		<YouTubePlaylistView {listId} />
 	{:else if playlist.isPending}

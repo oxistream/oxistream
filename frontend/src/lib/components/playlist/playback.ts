@@ -1,5 +1,8 @@
+import type { LikedVideos } from '#lib/api/likes.js';
+import { LIKED_LIST_ID } from '#lib/api/playlist-order.js';
 import type { PlaylistDetails, PlaylistVisibility } from '#lib/api/playlists.js';
 import type { LoadedYouTubePlaylist } from '#lib/api/youtube-playlists.js';
+import { m } from '#lib/paraglide/messages.js';
 import type { VideoSummary } from '#lib/video.js';
 
 /** What the watch page panel plays through: a local playlist or a (partly loaded) YouTube one. */
@@ -22,6 +25,17 @@ export function localPlayback(playlist: PlaylistDetails): PlaybackList {
 		visibility: playlist.visibility,
 		items: playlist.items,
 		total: playlist.items.length
+	};
+}
+
+export function likedPlayback(liked: LikedVideos, owner: string): PlaybackList {
+	return {
+		id: LIKED_LIST_ID,
+		title: m.liked_title(),
+		owner,
+		visibility: 'private',
+		items: liked.items,
+		total: liked.total
 	};
 }
 

@@ -272,7 +272,7 @@ test('owners reorder, remove and delete', async ({ page }) => {
 	await page.getByRole('button', { name: 'Delete playlist' }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Delete playlist' }).click();
 	await expect(page).toHaveURL(/\/feed\/playlists$/);
-	await expect(page.getByText('No playlists yet')).toBeVisible();
+	await expect(page.getByText('No playlists of your own yet.')).toBeVisible();
 
 	expect(state.calls).toEqual([
 		`MOVE ${VIDEOS[2]} 1`,

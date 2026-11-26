@@ -87,11 +87,12 @@ describe('youtubePlayback', () => {
 });
 
 describe('isYouTubePlaylistId', () => {
-	it('excludes local IDs and mixes', () => {
+	it('excludes local IDs, liked videos and mixes', () => {
 		expect(isYouTubePlaylistId('PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI')).toBe(true);
 		expect(isYouTubePlaylistId('UUBJycsmduvYEL83R_U4JriQ')).toBe(true);
 		expect(isYouTubePlaylistId('Rd7xQ2mKp9LsVb3N')).toBe(false);
 		expect(isYouTubePlaylistId('RDdQw4w9WgXcQ')).toBe(false);
+		expect(isYouTubePlaylistId('LL')).toBe(false);
 		expect(isYouTubePlaylistId('')).toBe(false);
 		expect(isYouTubePlaylistId(null)).toBe(false);
 	});

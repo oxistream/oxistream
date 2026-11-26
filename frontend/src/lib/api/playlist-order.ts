@@ -3,6 +3,13 @@ export function isLocalPlaylistId(id: string | null | undefined): id is string {
 	return typeof id === 'string' && /^[A-Za-z0-9_-]{16}$/.test(id);
 }
 
+/** The liked videos list, under YouTube's ID for it so `/playlist?list=LL` links keep working. */
+export const LIKED_LIST_ID = 'LL';
+
+export function isLikedListId(id: string | null | undefined): boolean {
+	return id === LIKED_LIST_ID;
+}
+
 /** A copy of `items` with the item at `from` moved to `to`, both clamped to the list. */
 export function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
 	const next = [...items];

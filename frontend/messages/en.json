@@ -239,16 +239,6 @@
 			}
 		}
 	],
-	"watch_likes": [
-		{
-			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{formatted} like",
-				"countPlural=*": "{formatted} likes"
-			}
-		}
-	],
 	"watch_description": "Description",
 	"watch_show_more": "Show more",
 	"watch_show_less": "Show less",
@@ -461,5 +451,16 @@
 		}
 	],
 	"playlist_pending": "Fetching from YouTube…",
-	"playlist_follow_unavailable": "Unavailable on YouTube"
+	"playlist_follow_unavailable": "Unavailable on YouTube",
+	"like": "Like",
+	"like_remove": "Remove like",
+	"like_hint": "Saved on this instance only, never sent to YouTube",
+	"like_sign_in": "Sign in to like videos",
+	"liked_title": "Liked videos",
+	"liked_empty_title": "No liked videos yet",
+	"liked_empty_body": "Like videos and shorts to collect them here.",
+	"liked_sign_in": "Sign in to see the videos you liked.",
+	"liked_error_load": "Liked videos could not be loaded",
+	"liked_remove": "Remove from liked videos",
+	"liked_private_hint": "Only you can see this list. Likes stay on this instance and are never sent to YouTube."
 }
