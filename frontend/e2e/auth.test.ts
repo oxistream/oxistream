@@ -7,13 +7,15 @@ type Capabilities = {
 	registration_enabled: boolean;
 	require_login: boolean;
 	oidc_enabled: boolean;
+	oidc_name: string | null;
 };
 
 const defaults: Capabilities = {
 	local_enabled: true,
 	registration_enabled: true,
 	require_login: false,
-	oidc_enabled: false
+	oidc_enabled: false,
+	oidc_name: null
 };
 
 const account = {
@@ -126,7 +128,7 @@ test('signing out returns to the guest menu', async ({ page }) => {
 	await page.route('**/api/v0/auth/logout', async (route) => {
 		loggedOut = true;
 		state.signedIn = false;
-		await route.fulfill({ status: 204 });
+		await json(route, 200, { end_session_url: null });
 	});
 
 	await page.goto('/');
@@ -157,12 +159,75 @@ test('closed registration hides the sign-up form and links', async ({ page }) =>
 	await expect(page.getByLabel('Confirm password')).toHaveCount(0);
 });
 
-test('without local accounts only the disabled SSO button remains', async ({ page }) => {
-	await mockApi(page, { local_enabled: false, registration_enabled: false });
+test('without single sign-on there is no SSO button', async ({ page }) => {
+	await mockApi(page);
 	await page.goto('/login');
-	await expect(page.getByTestId('sso-button')).toBeDisabled();
+	await expect(page.getByLabel('Username')).toBeVisible();
+	await expect(page.getByTestId('sso-button')).toHaveCount(0);
+});
+
+test('without local accounts only the SSO button remains', async ({ page }) => {
+	await mockApi(page, {
+		local_enabled: false,
+		registration_enabled: false,
+		oidc_enabled: true,
+		oidc_name: 'Authentik'
+	});
+	await page.goto('/login');
+	await expect(page.getByTestId('sso-button')).toHaveText('Sign in with Authentik');
 	await expect(page.getByLabel('Username')).toHaveCount(0);
+	await expect(page.getByTestId('form-status')).toHaveCount(0);
+	await expect(page.getByText('or', { exact: true })).toHaveCount(0);
+});
+
+test('single sign-on starts at the API and returns to the redirect target', async ({ page }) => {
+	const state = await mockApi(page, { oidc_enabled: true, oidc_name: 'Authentik' });
+	let started: URL | undefined;
+	// Stands in for the provider round trip, which ends with a redirect to the target.
+	await page.route('**/api/v0/auth/oidc/login**', async (route) => {
+		started = new URL(route.request().url());
+		state.signedIn = true;
+		await route.fulfill({ status: 302, headers: { location: '/feed/history' } });
+	});
+
+	await page.goto('/login?redirect=%2Ffeed%2Fhistory');
+	await page.getByTestId('sso-button').click();
+
+	await expect(page).toHaveURL(/\/feed\/history$/);
+	expect(started?.pathname).toBe('/api/v0/auth/oidc/login');
+	expect(started?.searchParams.get('redirect')).toBe('/feed/history');
+	await expect(page.getByTestId('user-menu')).toContainText('@mara');
+});
+
+test('a failed single sign-on explains the error in the current language', async ({ page }) => {
+	await mockApi(page, { oidc_enabled: true, oidc_name: 'Authentik' });
+	await page.goto('/login?error=oidc_denied');
 	await expect(page.getByTestId('form-status')).toHaveText(
-		'This instance only offers single sign-on.'
+		'Sign-in was cancelled at the provider.'
 	);
+
+	await page.evaluate(() => localStorage.setItem('PARAGLIDE_LOCALE', 'de'));
+	await page.goto('/login?error=account_disabled');
+	await expect(page.getByTestId('sso-button')).toHaveText('Mit Authentik anmelden');
+	await expect(page.getByTestId('form-status')).toContainText('Dieses Konto ist deaktiviert');
+});
+
+test('signing out of a single sign-on session continues to the provider', async ({ page }) => {
+	const state = await mockApi(page, { oidc_enabled: true });
+	state.signedIn = true;
+	const endSession = 'http://idp.test/logout?id_token_hint=x';
+	await page.route('http://idp.test/**', (route) =>
+		route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>Signed out</h1>' })
+	);
+	await page.route('**/api/v0/auth/logout', async (route) => {
+		state.signedIn = false;
+		await json(route, 200, { end_session_url: endSession });
+	});
+
+	await page.goto('/');
+	await page.getByTestId('user-menu').click();
+	await page.getByRole('menuitem', { name: 'Sign out' }).click();
+
+	await expect(page).toHaveURL(endSession);
+	await expect(page.getByRole('heading', { name: 'Signed out' })).toBeVisible();
 });

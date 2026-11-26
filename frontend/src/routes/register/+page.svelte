@@ -2,7 +2,7 @@
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { failureMessage, register } from '#lib/auth/api.js';
+	import { failureMessage, register, ssoButton } from '#lib/auth/api.js';
 	import { authHref, redirectTarget } from '#lib/auth/links.js';
 	import {
 		PASSWORD_MAX_LENGTH,
@@ -123,8 +123,7 @@
 		{status}
 		{busy}
 		{onsubmit}
-		onsso={() => {}}
-		ssoDisabled={!capabilities?.oidc_enabled}
+		sso={ssoButton(capabilities, target)}
 	>
 		<FormField
 			id="username"

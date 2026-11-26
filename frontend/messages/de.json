@@ -82,7 +82,6 @@
 	"auth_password_hint": "Mindestens {min} Zeichen.",
 	"auth_sign_in_submit": "Anmelden",
 	"auth_register_submit": "Konto erstellen",
-	"auth_sso": "Mit SSO anmelden",
 	"auth_or": "oder",
 	"auth_no_account": "Noch kein Konto?",
 	"auth_register_link": "Jetzt erstellen",
@@ -172,7 +171,6 @@
 	"auth_error_registration_disabled": "Die Registrierung ist auf dieser Instanz deaktiviert.",
 	"auth_error_generic": "Etwas ist schiefgelaufen. Versuche es erneut.",
 	"auth_local_disabled": "Diese Instanz bietet nur Single Sign-on an.",
-	"auth_sso_unavailable": "Single Sign-on ist auf dieser Instanz nicht eingerichtet.",
 	"auth_registration_closed_title": "Registrierung geschlossen",
 	"auth_registration_closed_body": "Auf dieser Instanz können keine neuen Konten erstellt werden. Frag die Administration nach einem Zugang.",
 	"auth_signing_in": "Wird angemeldet…",
@@ -242,5 +240,10 @@
 	"watch_error_upstream_body": "Die Anfrage an YouTube ist fehlgeschlagen. Versuch es gleich noch einmal.",
 	"player_theater_enter": "Kinomodus",
 	"player_theater_exit": "Standardansicht",
-	"player_auto_generated": "{label} (automatisch erstellt)"
+	"player_auto_generated": "{label} (automatisch erstellt)",
+	"auth_oidc_sign_in": "Mit {name} anmelden",
+	"auth_oidc_error_disabled": "Single Sign-on ist auf dieser Instanz nicht eingerichtet.",
+	"auth_oidc_error_unavailable": "Der Anmeldedienst ist gerade nicht erreichbar. Versuche es gleich noch einmal.",
+	"auth_oidc_error_denied": "Die Anmeldung wurde beim Anbieter abgebrochen.",
+	"auth_oidc_error_failed": "Single Sign-on wurde nicht abgeschlossen. Starte die Anmeldung erneut von dieser Seite."
 }

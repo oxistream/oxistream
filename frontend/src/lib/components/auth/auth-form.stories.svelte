@@ -10,6 +10,7 @@
 	});
 
 	const noop = (event: SubmitEvent) => event.preventDefault();
+	const sso = { label: m.auth_oidc_sign_in({ name: 'Authentik' }), href: '#' };
 </script>
 
 <Story name="Sign in" asChild>
@@ -18,7 +19,7 @@
 		subtitle={m.auth_login_subtitle()}
 		submitLabel={m.auth_sign_in_submit()}
 		onsubmit={noop}
-		onsso={() => {}}
+		{sso}
 	>
 		<FormField id="username" name="username" label={m.auth_username()} />
 		<FormField id="password" name="password" type="password" label={m.auth_password()} />
@@ -33,7 +34,7 @@
 		submitLabel={m.auth_register_submit()}
 		status={m.auth_error_summary({ count: 2, formatted: '2' })}
 		onsubmit={noop}
-		onsso={() => {}}
+		{sso}
 	>
 		<FormField
 			id="username"
@@ -58,5 +59,18 @@
 			hint={m.auth_password_hint({ min: '12' })}
 		/>
 		{#snippet footer()}{m.auth_have_account()}{/snippet}
+	</AuthForm>
+</Story>
+
+<Story name="Single sign-on only" asChild>
+	<AuthForm
+		title={m.auth_login_title()}
+		subtitle={m.auth_login_subtitle()}
+		submitLabel={m.auth_sign_in_submit()}
+		local={false}
+		onsubmit={noop}
+		{sso}
+	>
+		<span></span>
 	</AuthForm>
 </Story>
