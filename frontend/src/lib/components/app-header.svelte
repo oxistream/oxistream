@@ -30,7 +30,7 @@
 <svelte:window {onkeydown} />
 
 <header
-	class="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-(--page-gutter) backdrop-blur-md md:rounded-t-xl"
+	class="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-(--page-gutter) backdrop-blur-md"
 >
 	<Sidebar.Trigger
 		class="-ms-1.5"
