@@ -691,6 +691,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the signed-in user's open rooms, newest first. */
+        get: operations["list_rooms"];
+        put?: never;
+        /**
+         * Open a room. Anyone with its link can join through the WebSocket at
+         *     `/api/v0/rooms/{id}/ws`, speaking `RoomClientMessage` and `RoomServerMessage`. Rooms
+         *     expire a day after the last participant left.
+         */
+        post: operations["create_room"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/rooms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Look up a room before joining it. */
+        get: operations["get_room"];
+        put?: never;
+        post?: never;
+        /** Close a room; everyone in it is disconnected. */
+        delete: operations["delete_room"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/search": {
         parameters: {
             query?: never;
@@ -1091,6 +1131,10 @@ export interface components {
             title: string;
             visibility?: components["schemas"]["PlaylistVisibility"] | null;
         };
+        CreateRoom: {
+            /** @description YouTube video to start with. */
+            video_id?: string | null;
+        };
         Credentials: {
             /** @description 12 to 256 characters. */
             password: string;
@@ -1351,6 +1395,14 @@ export interface components {
         ProgressState: {
             progress?: components["schemas"]["VideoProgress"] | null;
         };
+        QueueEntry: {
+            /** @description Display name of whoever queued it. */
+            added_by: string;
+            /** Format: int64 */
+            id: number;
+            /** @description `channel` is always set; view counts and dates are not. */
+            video: components["schemas"]["VideoSummary"];
+        };
         Resolved: {
             id: string;
             kind: components["schemas"]["ResolvedKind"];
@@ -1362,6 +1414,171 @@ export interface components {
         };
         /** @enum {string} */
         ResolvedKind: "video" | "channel" | "playlist";
+        /** @description Sent by clients. The first message must be `join`; positions are in seconds. */
+        RoomClientMessage: {
+            /** @description Random 16 to 128 URL-safe characters a guest keeps, so a removal sticks. */
+            guest_key?: string | null;
+            /** @description Display name of a guest, 1 to 32 characters; ignored for signed-in users. */
+            name?: string | null;
+            /** @enum {string} */
+            type: "join";
+        } | {
+            /** Format: double */
+            t: number;
+            /** @enum {string} */
+            type: "ping";
+        } | {
+            /** Format: double */
+            position: number;
+            /** @enum {string} */
+            type: "play";
+        } | {
+            /** Format: double */
+            position: number;
+            /** @enum {string} */
+            type: "pause";
+        } | {
+            /** Format: double */
+            position: number;
+            /** @enum {string} */
+            type: "seek";
+        } | {
+            /** Format: int64 */
+            entry: number;
+            /** @enum {string} */
+            type: "ended";
+        } | {
+            /** Format: int64 */
+            entry: number;
+            /** @enum {string} */
+            type: "skip";
+        } | {
+            /** Format: int64 */
+            entry: number;
+            /** @enum {string} */
+            type: "select";
+        } | {
+            /** @enum {string} */
+            type: "add";
+            video_id: string;
+        } | {
+            /** Format: int64 */
+            entry: number;
+            /** @enum {string} */
+            type: "remove";
+        } | {
+            /** Format: uuid */
+            participant: string;
+            /** @enum {string} */
+            type: "kick";
+        };
+        /** @enum {string} */
+        RoomErrorCode: "not_found" | "room_full" | "queue_full" | "invalid" | "video_unavailable" | "forbidden" | "rate_limited" | "internal";
+        /** @description A watch together room. */
+        RoomInfo: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description Random ID, used in `/together/{id}`. */
+            id: string;
+            /** @description Whether the signed-in user created the room. */
+            is_owner: boolean;
+            /** @description Username of the owner. */
+            owner: string;
+        };
+        /** @description One of the signed-in user's rooms. */
+        RoomListItem: {
+            /**
+             * Format: date-time
+             * @description Last time anyone was in the room; it expires a day after.
+             */
+            active_at: string;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Title of the current video, if any. */
+            current_title?: string | null;
+            id: string;
+            /**
+             * Format: int32
+             * @description Connected participants.
+             */
+            participant_count: number;
+            /**
+             * Format: int32
+             * @description Current and upcoming entries.
+             */
+            queue_count: number;
+            /** @description Of the current video; empty without one. */
+            thumbnails: components["schemas"]["Thumbnail"][];
+        };
+        RoomParticipant: {
+            /** Format: uuid */
+            id: string;
+            is_guest: boolean;
+            is_owner: boolean;
+            name: string;
+        };
+        /** @description Sent by the server. */
+        RoomServerMessage: {
+            is_owner: boolean;
+            /** Format: uuid */
+            participant_id: string;
+            /**
+             * Format: int64
+             * @description Milliseconds since the Unix epoch.
+             */
+            server_time: number;
+            /** @enum {string} */
+            type: "welcome";
+        } | {
+            room: components["schemas"]["RoomState"];
+            /** @enum {string} */
+            type: "state";
+        } | {
+            /**
+             * Format: int64
+             * @description Milliseconds since the Unix epoch.
+             */
+            server_time: number;
+            /** Format: double */
+            t: number;
+            /** @enum {string} */
+            type: "pong";
+        } | {
+            code: components["schemas"]["RoomErrorCode"];
+            /** @enum {string} */
+            type: "error";
+        } | {
+            /** @enum {string} */
+            type: "kicked";
+        } | {
+            /** @enum {string} */
+            type: "closed";
+        };
+        RoomState: {
+            current?: components["schemas"]["QueueEntry"] | null;
+            id: string;
+            /** @description Username of the owner. */
+            owner: string;
+            participants: components["schemas"]["RoomParticipant"][];
+            playing: boolean;
+            /**
+             * Format: double
+             * @description Seconds into the current video at `position_at`; add the time since while playing.
+             */
+            position: number;
+            /**
+             * Format: int64
+             * @description Milliseconds since the Unix epoch.
+             */
+            position_at: number;
+            /** @description Upcoming entries in order. */
+            queue: components["schemas"]["QueueEntry"][];
+            /**
+             * Format: int64
+             * @description Increases with every change.
+             */
+            revision: number;
+        };
         SearchItem: (components["schemas"]["VideoSummary"] & {
             /** @enum {string} */
             type: "video";
@@ -4241,6 +4458,184 @@ export interface operations {
             };
             /** @description Rate limited by YouTube */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_rooms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's rooms */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomListItem"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoom"];
+            };
+        };
+        responses: {
+            /** @description Room opened */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomInfo"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Video not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many open rooms */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Room ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The room */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomInfo"];
+                };
+            };
+            /** @description No such room */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Room ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Room closed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such room of the user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

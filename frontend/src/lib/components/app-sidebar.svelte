@@ -4,6 +4,7 @@
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import type { ComponentProps } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -44,6 +45,9 @@
 		{ href: '/feed/playlists', label: m.nav_playlists, icon: ListVideoIcon },
 		{ href: '/feed/history', label: m.nav_history, icon: ClockIcon }
 	];
+	// Only signed-in users can open rooms; guests join by link.
+	const together: NavItem = { href: '/together', label: m.nav_together, icon: UsersRoundIcon };
+	const libraryItems = $derived(user ? [...library, together] : library);
 </script>
 
 <Sidebar.Root bind:ref variant="inset" collapsible="icon" {...restProps}>
@@ -71,7 +75,7 @@
 	<Sidebar.Content>
 		<nav aria-label={m.nav_label()} class="contents">
 			<NavMain items={primary} />
-			<NavMain items={library} label={m.nav_library()} />
+			<NavMain items={libraryItems} label={m.nav_library()} />
 			{#if user}<NavSubscriptions {channels} />{/if}
 			<NavSettings signedIn={user !== null} class="mt-auto" />
 		</nav>

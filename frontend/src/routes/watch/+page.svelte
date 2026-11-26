@@ -25,6 +25,7 @@
 	} from '#lib/components/playlist/playback.js';
 	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
+	import StartRoomButton from '#lib/components/together/start-room-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
 	import SponsorBlockDialog from '#lib/components/sponsorblock/sponsorblock-dialog.svelte';
@@ -272,7 +273,9 @@
 			<div class="watch-meta">
 				{#if details}
 					<VideoDetails video={details} bind:descriptionExpanded onseek={seek}>
-						{#snippet actions()}<SaveToPlaylistButton {videoId} />{/snippet}
+						{#snippet actions()}<SaveToPlaylistButton {videoId} /><StartRoomButton
+								{videoId}
+							/>{/snippet}
 					</VideoDetails>
 				{:else if video.isPending}
 					<VideoDetailsSkeleton />
