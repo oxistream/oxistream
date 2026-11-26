@@ -8,6 +8,7 @@ use utoipa_axum::routes;
 use crate::AppState;
 
 mod auth;
+mod blocks;
 mod cursor;
 mod follows;
 mod history;
@@ -31,6 +32,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(history::router())
         .merge(playlists::router())
         .merge(follows::router())
+        .merge(blocks::router())
         .merge(likes::router())
 }
 

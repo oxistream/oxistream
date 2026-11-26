@@ -125,7 +125,7 @@ pub struct SearchPage {
     pub corrected_query: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, ToSchema)]
 pub struct VideoPage {
     pub items: Vec<VideoSummary>,
     pub continuation: Option<String>,
@@ -183,7 +183,7 @@ impl TrendingVideos {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, ToSchema)]
 pub struct PlaylistPage {
     pub items: Vec<PlaylistSummary>,
     pub continuation: Option<String>,
