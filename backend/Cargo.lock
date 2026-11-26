@@ -2441,6 +2441,7 @@ dependencies = [
  "governor",
  "hmac 0.13.0",
  "http-body-util",
+ "insta",
  "metrics",
  "metrics-exporter-prometheus",
  "moka",

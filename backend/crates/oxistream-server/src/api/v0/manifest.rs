@@ -78,7 +78,7 @@ fn unavailable(reason: &str, message: &str) -> ApiError {
     err
 }
 
-fn duration(player: &rp::VideoPlayer) -> Duration {
+pub(super) fn duration(player: &rp::VideoPlayer) -> Duration {
     let stream_ms = player
         .video_only_streams
         .iter()
