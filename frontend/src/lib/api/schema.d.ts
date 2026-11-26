@@ -687,6 +687,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/settings/sponsorblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's SponsorBlock preferences. */
+        get: operations["settings"];
+        /** Replace the signed-in user's SponsorBlock preferences. */
+        put: operations["update_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/subscriptions": {
         parameters: {
             query?: never;
@@ -814,6 +832,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/videos/{id}/segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SponsorBlock segments of a video. The server looks them up by hash prefix, so SponsorBlock
+         *     never learns the video ID.
+         */
+        get: operations["segments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/videos/{id}/storyboard.vtt": {
         parameters: {
             query?: never;
@@ -878,6 +916,8 @@ export interface components {
             role: components["schemas"]["UserRole"];
             username: string;
         };
+        /** @enum {string} */
+        Action: "skip" | "poi" | "full";
         /** @description Which sign-in methods this instance offers. */
         AuthCapabilities: {
             /** @description Local accounts with username and password. */
@@ -900,6 +940,8 @@ export interface components {
             /** @description As it was when the channel was blocked. */
             name: string;
         };
+        /** @enum {string} */
+        Category: "sponsor" | "selfpromo" | "interaction" | "intro" | "outro" | "preview" | "hook" | "music_offtopic" | "filler" | "poi_highlight" | "exclusive_access";
         ChannelDetails: {
             avatar: components["schemas"]["Thumbnail"][];
             banner: components["schemas"]["Thumbnail"][];
@@ -1062,6 +1104,8 @@ export interface components {
             auth: components["schemas"]["AuthCapabilities"];
             /** @description Software name. */
             name: string;
+            /** @description SponsorBlock segments are available. */
+            sponsorblock: boolean;
             /** @description Server version. */
             version: string;
         };
@@ -1211,6 +1255,75 @@ export interface components {
             corrected_query?: string | null;
             items: components["schemas"]["SearchItem"][];
         };
+        Segment: {
+            action: components["schemas"]["Action"];
+            category: components["schemas"]["Category"];
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            end: number;
+            /** @description SponsorBlock UUID. */
+            id: string;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            start: number;
+        };
+        /** @description Behaviour per skippable category. */
+        SkipCategories: {
+            /** @default button */
+            filler: components["schemas"]["SkipMode"];
+            /** @default button */
+            hook: components["schemas"]["SkipMode"];
+            /** @default button */
+            interaction: components["schemas"]["SkipMode"];
+            /** @default button */
+            intro: components["schemas"]["SkipMode"];
+            /** @default button */
+            music_offtopic: components["schemas"]["SkipMode"];
+            /** @default button */
+            outro: components["schemas"]["SkipMode"];
+            /** @default button */
+            preview: components["schemas"]["SkipMode"];
+            /** @default button */
+            selfpromo: components["schemas"]["SkipMode"];
+            /** @default auto */
+            sponsor: components["schemas"]["SkipMode"];
+        };
+        /**
+         * @description What the player does in a segment.
+         * @enum {string}
+         */
+        SkipMode: "auto" | "button" | "off";
+        /** @description SponsorBlock preferences. Missing fields take their defaults. */
+        SponsorBlockSettings: {
+            /**
+             * @default {
+             *       "filler": "button",
+             *       "hook": "button",
+             *       "interaction": "button",
+             *       "intro": "button",
+             *       "music_offtopic": "button",
+             *       "outro": "button",
+             *       "preview": "button",
+             *       "selfpromo": "button",
+             *       "sponsor": "auto"
+             *     }
+             */
+            categories: components["schemas"]["SkipCategories"];
+            /**
+             * @description Label videos that are entirely about a product or service.
+             * @default true
+             */
+            full_video_label: boolean;
+            /**
+             * @description Mark the highlight and offer to jump to it.
+             * @default true
+             */
+            highlight: boolean;
+        };
         /** @description A channel the signed-in user subscribed to. */
         SubscribedChannel: {
             avatar: components["schemas"]["Thumbnail"][];
@@ -1320,6 +1433,10 @@ export interface components {
              */
             updated_at: string;
             video_id: string;
+        };
+        VideoSegments: {
+            /** @description Sorted by start; empty when SponsorBlock is disabled or unreachable. */
+            segments: components["schemas"]["Segment"][];
         };
         VideoSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
@@ -3905,6 +4022,84 @@ export interface operations {
             };
         };
     };
+    settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SponsorBlockSettings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SponsorBlockSettings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SponsorBlockSettings"];
+                };
+            };
+            /** @description Invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_subscriptions: {
         parameters: {
             query?: never;
@@ -4343,6 +4538,37 @@ export interface operations {
             };
             /** @description Rate limited by YouTube */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    segments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoSegments"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
