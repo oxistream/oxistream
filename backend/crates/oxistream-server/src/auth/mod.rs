@@ -28,6 +28,9 @@ pub use password::PasswordHasher;
 pub const RENEW_INTERVAL: Duration = Duration::from_mins(5);
 const CLEANUP_INTERVAL: Duration = Duration::from_hours(1);
 const MAX_USER_AGENT_LEN: usize = 512;
+/// Called server to server by the provider, so it carries no `Origin` and no session; the
+/// signed logout token is its authentication.
+pub const BACKCHANNEL_LOGOUT_PATH: &str = "/api/v0/auth/oidc/backchannel-logout";
 
 #[derive(Clone)]
 pub struct Auth {
@@ -183,6 +186,11 @@ impl Auth {
                     Ok(count) => tracing::debug!(count, "deleted expired sessions"),
                     Err(err) => tracing::warn!(error = ?err, "could not delete expired sessions"),
                 }
+                if auth.oidc().is_some()
+                    && let Err(err) = auth.sessions().delete_expired_logout_jtis().await
+                {
+                    tracing::warn!(error = ?err, "could not delete expired logout token IDs");
+                }
                 if let Some(limiter) = &auth.inner.login_limiter {
                     limiter.retain_recent();
                 }
@@ -261,6 +269,7 @@ pub async fn middleware(State(state): State<AppState>, mut req: Request, next: N
     let auth = &state.auth;
     let config = auth.config();
     if !csrf::is_safe_method(req.method())
+        && req.uri().path() != BACKCHANNEL_LOGOUT_PATH
         && !csrf::origin_allowed(req.headers(), req.uri(), config.public_origin.as_deref())
     {
         return ApiError::origin_rejected().into_response();

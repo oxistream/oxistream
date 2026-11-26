@@ -55,6 +55,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/auth/oidc/backchannel-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Back-channel logout: the provider ends sessions server to server.
+         * @description Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure
+         *     `{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.
+         *     Needs no `Origin` header or session.
+         */
+        post: operations["backchannel_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/auth/oidc/callback": {
         parameters: {
             query?: never;
@@ -348,6 +370,15 @@ export interface components {
              */
             end_session_url?: string | null;
         };
+        LogoutTokenForm: {
+            /** @description Signed logout token (JWT) from the provider. */
+            logout_token: string;
+        };
+        /** @description OAuth 2.0 error response, as the back-channel logout spec asks for. */
+        OAuthError: {
+            error: string;
+            error_description: string;
+        };
         PlaylistSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
             id: string;
@@ -593,6 +624,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    backchannel_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["LogoutTokenForm"];
+            };
+        };
+        responses: {
+            /** @description Matching sessions ended */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid, replayed or unexpected logout token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthError"];
+                };
+            };
+            /** @description Provider not discovered yet */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthError"];
                 };
             };
         };

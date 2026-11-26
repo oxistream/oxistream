@@ -24,6 +24,7 @@ use tokio::sync::Mutex;
 
 use crate::config::OidcConfig;
 
+pub mod backchannel;
 pub mod claims;
 pub mod pending;
 

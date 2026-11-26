@@ -1,14 +1,18 @@
-use axum::extract::{Query, State};
+use axum::Json;
+use axum::extract::rejection::FormRejection;
+use axum::extract::{Form, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{Role, User};
-use serde::Deserialize;
-use utoipa::IntoParams;
+use oxistream_db::{Identity, Role, User};
+use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::AppState;
 use crate::auth::ClientAddr;
+use crate::auth::oidc::backchannel::Logout;
 use crate::auth::oidc::{
     CallbackParams, LoginError, VerifiedLogin, claims, pending, safe_redirect,
 };
@@ -17,6 +21,135 @@ pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(oidc_login))
         .routes(routes!(oidc_callback))
+        .routes(routes!(backchannel_logout))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+struct LogoutTokenForm {
+    /// Signed logout token (JWT) from the provider.
+    logout_token: String,
+}
+
+/// OAuth 2.0 error response, as the back-channel logout spec asks for.
+#[derive(Debug, Serialize, ToSchema)]
+struct OAuthError {
+    error: &'static str,
+    error_description: String,
+}
+
+fn no_store(status: StatusCode, body: Option<OAuthError>) -> Response {
+    let headers = [(header::CACHE_CONTROL, "no-store")];
+    match body {
+        Some(body) => (status, headers, Json(body)).into_response(),
+        None => (status, headers).into_response(),
+    }
+}
+
+fn invalid_request(description: impl Into<String>) -> Response {
+    no_store(
+        StatusCode::BAD_REQUEST,
+        Some(OAuthError {
+            error: "invalid_request",
+            error_description: description.into(),
+        }),
+    )
+}
+
+/// Back-channel logout: the provider ends sessions server to server.
+///
+/// Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure
+/// `{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.
+/// Needs no `Origin` header or session.
+#[utoipa::path(
+    post,
+    path = "/auth/oidc/backchannel-logout",
+    tag = "auth",
+    request_body(content = LogoutTokenForm, content_type = "application/x-www-form-urlencoded"),
+    responses(
+        (status = OK, description = "Matching sessions ended"),
+        (status = BAD_REQUEST, description = "Invalid, replayed or unexpected logout token", body = OAuthError),
+        (status = SERVICE_UNAVAILABLE, description = "Provider not discovered yet", body = OAuthError),
+    )
+)]
+async fn backchannel_logout(
+    State(state): State<AppState>,
+    form: Result<Form<LogoutTokenForm>, FormRejection>,
+) -> Response {
+    let Some(oidc) = state.auth.oidc() else {
+        return invalid_request("single sign-on is not configured");
+    };
+    let Ok(Form(LogoutTokenForm { logout_token })) = form else {
+        return invalid_request("expected a form-encoded logout_token");
+    };
+    let logout = match oidc
+        .validate_logout_token(&logout_token, pending::now())
+        .await
+    {
+        Ok(logout) => logout,
+        Err(Some(err)) => {
+            tracing::warn!(reason = %err, "rejected back-channel logout token");
+            return invalid_request(err.to_string());
+        }
+        Err(None) => {
+            return no_store(
+                StatusCode::SERVICE_UNAVAILABLE,
+                Some(OAuthError {
+                    error: "temporarily_unavailable",
+                    error_description: "provider not discovered yet".into(),
+                }),
+            );
+        }
+    };
+    match end_sessions(&state, oidc.config().issuer.clone(), logout).await {
+        Ok(Some(count)) => {
+            tracing::info!(count, "sessions ended by back-channel logout");
+            no_store(StatusCode::OK, None)
+        }
+        Ok(None) => invalid_request("logout token was already used"),
+        Err(err) => {
+            tracing::error!(error = ?err, "database error during back-channel logout");
+            no_store(StatusCode::INTERNAL_SERVER_ERROR, None)
+        }
+    }
+}
+
+/// `None` if the token was replayed.
+async fn end_sessions(
+    state: &AppState,
+    issuer: String,
+    logout: Logout,
+) -> Result<Option<u64>, oxistream_db::Error> {
+    let auth = &state.auth;
+    let until = OffsetDateTime::from_unix_timestamp(
+        i64::try_from(logout.replayable_until).unwrap_or(i64::MAX),
+    )
+    .unwrap_or(OffsetDateTime::now_utc() + time::Duration::hours(1));
+    if !auth
+        .sessions()
+        .record_logout_jti(&logout.jti, until)
+        .await?
+    {
+        return Ok(None);
+    }
+    let user_id = match &logout.sub {
+        Some(subject) => {
+            let identity = Identity {
+                issuer,
+                subject: subject.clone(),
+            };
+            match auth.users().find_by_identity(&identity).await? {
+                Some(user) => Some(user.id),
+                None => return Ok(Some(0)),
+            }
+        }
+        None => None,
+    };
+    let count = match (&logout.sid, user_id) {
+        (Some(sid), user_id) => auth.sessions().delete_by_oidc_sid(sid, user_id).await?,
+        (None, Some(user_id)) => auth.sessions().delete_for_user(user_id).await?,
+        (None, None) => 0,
+    };
+    Ok(Some(count))
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
