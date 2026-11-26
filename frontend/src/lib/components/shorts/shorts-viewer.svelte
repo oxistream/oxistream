@@ -1,41 +1,43 @@
 <script lang="ts">
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
-	import { useQueryClient } from '@tanstack/svelte-query';
-	import { cubicOut } from 'svelte/easing';
-	import { fly } from 'svelte/transition';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { createChannelTabQuery } from '#lib/api/channel.js';
-	import { createProgressReporter } from '#lib/api/history.js';
-	import { pickImage, toChannel } from '#lib/api/mapping.js';
-	import { manifestUrl, prefetchVideo, useManifest, useVideo } from '#lib/api/video.js';
-	import Player from '#lib/components/player/player.svelte';
+	import { useVideo } from '#lib/api/video.js';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
-	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
-	import PlayerMessage from '#lib/components/watch/player-message.svelte';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { createWheelPager, keyStep, swipeStep, type Step } from '#lib/shorts/gestures.js';
-	import { createLoopingReporter } from '#lib/shorts/progress.js';
-	import { buildQueue, needsMore, shortStub, takeShortsList } from '#lib/shorts/queue.js';
-	import type { ChannelSummary } from '#lib/video.js';
-	import ShortOverlay from './short-overlay.svelte';
+	import {
+		createWheelPager,
+		dragOffset,
+		isVerticalDrag,
+		keyStep,
+		releaseStep,
+		type Step
+	} from '#lib/shorts/gestures.js';
+	import {
+		buildQueue,
+		needsMore,
+		shortSlots,
+		shortStub,
+		takeShortsList
+	} from '#lib/shorts/queue.js';
+	import ShortSlot from './short-slot.svelte';
 
 	let { openedId }: { openedId: string } = $props();
 
-	const client = useQueryClient();
 	// Read once: the viewer is recreated for every short opened from outside.
 	// svelte-ignore state_referenced_locally
 	const context = takeShortsList(openedId);
 	// svelte-ignore state_referenced_locally
 	let currentId = $state(openedId);
-	let direction = $state<Step>(1);
 	let sourceChannel = $state<string>();
+	/** Finger offset in px while dragging, else 0. */
+	let drag = $state(0);
+	let dragging = $state(false);
 
 	const video = useVideo(() => currentId);
-	const manifest = useManifest(() => currentId);
 	const details = $derived(video.data);
 
 	// Without a list to continue, the next shorts come from the opened short's channel.
@@ -56,47 +58,24 @@
 	const current = $derived(queue[index] ?? shortStub(currentId));
 	const previous = $derived(index > 0 ? queue[index - 1] : undefined);
 	const next = $derived(index >= 0 ? queue[index + 1] : undefined);
+	const slots = $derived(shortSlots(current, previous, next));
 
 	$effect(() => {
 		if (!needsMore(queue, index)) return;
 		if (channelShorts.hasNextPage && !channelShorts.isFetching) void channelShorts.fetchNextPage();
 	});
 
-	// Only metadata: the details and the poster, not the stream.
-	$effect(() => {
-		if (!next) return;
-		void prefetchVideo(client, next.id);
-		if (next.thumbnailUrl) new Image().src = next.thumbnailUrl;
-	});
-
 	const shown = $derived(details?.id === currentId ? details : undefined);
 	const title = $derived(shown?.title ?? current.title);
-	const channel = $derived<ChannelSummary | undefined>(
-		shown ? toChannel(shown.channel) : current.channel.name ? current.channel : undefined
-	);
-	const poster = $derived(current.thumbnailUrl ?? pickImage(shown?.thumbnails, 720));
-	const problem = $derived.by(() => {
-		if (video.isError) return describeProblem(video.error);
-		if (shown?.is_live) return liveProblem();
-		if (manifest.isError) return describeProblem(manifest.error);
-		return null;
-	});
 
-	const reportProgress = createProgressReporter();
-	const progress = $derived(createLoopingReporter(reportProgress(currentId)));
+	const canStep = (step: Step) => (step === 1 ? next : previous) !== undefined;
 
 	function go(step: Step) {
 		const target = step === 1 ? next : previous;
 		if (!target) return;
-		direction = step;
 		currentId = target.id;
 		// Replaces the entry, so going back leaves the shorts instead of stepping through them.
 		void replaceState(resolve('/shorts/[id=videoid]', { id: target.id }), {});
-	}
-
-	function retry() {
-		if (video.isError) void video.refetch();
-		else void manifest.refetch();
 	}
 
 	function onkeydown(event: KeyboardEvent) {
@@ -110,38 +89,75 @@
 
 	function gestures(node: HTMLElement) {
 		const wheel = createWheelPager(go);
-		let start: { x: number; y: number } | null = null;
+		let touch: {
+			id: number;
+			x: number;
+			y: number;
+			lastY: number;
+			lastTime: number;
+			velocity: number;
+		} | null = null;
+
 		const onWheel = (event: WheelEvent) => {
 			if ((event.target as Element).closest(CONTROLS)) return;
 			event.preventDefault();
 			wheel(event);
 		};
-		const onTouchStart = (event: TouchEvent) => {
-			const touch = event.touches[0];
-			start =
-				event.touches.length === 1 && !(event.target as Element).closest(CONTROLS)
-					? { x: touch.clientX, y: touch.clientY }
-					: null;
+		const onPointerDown = (event: PointerEvent) => {
+			if (event.pointerType === 'mouse' || !event.isPrimary) return;
+			if ((event.target as Element).closest(CONTROLS)) return;
+			touch = {
+				id: event.pointerId,
+				x: event.clientX,
+				y: event.clientY,
+				lastY: event.clientY,
+				lastTime: event.timeStamp,
+				velocity: 0
+			};
 		};
-		const onTouchEnd = (event: TouchEvent) => {
-			if (!start) return;
-			const touch = event.changedTouches[0];
-			const step = swipeStep(start, { x: touch.clientX, y: touch.clientY });
-			start = null;
+		const onPointerMove = (event: PointerEvent) => {
+			if (!touch || event.pointerId !== touch.id) return;
+			const dy = event.clientY - touch.y;
+			if (!dragging) {
+				if (!isVerticalDrag(event.clientX - touch.x, dy)) return;
+				dragging = true;
+				node.setPointerCapture(event.pointerId);
+			}
+			const elapsed = event.timeStamp - touch.lastTime;
+			if (elapsed > 0) touch.velocity = (event.clientY - touch.lastY) / elapsed;
+			touch.lastY = event.clientY;
+			touch.lastTime = event.timeStamp;
+			drag = dragOffset(dy, canStep);
+		};
+		const onPointerEnd = (event: PointerEvent) => {
+			if (!touch || event.pointerId !== touch.id) return;
+			const wasDragging = dragging;
+			const dy = event.clientY - touch.y;
+			// A finger resting before release is no flick.
+			const velocity = event.timeStamp - touch.lastTime > 100 ? 0 : touch.velocity;
+			touch = null;
+			if (!wasDragging) return;
+			// Keeps the player from reading the end of a drag as a tap.
+			event.stopPropagation();
+			dragging = false;
+			drag = 0;
+			const step = event.type === 'pointerup' ? releaseStep(dy, velocity, node.clientHeight) : null;
 			if (step) go(step);
 		};
+
 		node.addEventListener('wheel', onWheel, { passive: false });
-		node.addEventListener('touchstart', onTouchStart, { passive: true });
-		node.addEventListener('touchend', onTouchEnd, { passive: true });
+		node.addEventListener('pointerdown', onPointerDown);
+		node.addEventListener('pointermove', onPointerMove);
+		node.addEventListener('pointerup', onPointerEnd, { capture: true });
+		node.addEventListener('pointercancel', onPointerEnd, { capture: true });
 		return () => {
 			node.removeEventListener('wheel', onWheel);
-			node.removeEventListener('touchstart', onTouchStart);
-			node.removeEventListener('touchend', onTouchEnd);
+			node.removeEventListener('pointerdown', onPointerDown);
+			node.removeEventListener('pointermove', onPointerMove);
+			node.removeEventListener('pointerup', onPointerEnd, { capture: true });
+			node.removeEventListener('pointercancel', onPointerEnd, { capture: true });
 		};
 	}
-
-	const reducedMotion =
-		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 </script>
 
 <svelte:head>
@@ -151,44 +167,15 @@
 <svelte:window {onkeydown} />
 
 <section class="shorts" aria-label={m.shorts_player_label()} data-testid="shorts-viewer">
-	<div class="shorts-stage" {@attach gestures}>
-		{#key currentId}
+	<div class="shorts-stage" data-dragging={dragging ? '' : undefined} {@attach gestures}>
+		{#each slots as slot (slot.short.id)}
 			<div
-				class="shorts-frame"
-				data-short-id={currentId}
-				in:fly={{ y: direction * 48, duration: reducedMotion ? 0 : 220, easing: cubicOut }}
+				class="shorts-cell"
+				style:translate="0 calc({slot.offset} * (100% + var(--shorts-gap)) + {drag}px)"
 			>
-				{#if problem}
-					<PlayerMessage
-						{problem}
-						videoId={currentId}
-						{poster}
-						onretry={problem.retry ? retry : undefined}
-						class="aspect-auto h-full"
-					/>
-				{:else if shown}
-					<Player
-						src={manifestUrl(currentId)}
-						{poster}
-						variant="short"
-						loop
-						autoplay
-						ontimeupdate={progress.update}
-						onprogress={progress.report}
-						class="shorts-player"
-					/>
-				{:else}
-					<div class="relative size-full" role="status" aria-label={m.shorts_loading()}>
-						{#if poster}
-							<img src={poster} alt="" class="size-full object-cover opacity-60" />
-						{:else}
-							<Skeleton class="size-full rounded-none" />
-						{/if}
-					</div>
-				{/if}
-				<ShortOverlay videoId={currentId} {title} {channel} />
+				<ShortSlot short={slot.short} active={slot.offset === 0} preload={slot.preload} />
 			</div>
-		{/key}
+		{/each}
 	</div>
 
 	<div class="shorts-nav">
@@ -224,6 +211,7 @@
 <style>
 	.shorts {
 		--shorts-height: calc(100svh - 3.5rem);
+		--shorts-gap: 0px;
 		display: flex;
 		justify-content: center;
 		align-items: center;
@@ -237,35 +225,27 @@
 		position: relative;
 		height: 100%;
 		width: 100%;
+		overflow: hidden;
 		touch-action: pinch-zoom;
 		overscroll-behavior: contain;
 	}
 
-	.shorts-frame {
-		position: relative;
-		height: 100%;
-		width: 100%;
-		overflow: hidden;
-		background: oklch(0.13 0.004 286);
+	/* A vertical carousel: neighbours sit directly above and below, moved by translate only. */
+	.shorts-cell {
+		position: absolute;
+		inset: 0;
+		transition: translate 280ms cubic-bezier(0.25, 1, 0.5, 1);
+		will-change: translate;
 	}
 
-	.shorts-frame :global(.shorts-player),
-	.shorts-frame :global(.shorts-player .oxi-player-frame) {
-		height: 100%;
-		width: 100%;
+	.shorts-stage[data-dragging] .shorts-cell {
+		transition: none;
 	}
 
-	.shorts-frame :global(.shorts-player .oxi-player-frame) {
-		aspect-ratio: auto;
-		--media-video-border-radius: 0;
-	}
-
-	.shorts-frame :global(.shorts-player .oxi-player-frame)::after {
-		border-color: transparent;
-	}
-
-	.shorts-frame :global([data-testid='player-message']) {
-		border-radius: 0;
+	@media (prefers-reduced-motion: reduce) {
+		.shorts-cell {
+			transition: none;
+		}
 	}
 
 	.shorts-nav {
@@ -276,6 +256,7 @@
 	@media (width >= 48rem) {
 		.shorts {
 			--shorts-height: calc(100svh - 4.5rem);
+			--shorts-gap: 1rem;
 			padding-block: 1rem;
 			background: none;
 		}
@@ -284,10 +265,6 @@
 			width: auto;
 			aspect-ratio: 9 / 16;
 			max-width: calc(100% - 4rem);
-		}
-
-		.shorts-frame {
-			border-radius: var(--radius-xl, 0.75rem);
 		}
 
 		.shorts-nav {

@@ -54,15 +54,35 @@ export function createWheelPager(onstep: (step: Step) => void) {
 	};
 }
 
-const SWIPE_MIN_PX = 56;
+/** Movement before a touch counts as a drag instead of a tap. */
+export const DRAG_SLOP_PX = 8;
+const SNAP_RATIO = 0.25;
+const FLICK_PX_PER_MS = 0.4;
+const FLICK_MIN_PX = 24;
+// Dragging past the first or last short only moves this fraction of the finger's way.
+const EDGE_RESISTANCE = 0.25;
 
-/** A mostly vertical swipe: up shows the next short, down the previous one. */
-export function swipeStep(
-	start: { x: number; y: number },
-	end: { x: number; y: number }
-): Step | null {
-	const dx = end.x - start.x;
-	const dy = end.y - start.y;
-	if (Math.abs(dy) < SWIPE_MIN_PX || Math.abs(dy) < Math.abs(dx) * 1.5) return null;
+/** Whether a touch that moved this far has become a vertical drag. */
+export function isVerticalDrag(dx: number, dy: number): boolean {
+	return Math.abs(dy) > DRAG_SLOP_PX && Math.abs(dy) > Math.abs(dx);
+}
+
+/** How far the shorts move for a finger offset, with resistance where nothing follows. */
+export function dragOffset(dy: number, canStep: (step: Step) => boolean): number {
+	const step: Step = dy < 0 ? 1 : -1;
+	return canStep(step) ? dy : dy * EDGE_RESISTANCE;
+}
+
+/**
+ * Where a released drag goes: far enough or flicked fast enough moves one short (up shows the
+ * next one), anything else springs back.
+ */
+export function releaseStep(dy: number, velocity: number, height: number): Step | null {
+	const far = Math.abs(dy) >= height * SNAP_RATIO;
+	const flick =
+		Math.abs(dy) >= FLICK_MIN_PX &&
+		Math.abs(velocity) >= FLICK_PX_PER_MS &&
+		Math.sign(velocity) === Math.sign(dy);
+	if (!far && !flick) return null;
 	return dy < 0 ? 1 : -1;
 }

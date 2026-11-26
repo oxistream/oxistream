@@ -33,6 +33,15 @@
 
 <Story name="Overlay without channel" args={{ channel: { id: '', name: '' } }} {template} />
 
+<Story
+	name="Overlay with long title"
+	args={{
+		title:
+			'Forging a chef knife from an old file, then grinding, heat treating and sharpening it until it shaves'
+	}}
+	{template}
+/>
+
 <Story name="Shelf" parameters={{ layout: 'fullscreen' }} asChild>
 	<div class="p-6 [--page-gutter:1.5rem]">
 		<ShortRow {shorts} label="Shorts" />

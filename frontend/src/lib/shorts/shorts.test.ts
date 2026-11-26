@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { VideoSummary } from '#lib/video.js';
-import { createWheelPager, keyStep, swipeStep } from './gestures';
-import { createLoopingReporter } from './progress';
-import { buildQueue, needsMore, rememberShortsList, shortStub, takeShortsList } from './queue';
+import { createWheelPager, dragOffset, isVerticalDrag, keyStep, releaseStep } from './gestures';
+import {
+	buildQueue,
+	needsMore,
+	rememberShortsList,
+	shortSlots,
+	shortStub,
+	takeShortsList
+} from './queue';
 
 const short = (id: string): VideoSummary => ({
 	id,
@@ -30,6 +36,18 @@ describe('shorts queue', () => {
 		expect(buildQueue('z', undefined, [])).toEqual([shortStub('z')]);
 		const context = [short('x'), short('z')];
 		expect(buildQueue('z', context, channel)).toBe(context);
+	});
+
+	it('stacks the neighbours around the current short and preloads only the next one', () => {
+		const [a, b, c] = ['a', 'b', 'c'].map(short);
+		const shape = (slots: ReturnType<typeof shortSlots>) =>
+			slots.map((s) => [s.short.id, s.offset, s.preload]);
+		expect(shape(shortSlots(b, a, c))).toEqual([
+			['a', -1, false],
+			['b', 0, true],
+			['c', 1, true]
+		]);
+		expect(shape(shortSlots(a, undefined, undefined))).toEqual([['a', 0, true]]);
 	});
 
 	it('asks for more near the end', () => {
@@ -83,33 +101,23 @@ describe('shorts gestures', () => {
 		expect(onstep).not.toHaveBeenCalled();
 	});
 
-	it('reads vertical swipes', () => {
-		expect(swipeStep({ x: 0, y: 400 }, { x: 10, y: 200 })).toBe(1);
-		expect(swipeStep({ x: 0, y: 200 }, { x: 0, y: 400 })).toBe(-1);
-		expect(swipeStep({ x: 0, y: 200 }, { x: 0, y: 230 })).toBeNull();
-		expect(swipeStep({ x: 0, y: 200 }, { x: 200, y: 300 })).toBeNull();
-	});
-});
-
-describe('looping progress', () => {
-	it('stays finished once a short got far enough', () => {
-		const report = vi.fn();
-		const reporter = createLoopingReporter(report);
-		reporter.update(28, 30);
-		reporter.report({ position: 2, duration: 30, finished: false, reason: 'interval' });
-		expect(report).toHaveBeenCalledWith({
-			position: 2,
-			duration: 30,
-			finished: true,
-			reason: 'interval'
-		});
+	it('tells vertical drags from taps and sideways moves', () => {
+		expect(isVerticalDrag(2, 4)).toBe(false);
+		expect(isVerticalDrag(3, -20)).toBe(true);
+		expect(isVerticalDrag(40, 20)).toBe(false);
 	});
 
-	it('reports unfinished shorts as they are', () => {
-		const report = vi.fn();
-		const reporter = createLoopingReporter(report);
-		reporter.update(5, 30);
-		reporter.report({ position: 5, duration: 30, finished: false, reason: 'pause' });
-		expect(report).toHaveBeenCalledWith(expect.objectContaining({ finished: false }));
+	it('resists dragging past the ends', () => {
+		expect(dragOffset(-100, () => true)).toBe(-100);
+		expect(dragOffset(100, (step) => step === 1)).toBe(25);
+	});
+
+	it('snaps released drags that went far or fast, springs back otherwise', () => {
+		expect(releaseStep(-250, 0, 800)).toBe(1);
+		expect(releaseStep(220, 0, 800)).toBe(-1);
+		expect(releaseStep(-60, -0.8, 800)).toBe(1);
+		expect(releaseStep(-60, -0.1, 800)).toBeNull();
+		expect(releaseStep(-10, -2, 800)).toBeNull();
+		expect(releaseStep(-60, 0.8, 800)).toBeNull();
 	});
 });
