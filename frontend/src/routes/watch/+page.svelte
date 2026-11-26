@@ -1,10 +1,16 @@
 <script lang="ts">
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { pickImage } from '#lib/api/mapping.js';
 	import { createProgressReporter, createVideoProgressQuery } from '#lib/api/history.js';
+	import { isLocalPlaylistId, neighbors } from '#lib/api/playlist-order.js';
+	import { createPlaylistQuery, useLastPlayed } from '#lib/api/playlists.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
+	import { playlistWatchHref } from '#lib/components/playlist/links.js';
+	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
+	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -25,7 +31,11 @@
 	const videoId = $derived(page.url.searchParams.get('v'));
 	const timeParam = $derived(page.url.searchParams.get('t'));
 
+	const listId = $derived(page.url.searchParams.get('list'));
+
 	const video = useVideo(() => videoId);
+	const playlist = createPlaylistQuery(() => listId);
+	const rememberLastPlayed = useLastPlayed();
 	const manifest = useManifest(() => videoId);
 
 	let theater = $state(readJson(THEATER_KEY, (v): v is boolean => typeof v === 'boolean') ?? false);
@@ -56,6 +66,29 @@
 				? pageTitle(problem?.title)
 				: pageTitle(m.watch_title())
 	);
+
+	const playlistPosition = $derived(
+		playlist.data ? neighbors(playlist.data.items, videoId) : { index: -1 }
+	);
+	const playlistStatus = $derived.by(() => {
+		if (!listId) return null;
+		if (!isLocalPlaylistId(listId)) return 'unsupported';
+		if (playlist.data) return 'ready';
+		return playlist.isError ? 'unavailable' : 'loading';
+	});
+
+	// The owner's resume point for "Continue" on the playlist page.
+	$effect(() => {
+		const list = playlist.data;
+		if (!list?.isOwner || !videoId || playlistPosition.index < 0) return;
+		if (list.lastVideoId !== videoId) void rememberLastPlayed(list.id, videoId);
+	});
+
+	function playNext() {
+		const next = playlistPosition.next;
+
+		if (next && playlist.data) void goto(playlistWatchHref(next.id, playlist.data.id));
+	}
 
 	const explicitStart = $derived(parseStartTime(timeParam));
 	const savedProgress = createVideoProgressQuery(() => (explicitStart === null ? videoId : null));
@@ -133,7 +166,11 @@
 	</div>
 {:else}
 	<div class="@container flex-1">
-		<div class="watch" data-theater={theater ? '' : undefined}>
+		<div
+			class="watch"
+			data-theater={theater ? '' : undefined}
+			data-playlist={playlistStatus ? '' : undefined}
+		>
 			<div id="player" class="watch-player">
 				{#if problem}
 					<PlayerMessage
@@ -156,6 +193,7 @@
 							autoplay
 							ontheatertoggle={toggleTheater}
 							onprogress={reportProgress(videoId)}
+							onended={playlistPosition.next ? playNext : undefined}
 							class="watch-frame"
 						/>
 					{/key}
@@ -168,11 +206,22 @@
 
 			<div class="watch-meta">
 				{#if details}
-					<VideoDetails video={details} bind:descriptionExpanded onseek={seek} />
+					<VideoDetails video={details} bind:descriptionExpanded onseek={seek}>
+						{#snippet actions()}<SaveToPlaylistButton {videoId} />{/snippet}
+					</VideoDetails>
 				{:else if video.isPending}
 					<VideoDetailsSkeleton />
 				{/if}
 			</div>
+
+			{#if playlistStatus}
+				<PlaylistPanel
+					playlist={playlist.data}
+					currentId={videoId}
+					status={playlistStatus}
+					class="watch-playlist"
+				/>
+			{/if}
 
 			{#if details || video.isPending}
 				<RelatedVideos videos={related} loading={video.isPending} class="watch-related" />
@@ -209,6 +258,15 @@
 		margin-top: 0.5rem;
 	}
 
+	.watch[data-playlist] {
+		grid-template-areas: 'player' 'playlist' 'meta' 'related';
+	}
+
+	.watch :global(.watch-playlist) {
+		grid-area: playlist;
+		max-height: 26rem;
+	}
+
 	@container (width >= 60rem) {
 		.watch {
 			grid-template-columns: minmax(0, 1fr) 22rem;
@@ -222,6 +280,22 @@
 
 		.watch[data-theater] {
 			grid-template-areas: 'player player' 'meta related';
+		}
+
+		.watch[data-playlist] {
+			grid-template-areas: 'player playlist' 'meta related';
+		}
+
+		/* Beside the player, the panel takes the player's height instead of adding its own. */
+		.watch[data-playlist]:not([data-theater]) :global(.watch-playlist[data-status='ready']) {
+			height: 0;
+			min-height: 100%;
+			max-height: none;
+		}
+
+		.watch[data-playlist][data-theater] {
+			grid-template-rows: auto auto 1fr;
+			grid-template-areas: 'player player' 'meta playlist' 'meta related';
 		}
 	}
 
