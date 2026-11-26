@@ -38,6 +38,25 @@ pub struct ActiveSession {
     pub user: User,
 }
 
+/// A validated back-channel logout token.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BackchannelLogout<'a> {
+    pub jti: &'a str,
+    /// Until when the token could be replayed; its `jti` is kept that long.
+    pub expires_at: OffsetDateTime,
+    pub issuer: &'a str,
+    pub sid: Option<&'a str>,
+    pub subject: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogoutOutcome {
+    /// The `jti` was seen before; nothing changed.
+    Replayed,
+    /// How many sessions were ended.
+    Ended(u64),
+}
+
 #[async_trait::async_trait]
 pub trait SessionRepository: Send + Sync {
     async fn create(&self, session: &NewSession) -> Result<(), Error>;
@@ -59,16 +78,12 @@ pub trait SessionRepository: Send + Sync {
     /// Deletes expired sessions and returns how many were removed.
     async fn delete_expired(&self) -> Result<u64, Error>;
 
-    /// Deletes the sessions started with the provider session `sid`, only of `user_id` if
-    /// given. Returns how many were removed.
-    async fn delete_by_oidc_sid(&self, sid: &str, user_id: Option<Uuid>) -> Result<u64, Error>;
-
-    /// Deletes all sessions of a user and returns how many were removed.
-    async fn delete_for_user(&self, user_id: Uuid) -> Result<u64, Error>;
-
-    /// Records the `jti` of a logout token; `false` if it was seen before.
-    async fn record_logout_jti(&self, jti: &str, expires_at: OffsetDateTime)
-    -> Result<bool, Error>;
+    /// Records the logout token's `jti` and ends the matching sessions in one transaction,
+    /// so a failure leaves the token usable for the provider's retry.
+    async fn end_sessions_for_logout(
+        &self,
+        logout: &BackchannelLogout<'_>,
+    ) -> Result<LogoutOutcome, Error>;
 
     /// Forgets logout token IDs that can no longer be replayed.
     async fn delete_expired_logout_jtis(&self) -> Result<u64, Error>;
@@ -165,39 +180,57 @@ impl SessionRepository for PgSessionRepository {
         Ok(result.rows_affected())
     }
 
-    async fn delete_by_oidc_sid(&self, sid: &str, user_id: Option<Uuid>) -> Result<u64, Error> {
-        let result = sqlx::query(
-            "DELETE FROM sessions WHERE oidc_sid = $1 AND ($2::uuid IS NULL OR user_id = $2)",
-        )
-        .bind(sid)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
-        Ok(result.rows_affected())
-    }
-
-    async fn delete_for_user(&self, user_id: Uuid) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM sessions WHERE user_id = $1")
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(result.rows_affected())
-    }
-
-    async fn record_logout_jti(
+    async fn end_sessions_for_logout(
         &self,
-        jti: &str,
-        expires_at: OffsetDateTime,
-    ) -> Result<bool, Error> {
-        let result = sqlx::query(
+        logout: &BackchannelLogout<'_>,
+    ) -> Result<LogoutOutcome, Error> {
+        let mut tx = self.pool.begin().await?;
+        let recorded = sqlx::query(
             "INSERT INTO oidc_logout_jti (jti, expires_at) VALUES ($1, $2) \
              ON CONFLICT (jti) DO NOTHING",
         )
-        .bind(jti)
-        .bind(expires_at)
-        .execute(&self.pool)
+        .bind(logout.jti)
+        .bind(logout.expires_at)
+        .execute(&mut *tx)
         .await?;
-        Ok(result.rows_affected() == 1)
+        if recorded.rows_affected() == 0 {
+            return Ok(LogoutOutcome::Replayed);
+        }
+        let user_id: Option<Uuid> = match logout.subject {
+            Some(subject) => {
+                let user_id = sqlx::query_scalar(
+                    "SELECT user_id FROM user_identities WHERE issuer = $1 AND subject = $2",
+                )
+                .bind(logout.issuer)
+                .bind(subject)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if user_id.is_none() {
+                    tx.commit().await?;
+                    return Ok(LogoutOutcome::Ended(0));
+                }
+                user_id
+            }
+            None => None,
+        };
+        let deleted = match (logout.sid, user_id) {
+            (Some(sid), user_id) => sqlx::query(
+                "DELETE FROM sessions WHERE oidc_sid = $1 AND ($2::uuid IS NULL OR user_id = $2)",
+            )
+            .bind(sid)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected(),
+            (None, Some(user_id)) => sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+                .bind(user_id)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected(),
+            (None, None) => 0,
+        };
+        tx.commit().await?;
+        Ok(LogoutOutcome::Ended(deleted))
     }
 
     async fn delete_expired_logout_jtis(&self) -> Result<u64, Error> {

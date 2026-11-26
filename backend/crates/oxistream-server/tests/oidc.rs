@@ -12,7 +12,8 @@ use common::idp::{CLIENT_ID, Idp};
 use common::{TEST_PROXY_SECRET, isolated_test_pool, state_with_auth, test_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    PgPool, PgSessionRepository, PgUserRepository, SessionRepository, UserRepository,
+    BackchannelLogout, LogoutOutcome, PgPool, PgSessionRepository, PgUserRepository,
+    SessionRepository, UserRepository,
 };
 use oxistream_server::AppState;
 use oxistream_server::auth::cookie;
@@ -830,9 +831,50 @@ async fn expired_logout_token_ids_are_cleaned_up() {
     let db = test_pool().await;
     let sessions = PgSessionRepository::new(db.pool.clone());
     let jti = format!("old-{}", unique_suffix());
-    let past = time::OffsetDateTime::now_utc() - time::Duration::minutes(1);
-    assert!(sessions.record_logout_jti(&jti, past).await.unwrap());
-    assert!(!sessions.record_logout_jti(&jti, past).await.unwrap());
+    let logout = BackchannelLogout {
+        jti: &jti,
+        expires_at: time::OffsetDateTime::now_utc() - time::Duration::minutes(1),
+        issuer: "https://idp.example",
+        sid: Some("no-such-sid"),
+        subject: None,
+    };
+    let end = || sessions.end_sessions_for_logout(&logout);
+    assert_eq!(end().await.unwrap(), LogoutOutcome::Ended(0));
+    assert_eq!(end().await.unwrap(), LogoutOutcome::Replayed);
     assert!(sessions.delete_expired_logout_jtis().await.unwrap() >= 1);
-    assert!(sessions.record_logout_jti(&jti, past).await.unwrap());
+    assert_eq!(end().await.unwrap(), LogoutOutcome::Ended(0));
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn failed_backchannel_logout_can_be_retried_with_the_same_token() {
+    let db = isolated_test_pool().await;
+    let idp = Idp::start().await;
+    let app = oxistream_server::app(discovered(db.pool.clone(), oidc_config(&idp)).await);
+    let subject = sub();
+    let session = sign_in(&app, &idp, json!({ "sub": subject, "sid": "sid-retry" })).await;
+    let token = logout_token(&idp, &json!({ "sid": "sid-retry", "sub": subject }));
+
+    for statement in [
+        "CREATE FUNCTION fail_session_delete() RETURNS trigger LANGUAGE plpgsql \
+         AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$",
+        "CREATE TRIGGER fail_session_delete BEFORE DELETE ON sessions \
+         FOR EACH ROW EXECUTE FUNCTION fail_session_delete()",
+    ] {
+        sqlx::query(statement).execute(&db.pool).await.unwrap();
+    }
+    let (status, _, _) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(signed_in(&app, &session).await);
+    sqlx::query("DROP TRIGGER fail_session_delete ON sessions")
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    let (status, _, body) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::OK, "jti was rolled back: {body}");
+    assert!(!signed_in(&app, &session).await);
+    let (status, _, body) = backchannel(&app, &token).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error_description"], "logout token was already used");
 }
