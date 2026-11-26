@@ -374,8 +374,16 @@ export interface components {
             subtitles: components["schemas"]["Subtitle"][];
             thumbnails: components["schemas"]["Thumbnail"][];
             title: string;
-            /** Format: int64 */
-            view_count: number;
+            /**
+             * Format: int64
+             * @description Absent for livestreams, see `viewers`.
+             */
+            view_count?: number | null;
+            /**
+             * Format: int64
+             * @description Current viewers of a livestream.
+             */
+            viewers?: number | null;
         };
         VideoPage: {
             continuation?: string | null;
@@ -395,8 +403,16 @@ export interface components {
             published_text?: string | null;
             thumbnails: components["schemas"]["Thumbnail"][];
             title: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Absent for livestreams, see `viewers`.
+             */
             view_count?: number | null;
+            /**
+             * Format: int64
+             * @description Current viewers of a livestream.
+             */
+            viewers?: number | null;
         };
     };
     responses: never;

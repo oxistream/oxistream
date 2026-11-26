@@ -48,6 +48,7 @@
 	<VideoDescription
 		description={video.description}
 		viewCount={video.view_count}
+		viewers={video.viewers}
 		publishedAt={video.published_at}
 		publishedText={video.published_text}
 		durationSeconds={video.duration_seconds}

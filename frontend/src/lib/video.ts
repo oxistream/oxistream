@@ -16,6 +16,8 @@ export type VideoSummary = {
 	/** Missing for live streams and in channel listings that do not report it. */
 	durationSeconds?: number;
 	viewCount?: number;
+	/** Current viewers of a live stream, which has no view count. */
+	viewers?: number;
 	publishedAt?: string;
 	/** YouTube's own localized date text, used when no exact date is known. */
 	publishedText?: string;
