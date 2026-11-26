@@ -1,5 +1,6 @@
 // Typed stand-in data until the backend feed endpoints land. Thumbnails are licensed photographs
 // (see ./thumbnails/credits.ts), bundled locally so nothing is fetched from YouTube.
+import type { SubscribedChannel } from '#lib/api/subscription-list.js';
 import type { ChannelSummary, User, VideoSummary } from '#lib/video.js';
 import anvil from './thumbnails/anvil.jpg';
 import barista from './thumbnails/barista.jpg';
@@ -207,4 +208,22 @@ export const mockUser: User = {
 	id: 'usr_01',
 	name: 'Mara Lindqvist',
 	username: 'mara'
+};
+
+const subscriberCounts: Record<string, number> = { forge: 284_000, north: 1_240_000, dial: 52_300 };
+
+export const mockSubscriptions: SubscribedChannel[] = Object.entries(mockChannels)
+	.map(([key, channel]: [string, ChannelSummary]) => ({
+		...channel,
+		verified: key === 'north',
+		subscriberCount: subscriberCounts[key],
+		subscribedAt: '2026-11-01T10:00:00Z'
+	}))
+	.sort((a, b) => a.name.localeCompare(b.name));
+
+/** A channel the feed worker has not fetched yet. */
+export const mockPendingSubscription: SubscribedChannel = {
+	id: 'UCm0ckP3nd1ngCh4nn3l000',
+	verified: false,
+	subscribedAt: '2026-11-26T10:00:00Z'
 };

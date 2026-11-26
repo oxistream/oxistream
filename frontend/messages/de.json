@@ -59,7 +59,7 @@
 	"video_duration": "Dauer {duration}",
 	"video_loading": "Videos werden geladen",
 	"empty_subscriptions_title": "Noch keine Abos",
-	"empty_subscriptions_body": "Folge Kanälen, dann erscheinen ihre neuen Videos hier, die neuesten zuerst.",
+	"empty_subscriptions_body": "Abonniere Kanäle auf ihrer Kanalseite oder importiere deine Abos aus YouTube, NewPipe, Invidious oder Piped.",
 	"empty_playlists_title": "Noch keine Playlists",
 	"empty_playlists_body": "Speichere Videos in einer Playlist, um sie später anzusehen oder per Link zu teilen.",
 	"empty_history_title": "Dein Verlauf ist leer",
@@ -152,8 +152,6 @@
 			}
 		}
 	],
-	"channel_subscribe": "Abonnieren",
-	"channel_subscribe_soon": "Abos folgen in einer späteren Version.",
 	"channel_videos": "Videos",
 	"channel_loading": "Kanal wird geladen",
 	"channel_more": "Mehr",
@@ -198,8 +196,6 @@
 			}
 		}
 	],
-	"watch_subscribe": "Abonnieren",
-	"watch_subscribe_soon": "Abos kommen bald",
 	"watch_description": "Beschreibung",
 	"watch_show_more": "Mehr anzeigen",
 	"watch_show_less": "Weniger anzeigen",
@@ -245,5 +241,34 @@
 	"auth_oidc_error_disabled": "Single Sign-on ist auf dieser Instanz nicht eingerichtet.",
 	"auth_oidc_error_unavailable": "Der Anmeldedienst ist gerade nicht erreichbar. Versuche es gleich noch einmal.",
 	"auth_oidc_error_denied": "Die Anmeldung wurde beim Anbieter abgebrochen.",
-	"auth_oidc_error_failed": "Single Sign-on wurde nicht abgeschlossen. Starte die Anmeldung erneut von dieser Seite."
+	"auth_oidc_error_failed": "Single Sign-on wurde nicht abgeschlossen. Starte die Anmeldung erneut von dieser Seite.",
+	"nav_channels": "Kanäle",
+	"nav_channels_all": "Alle {count} Kanäle",
+	"nav_channels_manage": "Kanäle verwalten",
+	"subscription_subscribe": "Abonnieren",
+	"subscription_subscribed": "Abonniert",
+	"subscriptions_title": "Abonnierte Kanäle",
+	"subscriptions_count": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} Kanal",
+				"countPlural=*": "{count} Kanäle"
+			}
+		}
+	],
+	"subscriptions_loading": "Kanäle werden geladen",
+	"subscriptions_unsubscribe": "Deabonnieren",
+	"subscriptions_unsubscribe_from": "{name} deabonnieren",
+	"subscriptions_resubscribe_to": "{name} wieder abonnieren",
+	"subscriptions_channel_pending": "Kanal wird abgerufen …",
+	"subscriptions_import_export": "Import / Export",
+	"feed_manage": "Verwalten",
+	"feed_fetching_title": "Deine neuen Kanäle werden abgerufen",
+	"feed_fetching_body": "Ihre neuesten Videos erscheinen hier gleich.",
+	"feed_fetching_inline": "Videos neuer Kanäle werden abgerufen …",
+	"feed_no_videos_title": "Noch keine Videos",
+	"feed_no_videos_body": "Deine Kanäle haben bisher keine Videos veröffentlicht.",
+	"feed_end": "Du bist auf dem neuesten Stand"
 }

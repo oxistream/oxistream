@@ -2,8 +2,7 @@
 	import { resolve } from '$app/paths';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
@@ -45,26 +44,5 @@
 			</span>
 		{/if}
 	</div>
-	<!-- Own provider, so the row also works outside the app shell (stories). -->
-	<Tooltip.Provider>
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<!-- aria-disabled instead of disabled keeps the button focusable, so the tooltip can explain why. -->
-					<Button
-						{...props}
-						size="sm"
-						variant="secondary"
-						aria-disabled="true"
-						data-testid="subscribe-button"
-						class="ms-1 shrink-0 cursor-not-allowed rounded-full px-3.5 text-muted-foreground"
-						onclick={(event: MouseEvent) => event.preventDefault()}
-					>
-						{m.watch_subscribe()}
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content>{m.watch_subscribe_soon()}</Tooltip.Content>
-		</Tooltip.Root>
-	</Tooltip.Provider>
+	<SubscribeButton channelId={channel.id} size="sm" class="ms-1" />
 </div>
