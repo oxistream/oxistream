@@ -23,7 +23,7 @@
 		class?: string;
 	} = $props();
 
-	const base = $derived(cn(size === 'sm' && 'rounded-full px-3.5', className));
+	const base = $derived(cn('rounded-full', size === 'sm' ? 'px-3.5' : 'px-5', className));
 </script>
 
 {#if signInHref}
