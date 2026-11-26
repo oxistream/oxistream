@@ -3,9 +3,10 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use async_trait::async_trait;
 use moka::Expiry;
 use moka::future::Cache;
-use rustypipe::client::{RustyPipe, RustyPipeQuery};
+use rustypipe::client::{ClientType, RustyPipe, RustyPipeQuery};
 use rustypipe::model::paginator::{ContinuationEndpoint, Paginator};
 use rustypipe::model::{
     Channel, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
@@ -27,13 +28,31 @@ const PLAYER_CACHE_CAPACITY: u64 = 2_000;
 const PLAYER_EXPIRY_MARGIN: Duration = Duration::from_mins(30);
 const BOTGUARD_SNAPSHOT_FILE: &str = "oxistream-bg_snapshot.bin";
 
+/// Fetches player data in place of RustyPipe, e.g. to serve fixtures in tests.
+#[async_trait]
+pub trait PlayerSource: Send + Sync {
+    async fn player(&self, video_id: &str) -> Result<VideoPlayer>;
+}
+
 #[derive(Clone)]
 pub struct YouTube {
     rp: RustyPipe,
     players: Cache<String, Arc<VideoPlayer>>,
+    player_source: Option<Arc<dyn PlayerSource>>,
 }
 
 impl YouTube {
+    /// Like [`YouTube::new`], but player data comes from `source`.
+    pub fn with_player_source(
+        config: &YouTubeConfig,
+        source: Arc<dyn PlayerSource>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            player_source: Some(source),
+            ..Self::new(config)?
+        })
+    }
+
     pub fn new(config: &YouTubeConfig) -> anyhow::Result<Self> {
         let mut builder = RustyPipe::builder()
             .unauthenticated()
@@ -55,7 +74,11 @@ impl YouTube {
             .max_capacity(PLAYER_CACHE_CAPACITY)
             .expire_after(PlayerExpiry)
             .build();
-        Ok(Self { rp, players })
+        Ok(Self {
+            rp,
+            players,
+            player_source: None,
+        })
     }
 
     /// Version string of the botguard binary in use, if one was found.
@@ -71,17 +94,21 @@ impl YouTube {
     /// Concurrent misses for the same video share one upstream request.
     pub async fn player(&self, video_id: &str) -> Result<Arc<VideoPlayer>> {
         check_video_id(video_id)?;
-        let query = self.rp.query();
         self.players
             .try_get_with(video_id.to_owned(), async move {
-                query
-                    .player(video_id)
-                    .await
-                    .map(Arc::new)
-                    .map_err(YouTubeError::from)
+                let player = match &self.player_source {
+                    Some(source) => source.player(video_id).await?,
+                    None => self.rp.query().player(video_id).await?,
+                };
+                Ok::<_, YouTubeError>(Arc::new(player))
             })
             .await
             .map_err(|err| (*err).clone())
+    }
+
+    /// The User-Agent RustyPipe uses for `client`, to be sent along with stream requests.
+    pub fn user_agent(&self, client: ClientType) -> String {
+        self.rp.query().user_agent(client).into_owned()
     }
 
     /// Drops cached player data, e.g. after the stream URLs were rejected upstream.

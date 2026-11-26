@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use common::{app_without_db, get};
+use common::{app_without_db, get, state_without_db};
 use http_body_util::BodyExt;
 use oxistream_server::config::YouTubeConfig;
 use oxistream_server::youtube::YouTube;
@@ -146,4 +146,55 @@ async fn player_is_cached() {
     youtube.invalidate(VIDEO_ID).await;
     let c = youtube.player(VIDEO_ID).await.unwrap();
     assert!(!Arc::ptr_eq(&a, &c));
+}
+
+async fn fetch(router: axum::Router, uri: &str, range: Option<&str>) -> axum::response::Response {
+    let mut request = Request::get(uri);
+    if let Some(range) = range {
+        request = request.header(header::RANGE, range);
+    }
+    router
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn proxies_thumbnail() {
+    let (status, json) = get_json(&format!("/api/v0/videos/{VIDEO_ID}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let url = json["thumbnails"][0]["url"].as_str().unwrap();
+    assert!(url.starts_with("/proxy/image/"), "{url}");
+
+    let response = fetch(app_without_db(), url, None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let content_type = response.headers()[header::CONTENT_TYPE].to_str().unwrap();
+    assert!(content_type.starts_with("image/"), "{content_type}");
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(body.len() > 1000);
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn proxies_stream_range() {
+    let state = state_without_db();
+    let player = state.youtube.player(VIDEO_ID).await.unwrap();
+    let audio = &player.audio_streams[0];
+    let url = state.stream_url(
+        VIDEO_ID,
+        audio.itag,
+        audio.track.as_ref().map(|t| t.id.as_str()),
+    );
+
+    let response = fetch(oxistream_server::app(state), &url, Some("bytes=0-1023")).await;
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], "1024");
+    let content_range = response.headers()[header::CONTENT_RANGE].to_str().unwrap();
+    assert!(
+        content_range.starts_with("bytes 0-1023/"),
+        "{content_range}"
+    );
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(body.len(), 1024);
 }

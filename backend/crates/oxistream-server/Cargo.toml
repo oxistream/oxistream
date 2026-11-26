@@ -14,24 +14,34 @@ embed-frontend = ["dep:rust-embed"]
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
+base64.workspace = true
+futures-util.workspace = true
+governor.workspace = true
+hmac.workspace = true
 metrics.workspace = true
 moka.workspace = true
 metrics-exporter-prometheus.workspace = true
 oxistream-db.workspace = true
+reqwest.workspace = true
 rust-embed = { workspace = true, optional = true }
+rustls.workspace = true
 rustypipe.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
+tower_governor.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
 utoipa-scalar.workspace = true
+webpki-roots.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
