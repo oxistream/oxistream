@@ -492,13 +492,119 @@
         }
       }
     },
-    "/api/v0/channels/{id}/videos": {
+    "/api/v0/channels/{id}/live": {
       "get": {
         "tags": [
           "youtube"
         ],
-        "summary": "A further page of a channel's videos.",
-        "operationId": "channel_videos",
+        "summary": "A page of a channel's past, current and upcoming livestreams.",
+        "operationId": "channel_live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order of the first page; later pages keep it. Defaults to `latest`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "popular",
+                "oldest"
+              ]
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID or sort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/channels/{id}/playlists": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A page of a channel's playlists.",
+        "operationId": "channel_playlists",
         "parameters": [
           {
             "name": "id",
@@ -536,13 +642,326 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoPage"
+                  "$ref": "#/components/schemas/PlaylistPage"
                 }
               }
             }
           },
           "400": {
             "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/channels/{id}/search": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Search within a channel's videos.",
+        "operationId": "channel_search",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query; required unless `continuation` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID or missing query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/channels/{id}/shorts": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A page of a channel's shorts.",
+        "operationId": "channel_shorts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order of the first page; later pages keep it. Defaults to `latest`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "popular",
+                "oldest"
+              ]
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID or sort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/channels/{id}/videos": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A page of a channel's videos.",
+        "operationId": "channel_videos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order of the first page; later pages keep it. Defaults to `latest`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "popular",
+                "oldest"
+              ]
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID or sort",
             "content": {
               "application/json": {
                 "schema": {
@@ -3005,6 +3424,8 @@
           "banner",
           "verified",
           "tags",
+          "has_shorts",
+          "has_live",
           "videos"
         ],
         "properties": {
@@ -3028,6 +3449,14 @@
               "string",
               "null"
             ]
+          },
+          "has_live": {
+            "type": "boolean",
+            "description": "The channel has a Live tab."
+          },
+          "has_shorts": {
+            "type": "boolean",
+            "description": "The channel has a Shorts tab."
           },
           "id": {
             "type": "string"
@@ -3588,6 +4017,26 @@
           "video": {
             "$ref": "#/components/schemas/VideoSummary",
             "description": "`channel` is always set; view counts and dates are not."
+          }
+        }
+      },
+      "PlaylistPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaylistSummary"
+            }
           }
         }
       },

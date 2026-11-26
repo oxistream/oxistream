@@ -155,6 +155,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/channels/{id}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of a channel's past, current and upcoming livestreams. */
+        get: operations["channel_live"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/channels/{id}/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of a channel's playlists. */
+        get: operations["channel_playlists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/channels/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search within a channel's videos. */
+        get: operations["channel_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/channels/{id}/shorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of a channel's shorts. */
+        get: operations["channel_shorts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/channels/{id}/videos": {
         parameters: {
             query?: never;
@@ -162,7 +230,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A further page of a channel's videos. */
+        /** A page of a channel's videos. */
         get: operations["channel_videos"];
         put?: never;
         post?: never;
@@ -669,6 +737,10 @@ export interface components {
             banner: components["schemas"]["Thumbnail"][];
             description: string;
             handle?: string | null;
+            /** @description The channel has a Live tab. */
+            has_live: boolean;
+            /** @description The channel has a Shorts tab. */
+            has_shorts: boolean;
             id: string;
             name: string;
             /** Format: int64 */
@@ -851,6 +923,10 @@ export interface components {
             added_at: string;
             /** @description `channel` is always set; view counts and dates are not. */
             video: components["schemas"]["VideoSummary"];
+        };
+        PlaylistPage: {
+            continuation?: string | null;
+            items: components["schemas"]["PlaylistSummary"][];
         };
         PlaylistSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
@@ -1419,9 +1495,11 @@ export interface operations {
             };
         };
     };
-    channel_videos: {
+    channel_live: {
         parameters: {
             query?: {
+                /** @description Sort order of the first page; later pages keep it. Defaults to `latest`. */
+                sort?: "latest" | "popular" | "oldest";
                 /** @description Token from a previous page. */
                 continuation?: string;
             };
@@ -1445,7 +1523,269 @@ export interface operations {
                     "application/json": components["schemas"]["VideoPage"];
                 };
             };
+            /** @description Invalid channel ID or sort */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    channel_playlists: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistPage"];
+                };
+            };
             /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    channel_search: {
+        parameters: {
+            query?: {
+                /** @description Search query; required unless `continuation` is given. */
+                q?: string;
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoPage"];
+                };
+            };
+            /** @description Invalid channel ID or missing query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    channel_shorts: {
+        parameters: {
+            query?: {
+                /** @description Sort order of the first page; later pages keep it. Defaults to `latest`. */
+                sort?: "latest" | "popular" | "oldest";
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoPage"];
+                };
+            };
+            /** @description Invalid channel ID or sort */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    channel_videos: {
+        parameters: {
+            query?: {
+                /** @description Sort order of the first page; later pages keep it. Defaults to `latest`. */
+                sort?: "latest" | "popular" | "oldest";
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoPage"];
+                };
+            };
+            /** @description Invalid channel ID or sort */
             400: {
                 headers: {
                     [name: string]: unknown;

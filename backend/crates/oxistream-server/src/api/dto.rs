@@ -182,6 +182,12 @@ impl TrendingVideos {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct PlaylistPage {
+    pub items: Vec<PlaylistSummary>,
+    pub continuation: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct ChannelDetails {
     pub id: String,
     pub name: String,
@@ -193,6 +199,10 @@ pub struct ChannelDetails {
     pub banner: Vec<Thumbnail>,
     pub verified: bool,
     pub tags: Vec<String>,
+    /// The channel has a Shorts tab.
+    pub has_shorts: bool,
+    /// The channel has a Live tab.
+    pub has_live: bool,
     pub videos: VideoPage,
 }
 
@@ -380,13 +390,34 @@ impl SearchItem {
                 id: channel.id,
                 name: channel.name,
             }),
-            rp::YouTubeItem::Playlist(playlist) => Self::Playlist(PlaylistSummary {
-                thumbnails: thumbnails(&playlist.thumbnail, img),
-                channel: playlist.channel.map(|c| ChannelRef::from_rp(c, img)),
-                video_count: playlist.video_count,
-                id: playlist.id,
-                title: playlist.name,
-            }),
+            rp::YouTubeItem::Playlist(playlist) => {
+                Self::Playlist(PlaylistSummary::from_rp(playlist, img))
+            }
+        }
+    }
+}
+
+impl PlaylistSummary {
+    pub fn from_rp(playlist: rp::PlaylistItem, img: &impl Fn(&str) -> String) -> Self {
+        Self {
+            thumbnails: thumbnails(&playlist.thumbnail, img),
+            channel: playlist.channel.map(|c| ChannelRef::from_rp(c, img)),
+            video_count: playlist.video_count,
+            id: playlist.id,
+            title: playlist.name,
+        }
+    }
+}
+
+impl PlaylistPage {
+    pub fn from_rp(page: Paginator<rp::PlaylistItem>, img: &impl Fn(&str) -> String) -> Self {
+        Self {
+            items: page
+                .items
+                .into_iter()
+                .map(|p| PlaylistSummary::from_rp(p, img))
+                .collect(),
+            continuation: page.ctoken,
         }
     }
 }
@@ -437,6 +468,8 @@ impl ChannelDetails {
             description: channel.description,
             handle: channel.handle,
             tags: channel.tags,
+            has_shorts: channel.has_shorts,
+            has_live: channel.has_live,
             id: channel.id,
             name: channel.name,
         }
@@ -713,7 +746,7 @@ mod tests {
             "description": "Official channel",
             "tags": ["music"],
             "banner": [thumb("https://yt3.ggpht.com/b")],
-            "has_shorts": false,
+            "has_shorts": true,
             "has_live": false,
             "visitor_data": null,
             "content": paginator(&json!([video_item("aaaaaaaaaaa")]), Some("more"), "browse"),
@@ -730,9 +763,46 @@ mod tests {
             Some("1 year ago")
         );
         assert!(dto.verified);
+        assert!(dto.has_shorts);
+        assert!(!dto.has_live);
         assert_eq!(dto.videos.items.len(), 1);
         assert_eq!(dto.videos.continuation.as_deref(), Some("more"));
         assert_images_mapped(&dto);
+    }
+
+    #[test]
+    fn maps_channel_playlists() {
+        let items = json!([
+            {
+                "id": "PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI",
+                "name": "Music videos",
+                "thumbnail": [thumb("https://i.ytimg.com/vi/x/hqdefault.jpg")],
+                "channel": null,
+                "video_count": 42,
+            },
+            {
+                "id": "PLempty",
+                "name": "No count",
+                "thumbnail": [],
+                "channel": channel_tag(),
+                "video_count": null,
+            },
+        ]);
+        let page =
+            PlaylistPage::from_rp(from_json(paginator(&items, Some("more"), "browse")), &img);
+
+        assert_eq!(page.continuation.as_deref(), Some("more"));
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.items[0].id, "PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI");
+        assert_eq!(page.items[0].title, "Music videos");
+        assert_eq!(page.items[0].video_count, Some(42));
+        assert_eq!(page.items[0].channel, None);
+        assert_eq!(page.items[1].video_count, None);
+        assert_eq!(
+            page.items[1].channel.as_ref().map(|c| c.name.as_str()),
+            Some("Rick Astley")
+        );
+        assert_images_mapped(&page);
     }
 
     #[test]

@@ -3,19 +3,21 @@ use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path, Query, State};
 use oxistream_db::VideoUpsert;
 use rustypipe::model as rp;
+use rustypipe::param::{ChannelOrder, ChannelVideoTab, Language};
 use serde::Deserialize;
-use utoipa::IntoParams;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{
-    ChannelDetails, Resolved, SearchPage, TrendingCategory, TrendingVideos, VideoDetails,
-    VideoPage, YouTubePlaylist,
+    ChannelDetails, PlaylistPage, Resolved, SearchPage, TrendingCategory, TrendingVideos,
+    VideoDetails, VideoPage, YouTubePlaylist,
 };
 use crate::api::error::{ApiError, ErrorBody};
 use crate::api::lang::ContentLanguage;
+use crate::youtube::check_channel_id;
 
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -26,6 +28,10 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(channel_videos))
         .routes(routes!(playlist))
         .routes(routes!(playlist_videos))
+        .routes(routes!(channel_shorts))
+        .routes(routes!(channel_live))
+        .routes(routes!(channel_playlists))
+        .routes(routes!(channel_search))
         .routes(routes!(resolve))
         .routes(routes!(trending))
 }
@@ -247,26 +253,70 @@ async fn channel(
     })))
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum ChannelSort {
+    #[default]
+    Latest,
+    Popular,
+    Oldest,
+}
+
+impl From<ChannelSort> for ChannelOrder {
+    fn from(sort: ChannelSort) -> Self {
+        match sort {
+            ChannelSort::Latest => Self::Latest,
+            ChannelSort::Popular => Self::Popular,
+            ChannelSort::Oldest => Self::Oldest,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
-struct ContinuationParams {
+struct ChannelTabParams {
+    /// Sort order of the first page; later pages keep it. Defaults to `latest`.
+    #[param(inline)]
+    sort: Option<ChannelSort>,
     /// Token from a previous page.
     continuation: Option<String>,
 }
 
-/// A further page of a channel's videos.
+async fn channel_tab_page(
+    state: &AppState,
+    id: &str,
+    tab: ChannelVideoTab,
+    params: Result<Query<ChannelTabParams>, QueryRejection>,
+    lang: Language,
+) -> Result<Json<VideoPage>, ApiError> {
+    let Query(params) = params
+        .map_err(|_| ApiError::bad_request("`sort` must be `latest`, `popular` or `oldest`"))?;
+    check_channel_id(id)?;
+    let page = if let Some(token) = non_empty(params.continuation.as_deref()) {
+        state
+            .youtube
+            .channel_videos_continuation(token, lang)
+            .await?
+    } else {
+        let order = params.sort.unwrap_or_default().into();
+        state.youtube.channel_tab(id, tab, order, lang).await?
+    };
+    Ok(Json(VideoPage::from_rp(page, &|url| state.image_url(url))))
+}
+
+/// A page of a channel's videos.
 #[utoipa::path(
     get,
     path = "/channels/{id}/videos",
     tag = "youtube",
     params(
         ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
-        ContinuationParams,
+        ChannelTabParams,
         ("Accept-Language" = Option<String>, Header, description = "Content language"),
     ),
     responses(
         (status = OK, body = VideoPage),
-        (status = BAD_REQUEST, description = "Invalid channel ID", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Invalid channel ID or sort", body = ErrorBody),
         (status = NOT_FOUND, description = "Not found or unavailable", body = ErrorBody),
         (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
         (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
@@ -275,20 +325,148 @@ struct ContinuationParams {
 async fn channel_videos(
     State(state): State<AppState>,
     Path(id): Path<String>,
-    Query(params): Query<ContinuationParams>,
+    params: Result<Query<ChannelTabParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
 ) -> Result<Json<VideoPage>, ApiError> {
-    let img = |url: &str| state.image_url(url);
+    channel_tab_page(&state, &id, ChannelVideoTab::Videos, params, lang).await
+}
+
+/// A page of a channel's shorts.
+#[utoipa::path(
+    get,
+    path = "/channels/{id}/shorts",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
+        ChannelTabParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = VideoPage),
+        (status = BAD_REQUEST, description = "Invalid channel ID or sort", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found or unavailable", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn channel_shorts(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    params: Result<Query<ChannelTabParams>, QueryRejection>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<VideoPage>, ApiError> {
+    channel_tab_page(&state, &id, ChannelVideoTab::Shorts, params, lang).await
+}
+
+/// A page of a channel's past, current and upcoming livestreams.
+#[utoipa::path(
+    get,
+    path = "/channels/{id}/live",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
+        ChannelTabParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = VideoPage),
+        (status = BAD_REQUEST, description = "Invalid channel ID or sort", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found or unavailable", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn channel_live(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    params: Result<Query<ChannelTabParams>, QueryRejection>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<VideoPage>, ApiError> {
+    channel_tab_page(&state, &id, ChannelVideoTab::Live, params, lang).await
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ContinuationParams {
+    /// Token from a previous page.
+    continuation: Option<String>,
+}
+
+/// A page of a channel's playlists.
+#[utoipa::path(
+    get,
+    path = "/channels/{id}/playlists",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
+        ContinuationParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = PlaylistPage),
+        (status = BAD_REQUEST, description = "Invalid channel ID", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found or unavailable", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn channel_playlists(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<ContinuationParams>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<PlaylistPage>, ApiError> {
+    check_channel_id(&id)?;
     let page = match non_empty(params.continuation.as_deref()) {
         Some(token) => {
             state
                 .youtube
-                .channel_videos_continuation(token, lang)
+                .channel_playlists_continuation(token, lang)
                 .await?
         }
-        None => state.youtube.channel_videos(&id, lang).await?.content,
+        None => state.youtube.channel_playlists(&id, lang).await?,
     };
-    Ok(Json(VideoPage::from_rp(page, &img)))
+    Ok(Json(PlaylistPage::from_rp(page, &|url| {
+        state.image_url(url)
+    })))
+}
+
+/// Search within a channel's videos.
+#[utoipa::path(
+    get,
+    path = "/channels/{id}/search",
+    tag = "youtube",
+    params(
+        ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
+        SearchParams,
+        ("Accept-Language" = Option<String>, Header, description = "Content language"),
+    ),
+    responses(
+        (status = OK, body = VideoPage),
+        (status = BAD_REQUEST, description = "Invalid channel ID or missing query", body = ErrorBody),
+        (status = NOT_FOUND, description = "Not found or unavailable", body = ErrorBody),
+        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
+        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
+    )
+)]
+async fn channel_search(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<SearchParams>,
+    ContentLanguage(lang): ContentLanguage,
+) -> Result<Json<VideoPage>, ApiError> {
+    check_channel_id(&id)?;
+    let page = if let Some(token) = non_empty(params.continuation.as_deref()) {
+        state
+            .youtube
+            .channel_videos_continuation(token, lang)
+            .await?
+    } else {
+        let query = non_empty(params.q.as_deref())
+            .ok_or_else(|| ApiError::bad_request("query parameter `q` is required"))?;
+        state.youtube.channel_search(&id, query, lang).await?
+    };
+    Ok(Json(VideoPage::from_rp(page, &|url| state.image_url(url))))
 }
 
 /// A YouTube playlist with the first page of its videos.
