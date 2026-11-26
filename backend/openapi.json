@@ -1209,7 +1209,7 @@
         "tags": [
           "history"
         ],
-        "summary": "Started but unfinished videos, most recently watched first.",
+        "summary": "Started but unfinished videos, most recently watched first. Videos known to be shorts are\nleft out.",
         "operationId": "continue_watching",
         "parameters": [
           {
@@ -2651,7 +2651,7 @@
         "tags": [
           "history"
         ],
-        "summary": "Record how far the signed-in user got into a video. Ignored while history is paused.",
+        "summary": "Record how far the signed-in user got into a video. Ignored while history is paused and for\nvideos known to be shorts.",
         "description": "The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.",
         "operationId": "report_progress",
         "requestBody": {
