@@ -32,7 +32,10 @@ pub struct VideoDetails {
     /// Plain text; links are written out as URLs.
     pub description: String,
     pub channel: ChannelRef,
-    pub view_count: u64,
+    /// Absent for livestreams, see `viewers`.
+    pub view_count: Option<u64>,
+    /// Current viewers of a livestream.
+    pub viewers: Option<u64>,
     pub like_count: Option<u32>,
     #[serde(with = "time::serde::rfc3339::option")]
     pub published_at: Option<OffsetDateTime>,
@@ -71,7 +74,10 @@ pub struct VideoSummary {
     #[serde(with = "time::serde::rfc3339::option")]
     pub published_at: Option<OffsetDateTime>,
     pub published_text: Option<String>,
+    /// Absent for livestreams, see `viewers`.
     pub view_count: Option<u64>,
+    /// Current viewers of a livestream.
+    pub viewers: Option<u64>,
     pub is_live: bool,
     pub is_short: bool,
     pub is_upcoming: bool,
@@ -222,7 +228,8 @@ impl VideoDetails {
         Self {
             description: details.description.to_plaintext(),
             channel: ChannelRef::from_rp(details.channel, img),
-            view_count: details.view_count,
+            view_count: (!details.is_live).then_some(details.view_count),
+            viewers: details.is_live.then_some(details.view_count),
             like_count: details.like_count,
             published_at: details.publish_date,
             published_text: details.publish_date_txt,
@@ -273,7 +280,8 @@ impl VideoSummary {
             duration_seconds: video.duration,
             published_at: video.publish_date,
             published_text: video.publish_date_txt,
-            view_count: video.view_count,
+            view_count: video.view_count.filter(|_| !video.is_live),
+            viewers: video.view_count.filter(|_| video.is_live),
             is_live: video.is_live,
             is_short: video.is_short,
             is_upcoming: video.is_upcoming,
@@ -613,11 +621,39 @@ mod tests {
         let dto = ChannelDetails::from_rp(channel, &img);
 
         assert_eq!(dto.handle.as_deref(), Some("@RickAstleyYT"));
+        assert_eq!(dto.subscriber_count, Some(4_000_000));
         assert_eq!(dto.video_count, Some(300));
+        assert_eq!(dto.videos.items[0].duration_seconds, Some(212));
+        assert_eq!(dto.videos.items[0].view_count, Some(10));
+        assert_eq!(
+            dto.videos.items[0].published_text.as_deref(),
+            Some("1 year ago")
+        );
         assert!(dto.verified);
         assert_eq!(dto.videos.items.len(), 1);
         assert_eq!(dto.videos.continuation.as_deref(), Some("more"));
         assert_images_mapped(&dto);
+    }
+
+    #[test]
+    fn maps_live_viewers_separately() {
+        let mut live = video_item("bbbbbbbbbbb");
+        live["is_live"] = json!(true);
+        live["duration"] = Value::Null;
+        live["view_count"] = json!(4_189);
+        let dto = VideoSummary::from_rp(from_json(live), &img);
+        assert_eq!(dto.view_count, None);
+        assert_eq!(dto.viewers, Some(4_189));
+
+        let dto = VideoSummary::from_rp(from_json(video_item("aaaaaaaaaaa")), &img);
+        assert_eq!(dto.view_count, Some(10));
+        assert_eq!(dto.viewers, None);
+
+        let mut details = video_details();
+        details.is_live = true;
+        let dto = VideoDetails::from_rp(details, None, &img, &sub);
+        assert_eq!(dto.view_count, None);
+        assert_eq!(dto.viewers, Some(1_000));
     }
 
     #[test]

@@ -1359,7 +1359,6 @@
           "title",
           "description",
           "channel",
-          "view_count",
           "thumbnails",
           "is_live",
           "keywords",
@@ -1440,8 +1439,21 @@
             "type": "string"
           },
           "view_count": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64",
+            "description": "Absent for livestreams, see `viewers`.",
+            "minimum": 0
+          },
+          "viewers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Current viewers of a livestream.",
             "minimum": 0
           }
         }
@@ -1541,6 +1553,16 @@
               "null"
             ],
             "format": "int64",
+            "description": "Absent for livestreams, see `viewers`.",
+            "minimum": 0
+          },
+          "viewers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Current viewers of a livestream.",
             "minimum": 0
           }
         }
