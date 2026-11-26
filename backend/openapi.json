@@ -10,6 +10,181 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v0/channels/{id}": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Channel header and the first page of its videos.",
+        "operationId": "channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/channels/{id}/videos": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A further page of a channel's videos.",
+        "operationId": "channel_videos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/instance": {
       "get": {
         "tags": [
@@ -30,10 +205,493 @@
           }
         }
       }
+    },
+    "/api/v0/resolve": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Resolve a YouTube URL to a video, channel or playlist ID.",
+        "operationId": "resolve",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "description": "YouTube URL, path (`/@handle`, `/watch?v=…`), ID or handle.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resolved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a supported YouTube URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/search": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Search videos, channels and playlists.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query; required unless `continuation` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/search/suggestions": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Search suggestions for a partial query.",
+        "operationId": "search_suggestions",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Partial search query.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/videos/{id}": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Video details and related videos.",
+        "operationId": "video",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ChannelDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "avatar",
+          "banner",
+          "verified",
+          "tags",
+          "videos"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "banner": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subscriber_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "video_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "videos": {
+            "$ref": "#/components/schemas/VideoPage"
+          }
+        }
+      },
+      "ChannelRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar",
+          "verified"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subscriber_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChannelSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar",
+          "verified",
+          "description"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subscriber_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Machine-readable detail, e.g. the unavailability reason."
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "bad_request",
+          "not_found",
+          "unavailable",
+          "rate_limited",
+          "botguard_failed",
+          "upstream_error"
+        ]
+      },
       "InstanceInfo": {
         "type": "object",
         "required": [
@@ -48,6 +706,381 @@
           "version": {
             "type": "string",
             "description": "Server version."
+          }
+        }
+      },
+      "PlaylistSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "thumbnails"
+        ],
+        "properties": {
+          "channel": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "video_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Resolved": {
+        "type": "object",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ResolvedKind"
+          },
+          "start_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Start offset in seconds for video links with a timestamp.",
+            "minimum": 0
+          }
+        }
+      },
+      "ResolvedKind": {
+        "type": "string",
+        "enum": [
+          "video",
+          "channel",
+          "playlist"
+        ]
+      },
+      "SearchItem": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VideoSummary"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "video"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChannelSummary"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "channel"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaylistSummary"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "playlist"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "SearchPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass to `continuation` to fetch the next page; absent on the last page."
+          },
+          "corrected_query": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when YouTube searched for a corrected query instead."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchItem"
+            }
+          }
+        }
+      },
+      "Thumbnail": {
+        "type": "object",
+        "required": [
+          "url",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "VideoDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "channel",
+          "view_count",
+          "thumbnails",
+          "is_live",
+          "keywords",
+          "related"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelRef"
+          },
+          "description": {
+            "type": "string",
+            "description": "Plain text; links are written out as URLs."
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Missing when the player data could not be fetched.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_live": {
+            "type": "boolean"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "like_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "published_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Localized, human-readable publish date as shown by YouTube."
+          },
+          "related": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoSummary"
+            }
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "view_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "VideoPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoSummary"
+            }
+          }
+        }
+      },
+      "VideoSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "thumbnails",
+          "is_live",
+          "is_short",
+          "is_upcoming"
+        ],
+        "properties": {
+          "channel": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_live": {
+            "type": "boolean"
+          },
+          "is_short": {
+            "type": "boolean"
+          },
+          "is_upcoming": {
+            "type": "boolean"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "published_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "view_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       }
