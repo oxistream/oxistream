@@ -65,6 +65,9 @@
 		ontimeupdate,
 		onprogress,
 		onended,
+		onplay,
+		onpause,
+		onseeked,
 		class: className
 	}: {
 		/** DASH manifest URL. */
@@ -100,6 +103,10 @@
 		onprogress?: (report: ProgressReport) => void;
 		/** Fires when playback reaches the end. */
 		onended?: () => void;
+		/** Fire on the media events with the current time, also for programmatic changes. */
+		onplay?: (currentTime: number) => void;
+		onpause?: (currentTime: number) => void;
+		onseeked?: (currentTime: number) => void;
 		class?: string;
 	} = $props();
 
@@ -219,6 +226,22 @@
 	export function pause() {
 		playWhenReady = false;
 		if (media && !media.paused) media.pause();
+	}
+
+	/** Jumps to `seconds` without changing whether it plays. */
+	export function setTime(seconds: number) {
+		const state = player?.store.state;
+		if (!state || !player.store.target) return;
+		void selectTime(state)?.seek(seconds);
+	}
+
+	export function position(): number {
+		return media?.currentTime ?? 0;
+	}
+
+	/** Whether playback is stopped and no play is waiting for the media. */
+	export function isPaused(): boolean {
+		return showPaused;
 	}
 
 	onMount(() => {
@@ -385,6 +408,10 @@
 			if (document.visibilityState === 'hidden') onUnload();
 		};
 
+		const onMediaPlay = () => onplay?.(media.currentTime);
+		const onMediaPause = () => onpause?.(media.currentTime);
+		const onSeeked = () => onseeked?.(media.currentTime);
+
 		// The time slider exposes its pointer only as a CSS variable and data attributes.
 		const readPointer = () => {
 			pointing = timeSlider.hasAttribute('data-pointing');
@@ -406,6 +433,9 @@
 
 		media.addEventListener('loadstart', attachPrefetcher);
 		media.addEventListener('loadedmetadata', onLoadedMetadata);
+		media.addEventListener('play', onMediaPlay);
+		media.addEventListener('pause', onMediaPause);
+		media.addEventListener('seeked', onSeeked);
 		media.addEventListener('timeupdate', onTimeUpdate);
 		media.addEventListener('seeking', onSeeking);
 		// Also while paused, e.g. when a skip button lands in an automatic segment.
@@ -425,6 +455,9 @@
 			prefetcher?.destroy();
 			media.removeEventListener('loadstart', attachPrefetcher);
 			media.removeEventListener('loadedmetadata', onLoadedMetadata);
+			media.removeEventListener('play', onMediaPlay);
+			media.removeEventListener('pause', onMediaPause);
+			media.removeEventListener('seeked', onSeeked);
 			media.removeEventListener('timeupdate', onTimeUpdate);
 			media.removeEventListener('seeking', onSeeking);
 			media.removeEventListener('seeked', checkSkip);
