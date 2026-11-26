@@ -9,15 +9,18 @@ use http_body_util::BodyExt;
 use std::sync::Arc;
 
 use oxistream_db::{PgPool, PgVideoRepository, PoolOptions};
-use oxistream_server::config::YouTubeConfig;
+use oxistream_server::config::{ProxyConfig, YouTubeConfig};
+use oxistream_server::proxy::Proxy;
 use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
+use serde_json::json;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use testcontainers_modules::testcontainers::{ContainerAsync, ImageExt};
 use tower::ServiceExt;
 
 pub const TEST_DATABASE_URL_ENV: &str = "OXISTREAM_TEST_DATABASE_URL";
+pub const TEST_PROXY_SECRET: &str = "test-secret-test-secret-test-secret";
 
 /// A migrated database pool. Holds the container, if one was started, so it outlives the test.
 pub struct TestDb {
@@ -53,24 +56,38 @@ pub async fn test_pool() -> TestDb {
     }
 }
 
-pub fn app_with_pool(db: PgPool) -> Router {
-    oxistream_server::app(AppState {
+pub fn state_with_pool(db: PgPool) -> AppState {
+    AppState {
         videos: Arc::new(PgVideoRepository::new(db.clone())),
         db,
         metrics: telemetry::detached_metrics_handle(),
         youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),
-    })
+        proxy: Proxy::new(&ProxyConfig::new(TEST_PROXY_SECRET)).expect("build proxy"),
+        rate_limit: None,
+    }
 }
 
-/// An app whose pool points at a closed port, for routes that must not need the database.
-pub fn app_without_db() -> Router {
+pub fn app_with_pool(db: PgPool) -> Router {
+    oxistream_server::app(state_with_pool(db))
+}
+
+/// A pool pointing at a closed port, for routes that must not need the database.
+pub fn unreachable_pool() -> PgPool {
     let options = PoolOptions {
         max_connections: 1,
         acquire_timeout: Duration::from_millis(500),
     };
-    let pool = oxistream_db::connect_lazy("postgres://oxistream@127.0.0.1:1/oxistream", &options)
-        .expect("valid database url");
-    app_with_pool(pool)
+    oxistream_db::connect_lazy("postgres://oxistream@127.0.0.1:1/oxistream", &options)
+        .expect("valid database url")
+}
+
+/// State without a reachable database, for routes that must not need it.
+pub fn state_without_db() -> AppState {
+    state_with_pool(unreachable_pool())
+}
+
+pub fn app_without_db() -> Router {
+    oxistream_server::app(state_without_db())
 }
 
 pub async fn get(app: Router, uri: &str) -> (StatusCode, String) {
@@ -81,4 +98,111 @@ pub async fn get(app: Router, uri: &str) -> (StatusCode, String) {
     let status = response.status();
     let body = response.into_body().collect().await.unwrap().to_bytes();
     (status, String::from_utf8(body.to_vec()).unwrap())
+}
+
+/// Serves `router` on an ephemeral local port and returns its base URL.
+pub async fn spawn_upstream(router: Router) -> reqwest::Url {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    format!("http://{addr}/").parse().unwrap()
+}
+
+/// Player data whose stream and subtitle URLs point below `base`.
+pub fn fake_player(base: &str, video_id: &str) -> rustypipe::model::VideoPlayer {
+    let video = |itag: u32, mime: &str, width: u32, height: u32, hdr: bool| {
+        json!({
+            "url": format!("{base}videoplayback?itag={itag}"),
+            "itag": itag,
+            "bitrate": 1_000_000,
+            "average_bitrate": 900_000,
+            "size": 1_000_000,
+            "index_range": { "start": 741, "end": 1204 },
+            "init_range": { "start": 0, "end": 740 },
+            "duration_ms": 213_000,
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "quality": format!("{height}p"),
+            "hdr": hdr,
+            "mime": mime,
+            "format": if mime.starts_with("video/mp4") { "mp4" } else { "webm" },
+            "codec": if mime.contains("avc1") { "avc1" } else { "vp9" },
+            "drm_track_type": null,
+            "drm_systems": [],
+        })
+    };
+    let audio = |itag: u32, id: &str, lang_name: &str, is_default: bool| {
+        json!({
+            "url": format!("{base}videoplayback?itag={itag}&track={id}"),
+            "itag": itag,
+            "bitrate": 130_000,
+            "average_bitrate": 128_000,
+            "size": 3_000_000,
+            "index_range": { "start": 266, "end": 621 },
+            "init_range": { "start": 0, "end": 265 },
+            "duration_ms": 213_000,
+            "mime": "audio/webm; codecs=\"opus\"",
+            "format": "webm",
+            "codec": "opus",
+            "channels": 2,
+            "loudness_db": null,
+            "track": {
+                "id": id,
+                "lang": id.split('.').next(),
+                "lang_name": lang_name,
+                "is_default": is_default,
+                "track_type": if is_default { "original" } else { "dubbed" },
+            },
+            "drm_track_type": null,
+            "drm_systems": [],
+        })
+    };
+    serde_json::from_value(json!({
+        "details": {
+            "id": video_id,
+            "name": "Fixture",
+            "description": null,
+            "duration": 213,
+            "thumbnail": [],
+            "channel_id": "UCuAXFkgsw1L7xaCfnd5JJOw",
+            "channel_name": "Fixture",
+            "view_count": 1,
+            "keywords": [],
+            "is_live": false,
+            "is_live_content": false,
+        },
+        "video_streams": [],
+        "video_only_streams": [
+            video(137, "video/mp4; codecs=\"avc1.640028\"", 1920, 1080, false),
+            video(337, "video/webm; codecs=\"vp09.02.51.10.01.09.16.09.00\"", 3840, 2160, true),
+        ],
+        "audio_streams": [
+            audio(251, "en.4", "English original", true),
+            audio(251, "de.3", "German", false),
+        ],
+        "subtitles": [
+            {
+                "url": format!("{base}api/timedtext?v={video_id}&lang=en&fmt=srv3"),
+                "lang": "en",
+                "lang_name": "English",
+                "auto_generated": false,
+            },
+            {
+                "url": format!("{base}api/timedtext?v={video_id}&lang=en&kind=asr"),
+                "lang": "en",
+                "lang_name": "English (auto-generated)",
+                "auto_generated": true,
+            },
+        ],
+        "expires_in_seconds": 21_540,
+        "valid_until": "2099-01-01T00:00:00Z",
+        "hls_manifest_url": null,
+        "dash_manifest_url": null,
+        "preview_frames": [],
+        "drm": null,
+        "client_type": "desktop",
+        "visitor_data": null,
+    }))
+    .expect("valid player fixture")
 }
