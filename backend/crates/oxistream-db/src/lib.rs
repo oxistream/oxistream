@@ -6,6 +6,7 @@ pub use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 
+mod follows;
 mod history;
 mod lock;
 mod playlists;
@@ -15,6 +16,11 @@ mod subscriptions;
 mod users;
 mod videos;
 
+pub use follows::{
+    FollowedPlaylist, PgPlaylistFollowRepository, PgYouTubePlaylistRepository,
+    PlaylistFollowRepository, YouTubePlaylist, YouTubePlaylistItem, YouTubePlaylistItemUpsert,
+    YouTubePlaylistRepository, YouTubePlaylistUpdate,
+};
 pub use history::{
     HistoryCursor, HistoryEntry, HistoryRepository, PgHistoryRepository, ProgressUpdate,
     WatchProgress,

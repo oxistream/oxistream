@@ -11,9 +11,9 @@ use http_body_util::BodyExt;
 use std::sync::Arc;
 
 use oxistream_db::{
-    PgChannelRepository, PgHistoryRepository, PgPlaylistRepository, PgPool, PgSessionRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PoolOptions,
+    PgChannelRepository, PgHistoryRepository, PgPlaylistFollowRepository, PgPlaylistRepository,
+    PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PoolOptions,
 };
 use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, YouTubeConfig};
@@ -116,6 +116,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         history: Arc::new(PgHistoryRepository::new(db.clone())),
         settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
         playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
+        follows: Arc::new(PgPlaylistFollowRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
         db,

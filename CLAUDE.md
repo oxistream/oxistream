@@ -63,6 +63,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
   - `videos`: metadata upsert cache (no media)
   - `channels`, `subscriptions`, `channel_videos` (feed)
   - `playlists`, `playlist_items` (ordered)
+  - `youtube_playlists`, `playlist_follows`, `youtube_playlist_items` (followed YouTube playlists)
   - `watch_progress`: user, video, position, duration, finished, updated_at; doubles as history and resume point
 
 ### Auth
@@ -94,7 +95,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.
 - Player responses cached in memory (`moka`) per instance. On an upstream 403 the proxy re-fetches player data.
 - Trending: YouTube dropped its trending page and YouTube Charts needs reCAPTCHA, so `GET /api/v0/trending?category=podcasts|gaming|news` (default `podcasts`) uses the destination pages of `OXISTREAM_TRENDING_REGION` (ISO country code, default `US`, validated at startup), cached in memory per instance for 30 min.
-- Feed worker: interval via `OXISTREAM_FEED_INTERVAL_MINUTES` (default 30); fetches only due channels on a 1 min tick. Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Runs under a Postgres advisory lock so multiple replicas are safe.
+- Feed worker: interval via `OXISTREAM_FEED_INTERVAL_MINUTES` (default 30); fetches only due channels on a 1 min tick. Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Followed YouTube playlists work the same way; only their first 500 items are stored, for "new videos" counts. Runs under a Postgres advisory lock so multiple replicas are safe.
 
 ### Stream proxy
 

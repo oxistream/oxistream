@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{Error, Video};
+use crate::{Error, Video, VideoUpsert};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
@@ -106,6 +106,16 @@ pub trait PlaylistRepository: Send + Sync {
         max_playlists: u32,
     ) -> Result<Playlist, Error>;
 
+    /// Like [`PlaylistRepository::create`], with `videos` as items in order. Videos not cached
+    /// yet are stored; known ones keep their cached metadata. Duplicates keep their first place.
+    async fn create_with_items(
+        &self,
+        user_id: Uuid,
+        playlist: &NewPlaylist,
+        videos: &[VideoUpsert],
+        max_playlists: u32,
+    ) -> Result<Playlist, Error>;
+
     /// A user's playlists, most recently changed first. With `video_id`, each one tells
     /// whether it contains that video.
     async fn list(&self, user_id: Uuid, video_id: Option<&str>) -> Result<Vec<Playlist>, Error>;
@@ -197,6 +207,49 @@ async fn lock_playlist(
     )
 }
 
+/// Inserts a playlist unless the user already has `max_playlists`.
+async fn insert_playlist(
+    tx: &mut sqlx::PgConnection,
+    user_id: Uuid,
+    playlist: &NewPlaylist,
+    max_playlists: u32,
+) -> Result<(), Error> {
+    // Serializes concurrent creations of one user, so the limit holds.
+    sqlx::query("SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM playlists WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if count >= i64::from(max_playlists) {
+        return Err(Error::LimitReached);
+    }
+    sqlx::query(
+        "INSERT INTO playlists (id, user_id, title, description, visibility) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(&playlist.id)
+    .bind(user_id)
+    .bind(&playlist.title)
+    .bind(&playlist.description)
+    .bind(playlist.visibility.as_str())
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+async fn select_playlist(tx: &mut sqlx::PgConnection, id: &str) -> Result<Playlist, Error> {
+    Ok(sqlx::query_as::<_, Playlist>(sqlx::AssertSqlSafe(format!(
+        "{PLAYLIST_SELECT} WHERE p.id = $2"
+    )))
+    .bind(None::<&str>)
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?)
+}
+
 async fn touch(tx: &mut sqlx::PgConnection, id: &str) -> Result<(), Error> {
     sqlx::query("UPDATE playlists SET updated_at = now() WHERE id = $1")
         .bind(id)
@@ -214,36 +267,61 @@ impl PlaylistRepository for PgPlaylistRepository {
         max_playlists: u32,
     ) -> Result<Playlist, Error> {
         let mut tx = self.pool.begin().await?;
-        // Serializes concurrent creations of one user, so the limit holds.
-        sqlx::query("SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE")
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await?;
-        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM playlists WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&mut *tx)
-            .await?;
-        if count >= i64::from(max_playlists) {
-            return Err(Error::LimitReached);
-        }
+        insert_playlist(&mut tx, user_id, playlist, max_playlists).await?;
+        let created = select_playlist(&mut tx, &playlist.id).await?;
+        tx.commit().await?;
+        Ok(created)
+    }
+
+    async fn create_with_items(
+        &self,
+        user_id: Uuid,
+        playlist: &NewPlaylist,
+        videos: &[VideoUpsert],
+        max_playlists: u32,
+    ) -> Result<Playlist, Error> {
+        let mut seen = std::collections::HashSet::new();
+        let videos: Vec<_> = videos
+            .iter()
+            .filter(|v| seen.insert(v.id.as_str()))
+            .collect();
+        let ids: Vec<&str> = videos.iter().map(|v| v.id.as_str()).collect();
+        let titles: Vec<&str> = videos.iter().map(|v| v.title.as_str()).collect();
+        let channel_ids: Vec<&str> = videos.iter().map(|v| v.channel_id.as_str()).collect();
+        let channel_names: Vec<&str> = videos.iter().map(|v| v.channel_name.as_str()).collect();
+        let durations: Vec<Option<i32>> = videos.iter().map(|v| v.duration_seconds).collect();
+        let published: Vec<Option<OffsetDateTime>> =
+            videos.iter().map(|v| v.published_at).collect();
+        let thumbnails: Vec<Option<&str>> =
+            videos.iter().map(|v| v.thumbnail_url.as_deref()).collect();
+
+        let mut tx = self.pool.begin().await?;
+        insert_playlist(&mut tx, user_id, playlist, max_playlists).await?;
         sqlx::query(
-            "INSERT INTO playlists (id, user_id, title, description, visibility) \
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO videos \
+                (id, title, channel_id, channel_name, duration_seconds, published_at, thumbnail_url) \
+             SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::text[], $5::int[], \
+                $6::timestamptz[], $7::text[]) \
+             ON CONFLICT (id) DO NOTHING",
         )
-        .bind(&playlist.id)
-        .bind(user_id)
-        .bind(&playlist.title)
-        .bind(&playlist.description)
-        .bind(playlist.visibility.as_str())
+        .bind(&ids)
+        .bind(&titles)
+        .bind(&channel_ids)
+        .bind(&channel_names)
+        .bind(&durations)
+        .bind(&published)
+        .bind(&thumbnails)
         .execute(&mut *tx)
         .await?;
-        let created = sqlx::query_as::<_, Playlist>(sqlx::AssertSqlSafe(format!(
-            "{PLAYLIST_SELECT} WHERE p.id = $2"
-        )))
-        .bind(None::<&str>)
+        sqlx::query(
+            "INSERT INTO playlist_items (playlist_id, video_id, position) \
+             SELECT $1, t.id, t.ord - 1 FROM UNNEST($2::text[]) WITH ORDINALITY AS t (id, ord)",
+        )
         .bind(&playlist.id)
-        .fetch_one(&mut *tx)
+        .bind(&ids)
+        .execute(&mut *tx)
         .await?;
+        let created = select_playlist(&mut tx, &playlist.id).await?;
         tx.commit().await?;
         Ok(created)
     }
