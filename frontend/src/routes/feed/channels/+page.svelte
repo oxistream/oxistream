@@ -2,13 +2,13 @@
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { SvelteMap } from 'svelte/reactivity';
+	import { resolve } from '$app/paths';
 	import { compareSubscriptions, type SubscribedChannel } from '#lib/api/subscription-list.js';
 	import { createSubscriptionMutation, createSubscriptionsQuery } from '#lib/api/subscriptions.js';
 	import PageHeader from '#lib/components/page-header.svelte';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import ErrorState from '#lib/components/state/error-state.svelte';
-	import { importExportHref } from '#lib/components/subscription/links.js';
 	import SubscriptionRowSkeleton from '#lib/components/subscription/subscription-row-skeleton.svelte';
 	import SubscriptionRow from '#lib/components/subscription/subscription-row.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -46,8 +46,12 @@
 </script>
 
 {#snippet importExport()}
-	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
-	<Button href={importExportHref()} variant="outline" size="sm" data-testid="import-export-link">
+	<Button
+		href={resolve('/subscriptions/import-export')}
+		variant="outline"
+		size="sm"
+		data-testid="import-export-link"
+	>
 		<ArrowDownUpIcon />
 		{m.subscriptions_import_export()}
 	</Button>

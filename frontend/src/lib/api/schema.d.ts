@@ -274,6 +274,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/subscriptions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the signed-in user's subscriptions as a file. */
+        get: operations["export_subscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/subscriptions/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import subscriptions from a file.
+         * @description Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON
+         *     export, or an OPML file; the format is detected from the content. Idempotent. Only
+         *     channels given by ID or `/channel/UC…` URL can be imported. New channels are fetched
+         *     by the feed worker over the following minutes.
+         */
+        post: operations["import_subscriptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/subscriptions/{channel_id}": {
         parameters: {
             query?: never;
@@ -432,6 +472,40 @@ export interface components {
          * @enum {string}
          */
         FieldError: "required" | "format" | "length" | "too_long" | "taken";
+        /**
+         * Format: binary
+         * @description A subscription file as exported by another app.
+         */
+        ImportFile: string;
+        /** @enum {string} */
+        ImportFormat: "youtube_takeout" | "newpipe" | "invidious" | "piped" | "opml";
+        /** @description Outcome of a subscription import. */
+        ImportResult: {
+            /**
+             * Format: int64
+             * @description Channels in the file the user was already subscribed to.
+             */
+            already_subscribed: number;
+            /** @description Detected file format. */
+            format: components["schemas"]["ImportFormat"];
+            /**
+             * Format: int64
+             * @description New subscriptions.
+             */
+            imported: number;
+            /**
+             * Format: int64
+             * @description Entries that are not channels.
+             */
+            invalid: number;
+            /**
+             * Format: int64
+             * @description Entries that cannot be imported, such as handles, custom URLs or other services.
+             */
+            skipped: number;
+            /** @description The first skipped entries, as given in the file. */
+            skipped_entries: string[];
+        };
         InstanceInfo: {
             auth: components["schemas"]["AuthCapabilities"];
             /** @description Software name. */
@@ -496,7 +570,10 @@ export interface components {
             avatar: components["schemas"]["Thumbnail"][];
             handle?: string | null;
             id: string;
-            /** @description `null` until the channel was fetched once, shortly after the first subscription. */
+            /**
+             * @description `null` until the channel was fetched once, shortly after the first subscription,
+             *     unless an import provided it.
+             */
             name?: string | null;
             /** Format: date-time */
             subscribed_at: string;
@@ -1248,6 +1325,106 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    export_subscriptions: {
+        parameters: {
+            query: {
+                format: "newpipe" | "invidious";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export, as an attachment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unknown format */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_subscriptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The exported file as is, at most 5 MiB */
+        requestBody: {
+            content: {
+                "application/octet-stream": components["schemas"]["ImportFile"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Unrecognized or malformed file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description File too large */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
