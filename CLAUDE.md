@@ -86,7 +86,9 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 ### YouTube data
 
-- RustyPipe with `.unauthenticated()`. Never use YouTube accounts or cookies.
+- RustyPipe via `oxipipe`, our maintained fork (upstream is inactive), used as `rustypipe = { package = "oxipipe", git, rev }`. YouTube-side fixes (deobfuscation, clients, parsing) go into the fork, then bump the pinned `rev`.
+- `.unauthenticated()` only. Never use YouTube accounts or cookies.
+- Player clients: VisionOS first, TV as fallback; WEB is SABR-only. TV streams may only become valid after a pre-roll ad, so the proxy waits for `VideoPlayer::available_at`.
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.
 - Player responses cached in memory (`moka`) per instance. On an upstream 403 the proxy re-fetches player data.
 - Feed worker: interval via ENV (default 30 min). Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Runs under a Postgres advisory lock so multiple replicas are safe.

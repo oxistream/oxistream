@@ -37,6 +37,8 @@ const IMAGE_BUCKET: Duration = Duration::from_hours(24);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_REDIRECTS: usize = 5;
+/// Upper bound for waiting on `VideoPlayer::available_at`; pre-roll ads are rarely longer.
+const MAX_AD_WAIT: Duration = Duration::from_secs(30);
 
 const PASSTHROUGH_HEADERS: [header::HeaderName; 4] = [
     header::CONTENT_TYPE,
@@ -377,6 +379,7 @@ async fn fetch_with_refresh(
     let mut refreshed = false;
     loop {
         let player = state.youtube.player(video_id).await?;
+        wait_until_available(&player).await;
         let url = resolve(&player).ok_or(ProxyError::NotFound)?;
         let user_agent = state.youtube.user_agent(player.client_type);
         let response = state.proxy.fetch(kind, &url, &user_agent, range).await?;
@@ -387,6 +390,18 @@ async fn fetch_with_refresh(
             continue;
         }
         return Ok(response);
+    }
+}
+
+/// Some clients return streams that googlevideo rejects until a pre-roll ad would have ended.
+async fn wait_until_available(player: &VideoPlayer) {
+    let Some(at) = player.available_at else {
+        return;
+    };
+    let remaining = at - time::OffsetDateTime::now_utc();
+    if remaining.is_positive() {
+        let remaining = Duration::try_from(remaining).unwrap_or_default();
+        tokio::time::sleep(remaining.min(MAX_AD_WAIT)).await;
     }
 }
 
