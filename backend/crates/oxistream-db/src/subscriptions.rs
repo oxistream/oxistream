@@ -90,8 +90,8 @@ pub struct ImportedChannel {
 
 #[async_trait::async_trait]
 pub trait SubscriptionRepository: Send + Sync {
-    /// Subscribes `user_id` to `channel_id`, creating the channel if unknown.
-    /// Returns the subscription and whether it is new.
+    /// Subscribes `user_id` to `channel_id`, creating the channel if unknown, and lifts a
+    /// block of it. Returns the subscription and whether it is new.
     async fn subscribe(
         &self,
         user_id: Uuid,
@@ -99,7 +99,8 @@ pub trait SubscriptionRepository: Send + Sync {
     ) -> Result<(Subscription, bool), Error>;
 
     /// Returns whether a subscription existed.
-    /// Subscribes `user_id` to all `channels` in one transaction. IDs must be unique.
+    /// Subscribes `user_id` to all `channels` in one transaction, lifting blocks of them. IDs
+    /// must be unique.
     /// Returns how many subscriptions are new.
     async fn import(&self, user_id: Uuid, channels: &[ImportedChannel]) -> Result<u64, Error>;
 
@@ -239,6 +240,11 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .await?
         .rows_affected()
             > 0;
+        sqlx::query("DELETE FROM channel_blocks WHERE user_id = $1 AND channel_id = $2")
+            .bind(user_id)
+            .bind(channel_id)
+            .execute(&mut *tx)
+            .await?;
         let subscription = sqlx::query_as::<_, Subscription>(sqlx::AssertSqlSafe(format!(
             "SELECT {SUBSCRIPTION_COLUMNS} FROM subscriptions s \
              JOIN channels c ON c.id = s.channel_id \
@@ -275,6 +281,11 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .execute(&mut *tx)
         .await?
         .rows_affected();
+        sqlx::query("DELETE FROM channel_blocks WHERE user_id = $1 AND channel_id = ANY ($2)")
+            .bind(user_id)
+            .bind(&ids)
+            .execute(&mut *tx)
+            .await?;
         tx.commit().await?;
         Ok(created)
     }
