@@ -332,6 +332,31 @@
 		}
 	}
 
+	/* Single column: the player runs full-bleed under the header, like theater mode. */
+	@container (width < 60rem) {
+		.watch {
+			padding-top: 0;
+		}
+
+		.watch .watch-player {
+			margin-inline: calc(var(--page-gutter) * -1);
+			background: oklch(0.13 0.004 286);
+		}
+
+		.watch :global(.watch-frame .oxi-player-frame) {
+			--media-video-border-radius: 0;
+		}
+
+		.watch :global(.watch-frame .oxi-player-frame)::after {
+			border-color: transparent;
+		}
+
+		.watch :global(.watch-frame [data-slot='skeleton']),
+		.watch :global(.watch-frame[data-testid='player-message']) {
+			border-radius: 0;
+		}
+	}
+
 	@container (width >= 48rem) {
 		/* Theater mode: a dark band across the whole content area, the video as large as fits. */
 		.watch[data-theater] {
