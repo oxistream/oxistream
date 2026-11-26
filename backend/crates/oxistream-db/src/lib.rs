@@ -12,6 +12,7 @@ mod history;
 mod likes;
 mod lock;
 mod playlists;
+mod rooms;
 mod sessions;
 mod settings;
 mod sponsorblock;
@@ -34,6 +35,10 @@ pub use lock::{AdvisoryLock, LockKey};
 pub use playlists::{
     NewPlaylist, PgPlaylistRepository, Playlist, PlaylistItem, PlaylistRepository, PlaylistUpdate,
     Visibility,
+};
+pub use rooms::{
+    JoinOutcome, NewParticipant, OpOutcome, Participant, PgRoomRepository, ROOM_CHANNEL, Room,
+    RoomEntry, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, RoomSummary,
 };
 pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
