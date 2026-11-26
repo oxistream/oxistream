@@ -10,6 +10,192 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v0/account": {
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Delete the signed-in account with everything it owns: subscriptions, playlists, history,\nsettings and sessions. The last admin can only delete their account once no other users\nremain. Single sign-on users get a new, empty account on their next sign-in.",
+        "operationId": "delete_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeletion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Account deleted, session cookie cleared",
+            "headers": {
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Expired `oxistream_session` cookie"
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Last admin while other users remain (`last_admin`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Username or password does not match (`fields`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/account/password": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Change the password of a local account. Ends the account's other sessions.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local accounts disabled, or foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Single sign-on account without password (`no_password`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Wrong current password (`fields.current_password = mismatch`) or invalid new password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/auth/login": {
       "post": {
         "tags": [
@@ -3510,6 +3696,115 @@
         }
       }
     },
+    "/api/v0/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "The signed-in user's preferences.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Change some of the signed-in user's preferences.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "All preferences after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body or unknown field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid values, see `fields`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/settings/sponsorblock": {
       "get": {
         "tags": [
@@ -4504,12 +4799,17 @@
           "id",
           "username",
           "role",
+          "has_password",
           "created_at"
         ],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "has_password": {
+            "type": "boolean",
+            "description": "Local accounts have a password; single sign-on accounts do not."
           },
           "id": {
             "type": "string",
@@ -4520,6 +4820,25 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "AccountDeletion": {
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "properties": {
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The current password; required for accounts that have one."
+          },
+          "username": {
+            "type": "string",
+            "description": "The account's username, typed as confirmation; compared ignoring case."
           }
         }
       },
@@ -4869,6 +5188,8 @@
           "registration_disabled",
           "too_many_requests",
           "limit_reached",
+          "no_password",
+          "last_admin",
           "internal"
         ]
       },
@@ -4902,7 +5223,9 @@
           "format",
           "length",
           "too_long",
-          "taken"
+          "taken",
+          "mismatch",
+          "invalid"
         ]
       },
       "FollowState": {
@@ -5267,6 +5590,22 @@
           },
           "error_description": {
             "type": "string"
+          }
+        }
+      },
+      "PasswordChange": {
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string",
+            "description": "12 to 256 characters."
           }
         }
       },
@@ -5656,6 +5995,95 @@
           }
         }
       },
+      "Settings": {
+        "type": "object",
+        "description": "The signed-in user's preferences. The watch history pause lives at `/history/settings`.",
+        "required": [
+          "video_codecs",
+          "max_quality",
+          "default_quality",
+          "home_sections"
+        ],
+        "properties": {
+          "default_quality": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Video height to start with; `null` for adaptive quality.",
+            "minimum": 0
+          },
+          "home_sections": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Enabled home page section keys in order; `null` for the default layout. Clients ignore\nkeys they do not know."
+          },
+          "max_quality": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Highest video height the player may pick; `null` for no limit.",
+            "minimum": 0
+          },
+          "video_codecs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoCodec"
+            },
+            "description": "Video codecs by preference, most preferred first; empty lets the player choose."
+          }
+        }
+      },
+      "SettingsPatch": {
+        "type": "object",
+        "description": "Fields to change. Absent fields are kept; `null` resets a field to its default.",
+        "properties": {
+          "default_quality": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.",
+            "minimum": 0
+          },
+          "home_sections": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "At most 32 distinct keys of lowercase letters, digits and dashes."
+          },
+          "max_quality": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.",
+            "minimum": 0
+          },
+          "video_codecs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VideoCodec"
+            },
+            "description": "No duplicates."
+          }
+        },
+        "additionalProperties": false
+      },
       "SkipCategories": {
         "type": "object",
         "description": "Behaviour per skippable category.",
@@ -5932,6 +6360,14 @@
         "enum": [
           "user",
           "admin"
+        ]
+      },
+      "VideoCodec": {
+        "type": "string",
+        "enum": [
+          "av1",
+          "vp9",
+          "h264"
         ]
       },
       "VideoDetails": {

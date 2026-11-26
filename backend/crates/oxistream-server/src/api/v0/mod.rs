@@ -7,6 +7,7 @@ use utoipa_axum::routes;
 
 use crate::AppState;
 
+mod account;
 mod auth;
 mod blocks;
 mod cursor;
@@ -16,6 +17,7 @@ mod likes;
 mod manifest;
 mod oidc;
 mod playlists;
+mod settings;
 mod sponsorblock;
 mod storyboard;
 mod subscriptions;
@@ -36,6 +38,8 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(blocks::router())
         .merge(likes::router())
         .merge(sponsorblock::router())
+        .merge(settings::router())
+        .merge(account::router())
 }
 
 #[derive(Debug, Serialize, ToSchema)]

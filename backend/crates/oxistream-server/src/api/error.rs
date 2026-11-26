@@ -35,6 +35,10 @@ pub enum ErrorCode {
     TooManyRequests,
     /// A per-user limit, e.g. on playlist size, is reached.
     LimitReached,
+    /// The account has no password, e.g. because it signs in via single sign-on.
+    NoPassword,
+    /// The last admin cannot delete their account while other users remain.
+    LastAdmin,
     Internal,
 }
 
@@ -51,6 +55,10 @@ pub enum FieldError {
     TooLong,
     /// Already in use.
     Taken,
+    /// Does not match, e.g. a wrong current password or a mistyped confirmation.
+    Mismatch,
+    /// Not one of the allowed values, or a duplicate.
+    Invalid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
