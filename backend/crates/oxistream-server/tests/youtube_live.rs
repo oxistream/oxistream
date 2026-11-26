@@ -216,6 +216,73 @@ async fn playlist_paginates() {
     assert_video_metadata(&page["items"]);
 }
 
+async fn assert_paginates(path: &str) -> Value {
+    let (status, json) = get_json(path).await;
+    assert_eq!(status, StatusCode::OK, "{path}: {json}");
+    assert_ne!(json["items"].as_array().unwrap().len(), 0, "{path}");
+    let token = json["continuation"].as_str().expect("continuation");
+    let sep = if path.contains('?') { '&' } else { '?' };
+    let (status, page) = get_json(&format!("{path}{sep}continuation={token}")).await;
+    assert_eq!(status, StatusCode::OK, "{path}: {page}");
+    assert_ne!(page["items"].as_array().unwrap().len(), 0, "{path}");
+    json
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn channel_tabs_paginate() {
+    let (_, channel) = get_json(&format!("/api/v0/channels/{CHANNEL_ID}")).await;
+    assert_eq!(channel["has_shorts"], true, "{channel}");
+    assert_eq!(channel["has_live"], true, "{channel}");
+
+    let shorts = assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/shorts")).await;
+    assert!(
+        shorts["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|v| v["is_short"] == true),
+        "{shorts:#}"
+    );
+    assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/live")).await;
+    assert_paginates(&format!(
+        "/api/v0/channels/{CHANNEL_ID}/shorts?sort=popular"
+    ))
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn channel_videos_follow_sort() {
+    let first = |json: &Value| json["items"][0]["id"].as_str().unwrap().to_owned();
+    let latest = assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/videos")).await;
+    let popular = assert_paginates(&format!(
+        "/api/v0/channels/{CHANNEL_ID}/videos?sort=popular"
+    ))
+    .await;
+    let oldest =
+        assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/videos?sort=oldest")).await;
+    assert_ne!(first(&latest), first(&oldest));
+    assert_ne!(first(&latest), first(&popular));
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn channel_playlists_paginate() {
+    let json = assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/playlists")).await;
+    let playlist = &json["items"][0];
+    assert!(playlist["id"].as_str().is_some_and(|id| !id.is_empty()));
+    assert!(playlist["title"].as_str().is_some_and(|t| !t.is_empty()));
+    let url = playlist["thumbnails"][0]["url"].as_str().unwrap();
+    assert!(url.starts_with("/proxy/image/"), "{url}");
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn channel_search_paginates() {
+    assert_paginates(&format!("/api/v0/channels/{CHANNEL_ID}/search?q=gpu")).await;
+}
+
 #[tokio::test]
 #[ignore = "network"]
 async fn unknown_playlist_is_not_found() {

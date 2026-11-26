@@ -9,9 +9,10 @@ use moka::future::Cache;
 use rustypipe::client::{ClientType, RustyPipe, RustyPipeQuery};
 use rustypipe::model::paginator::{ContinuationEndpoint, Paginator};
 use rustypipe::model::{
-    Channel, Playlist, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
+    Channel, Playlist, PlaylistItem, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer,
+    YouTubeItem,
 };
-use rustypipe::param::{Country, Language, TrendingCategory};
+use rustypipe::param::{ChannelOrder, ChannelVideoTab, Country, Language, TrendingCategory};
 use rustypipe::validate;
 use time::OffsetDateTime;
 
@@ -183,11 +184,31 @@ impl YouTube {
         channel_id: &str,
         lang: Language,
     ) -> Result<Channel<Paginator<VideoItem>>> {
-        validate::channel_id(channel_id)
-            .map_err(|_| YouTubeError::InvalidInput("invalid channel id".into()))?;
+        check_channel_id(channel_id)?;
         Ok(self.query(lang).channel_videos(channel_id).await?)
     }
 
+    /// First page of a channel's videos, shorts or livestreams in the given order.
+    pub async fn channel_tab(
+        &self,
+        channel_id: &str,
+        tab: ChannelVideoTab,
+        order: ChannelOrder,
+        lang: Language,
+    ) -> Result<Paginator<VideoItem>> {
+        check_channel_id(channel_id)?;
+        let query = self.query(lang);
+        Ok(match order {
+            ChannelOrder::Latest => query.channel_videos_tab(channel_id, tab).await?.content,
+            order => {
+                query
+                    .channel_videos_tab_order(channel_id, tab, order)
+                    .await?
+            }
+        })
+    }
+
+    /// Further pages of channel tabs and channel search results.
     pub async fn channel_videos_continuation(
         &self,
         token: &str,
@@ -215,6 +236,44 @@ impl YouTube {
             .query(lang)
             .continuation(token, ContinuationEndpoint::Browse, None)
             .await?)
+    }
+
+    pub async fn channel_playlists(
+        &self,
+        channel_id: &str,
+        lang: Language,
+    ) -> Result<Paginator<PlaylistItem>> {
+        check_channel_id(channel_id)?;
+        Ok(self
+            .query(lang)
+            .channel_playlists(channel_id)
+            .await?
+            .content)
+    }
+
+    pub async fn channel_playlists_continuation(
+        &self,
+        token: &str,
+        lang: Language,
+    ) -> Result<Paginator<PlaylistItem>> {
+        Ok(self
+            .query(lang)
+            .continuation(token, ContinuationEndpoint::Browse, None)
+            .await?)
+    }
+
+    pub async fn channel_search(
+        &self,
+        channel_id: &str,
+        query: &str,
+        lang: Language,
+    ) -> Result<Paginator<VideoItem>> {
+        check_channel_id(channel_id)?;
+        Ok(self
+            .query(lang)
+            .channel_search(channel_id, query)
+            .await?
+            .content)
     }
 
     /// Resolves a YouTube URL, URL path (`/@handle`), ID or handle.
@@ -257,6 +316,11 @@ fn normalize_resolve_input(input: &str) -> Result<String> {
         return Err(YouTubeError::InvalidInput("not a YouTube URL".into()));
     }
     Ok(format!("https://{url}"))
+}
+
+pub fn check_channel_id(channel_id: &str) -> Result<()> {
+    validate::channel_id(channel_id)
+        .map_err(|_| YouTubeError::InvalidInput("invalid channel id".into()))
 }
 
 fn check_video_id(video_id: &str) -> Result<()> {
@@ -357,6 +421,25 @@ mod tests {
         ));
         assert!(matches!(
             youtube.channel_videos("nope", Language::En).await,
+            Err(YouTubeError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            youtube
+                .channel_tab(
+                    "nope",
+                    ChannelVideoTab::Shorts,
+                    ChannelOrder::Popular,
+                    Language::En
+                )
+                .await,
+            Err(YouTubeError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            youtube.channel_playlists("nope", Language::En).await,
+            Err(YouTubeError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            youtube.channel_search("nope", "x", Language::En).await,
             Err(YouTubeError::InvalidInput(_))
         ));
         for id in ["nope", "WL", "LL", "PL", "Rd7xQ2mKp9LsVb3N"] {
