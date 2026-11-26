@@ -205,3 +205,31 @@ test('channels can be unsubscribed and resubscribed from the list', async ({ pag
 	await expect(page.getByRole('button', { name: 'Unsubscribe from Northbound' })).toBeVisible();
 	expect(state.calls).toEqual([`DELETE ${north.id}`, `PUT ${north.id}`]);
 });
+
+test('the collapsed sidebar shows channel avatars with tooltips', async ({ page }) => {
+	const many = Array.from({ length: 9 }, (_, i) => ({
+		...forge,
+		id: `UCm0ckCh4nn3l${String(i).padStart(10, '0')}`,
+		name: `Channel ${i + 1}`
+	}));
+	await mockApi(page, { list: [...many.slice(0, 2), pending, ...many.slice(2)] });
+	await page.goto('/feed/channels');
+
+	const sidebar = page.locator('[data-slot="sidebar"]');
+	await expect(sidebar.getByRole('link', { name: 'Channel 1' })).toBeVisible();
+	await page.keyboard.press('ControlOrMeta+b');
+	await expect(page.locator('[data-slot="sidebar"][data-state="collapsed"]')).toBeVisible();
+
+	const first = sidebar.getByRole('link', { name: 'Channel 1' });
+	await expect(first).toHaveAttribute('href', `/channel/${many[0].id}`);
+	await expect(first.locator('img')).toBeVisible();
+	await expect(first).toHaveJSProperty('offsetWidth', 32);
+	await expect(sidebar.getByRole('link', { name: 'All 10 channels' })).toHaveAttribute(
+		'href',
+		'/feed/channels'
+	);
+	await expect(sidebar.getByRole('link', { name: 'Channel 7' })).toHaveCount(0);
+
+	await first.hover();
+	await expect(page.locator('[data-slot="tooltip-content"]').first()).toHaveText('Channel 1');
+});

@@ -16,14 +16,17 @@
 </script>
 
 {#if channels.length > 0}
-	<Sidebar.Group class="group-data-[collapsible=icon]:hidden">
+	<Sidebar.Group>
 		<Sidebar.GroupLabel>{m.nav_channels()}</Sidebar.GroupLabel>
 		<Sidebar.Menu>
 			{#each shown as channel (channel.id)}
 				{@const href = resolve('/channel/[id]', { id: channel.id })}
 				{@const active = isActive(page.url.pathname, href)}
 				<Sidebar.MenuItem>
-					<Sidebar.MenuButton isActive={active}>
+					<Sidebar.MenuButton
+						isActive={active}
+						tooltipContent={channel.name ?? m.subscriptions_channel_pending()}
+					>
 						{#snippet child({ props })}
 							<a {href} aria-current={active ? 'page' : undefined} {...props}>
 								{#if channel.name}
@@ -31,7 +34,7 @@
 										name={channel.name}
 										src={channel.avatarUrl}
 										size="sm"
-										class="size-5"
+										class="size-5 shrink-0 group-data-[collapsible=icon]:size-4"
 										fallbackClass="text-[0.5625rem]"
 									/>
 									<span>{channel.name}</span>
@@ -50,6 +53,9 @@
 				<Sidebar.MenuButton
 					isActive={isActive(page.url.pathname, manageHref)}
 					class="text-sidebar-foreground/70"
+					tooltipContent={channels.length > shown.length
+						? m.nav_channels_all({ count: channels.length })
+						: m.nav_channels_manage()}
 				>
 					{#snippet child({ props })}
 						<a href={manageHref} {...props}>
