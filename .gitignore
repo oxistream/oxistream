@@ -20,3 +20,8 @@ test-results/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Claude Code (local)
+.claude/worktrees/
+.claude/launch.json
+.claude/settings.local.json
