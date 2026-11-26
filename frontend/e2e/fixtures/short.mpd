@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="urn:mpeg:dash:schema:mpd:2011"
+	xmlns:xlink="http://www.w3.org/1999/xlink"
+	xsi:schemaLocation="urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"
+	profiles="urn:mpeg:dash:profile:isoff-live:2011"
+	type="static"
+	mediaPresentationDuration="PT6.0S"
+	maxSegmentDuration="PT1.0S"
+	minBufferTime="PT2.0S">
+	<ProgramInformation>
+	</ProgramInformation>
+	<ServiceDescription id="0">
+	</ServiceDescription>
+	<Period id="0" start="PT0.0S">
+		<AdaptationSet id="0" contentType="video" startWithSAP="1" segmentAlignment="true" bitstreamSwitching="true" frameRate="15/1" maxWidth="90" maxHeight="160" par="9:16">
+			<Representation id="0" mimeType="video/webm" codecs="vp09.00.10.08" bandwidth="20000" width="90" height="160" sar="1:1">
+				<BaseURL>/proxy/stream/{id}/1</BaseURL>
+				<SegmentList timescale="1000000" duration="1000000" startNumber="1">
+					<Initialization range="0-369" />
+					<SegmentURL mediaRange="370-757" />
+					<SegmentURL mediaRange="758-1146" />
+					<SegmentURL mediaRange="1147-1536" />
+					<SegmentURL mediaRange="1537-1925" />
+					<SegmentURL mediaRange="1926-2314" />
+					<SegmentURL mediaRange="2315-2703" />
+				</SegmentList>
+			</Representation>
+		</AdaptationSet>
+	</Period>
+</MPD>

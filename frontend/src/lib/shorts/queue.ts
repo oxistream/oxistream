@@ -41,3 +41,23 @@ export const LOAD_AHEAD = 3;
 export function needsMore(queue: VideoSummary[], index: number): boolean {
 	return index >= 0 && queue.length - 1 - index < LOAD_AHEAD;
 }
+
+export type ShortSlot = {
+	short: VideoSummary;
+	/** Position relative to the current short: -1 above, 1 below. */
+	offset: -1 | 0 | 1;
+	/** Load the stream ahead. The previous short keeps a player it already has, but never gets one. */
+	preload: boolean;
+};
+
+/** The shorts stacked in the viewer, so both neighbours can slide in. */
+export function shortSlots(
+	current: VideoSummary,
+	previous: VideoSummary | undefined,
+	next: VideoSummary | undefined
+): ShortSlot[] {
+	const slots: ShortSlot[] = [{ short: current, offset: 0, preload: true }];
+	if (previous) slots.unshift({ short: previous, offset: -1, preload: false });
+	if (next) slots.push({ short: next, offset: 1, preload: true });
+	return slots;
+}
