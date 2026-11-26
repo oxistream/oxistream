@@ -1,8 +1,17 @@
 <script lang="ts">
+	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import PlayIcon from '@lucide/svelte/icons/play';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { ApiError, isNotFound } from '#lib/api/mapping.js';
+	import {
+		createFollowMutation,
+		createFollowStateQuery,
+		createImportPlaylistMutation,
+		useMarkSeen
+	} from '#lib/api/playlist-follows.js';
 	import { isMixId } from '#lib/api/playlist-order.js';
 	import {
 		createYouTubePlaylistQuery,
@@ -17,8 +26,11 @@
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import { authHref } from '#lib/auth/links.js';
+	import { session } from '#lib/session.svelte.js';
 	import CourseBadge from './course-badge.svelte';
-	import { playlistWatchHref } from './links';
+	import FollowToggle from './follow-toggle.svelte';
+	import { playlistHref, playlistWatchHref } from './links';
 	import PlaylistCover from './playlist-cover.svelte';
 	import PlaylistItems from './playlist-items.svelte';
 	import PlaylistLayout from './playlist-layout.svelte';
@@ -27,6 +39,29 @@
 
 	const locale = getLocale();
 	const query = createYouTubePlaylistQuery(() => listId);
+	const followState = createFollowStateQuery(() => listId);
+	const followMutation = createFollowMutation();
+	const importMutation = createImportPlaylistMutation();
+	const markSeen = useMarkSeen();
+
+	const signInHref = $derived(
+		session.user ? undefined : authHref('/login', page.url.pathname + page.url.search)
+	);
+	const following = $derived(followState.data === true);
+
+	// Once per page, and only for a follow the server reported: a new follow has nothing new yet.
+	let seenId: string | undefined;
+	$effect(() => {
+		if (seenId === listId || !query.data || !followState.isSuccess) return;
+		if (followMutation.isPending || followMutation.isSuccess) return;
+		seenId = listId;
+		if (followState.data) void markSeen(listId);
+	});
+
+	async function saveCopy() {
+		const copy = await importMutation.mutateAsync(listId).catch(() => undefined);
+		if (copy) await goto(playlistHref(copy.id));
+	}
 
 	const data = $derived<LoadedYouTubePlaylist | undefined>(mergeYouTubePlaylist(query.data));
 	const mix = $derived(
@@ -117,14 +152,43 @@
 					</p>
 				{/if}
 			</div>
-			{#if start}
-				<div class="flex flex-wrap gap-2">
+			<div class="flex flex-wrap gap-2">
+				{#if start}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
 					<Button href={playlistWatchHref(start.id, data.id)}>
 						<PlayIcon class="fill-current" />
 						{m.playlist_play_all()}
 					</Button>
-				</div>
+				{/if}
+				<FollowToggle
+					{following}
+					{signInHref}
+					loading={session.user !== null && followState.isPending}
+					onclick={() => followMutation.mutate({ playlistId: data.id, follow: !following })}
+				/>
+				{#if signInHref}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by authHref -->
+					<Button href={signInHref} variant="outline">
+						<CopyPlusIcon />
+						{m.playlist_copy()}
+					</Button>
+				{:else}
+					<Button
+						variant="outline"
+						disabled={importMutation.isPending}
+						aria-busy={importMutation.isPending || undefined}
+						data-testid="copy-playlist"
+						onclick={saveCopy}
+					>
+						<CopyPlusIcon />
+						{importMutation.isPending ? m.playlist_copying() : m.playlist_copy()}
+					</Button>
+				{/if}
+			</div>
+			{#if importMutation.isError}
+				<p class="text-sm font-medium text-destructive" role="alert">
+					{m.playlist_copy_error()}
+				</p>
 			{/if}
 		{/snippet}
 

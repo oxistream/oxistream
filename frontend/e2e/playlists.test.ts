@@ -93,6 +93,7 @@ async function mockApi(page: Page, options: { signedIn?: boolean; owner?: boolea
 		signedIn ? json(route, account) : json(route, { code: 'unauthorized', message: '' }, 401)
 	);
 	await page.route('**/api/v0/subscriptions/*', (route) => json(route, { subscribed: false }));
+	await page.route('**/api/v0/playlist-follows', (route) => json(route, []));
 	await page.route('**/api/v0/videos/*/manifest.mpd', (route) =>
 		route.fulfill({ status: 200, contentType: 'application/dash+xml', body: MPD })
 	);

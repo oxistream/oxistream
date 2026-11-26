@@ -4,7 +4,14 @@
 	import type { PlaylistFields } from '#lib/api/playlists.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { mockPlaylist, mockPlaylistNow, mockPlaylists } from '#lib/mocks/playlists.js';
+	import {
+		mockFollowedPlaylists,
+		mockPlaylist,
+		mockPlaylistNow,
+		mockPlaylists
+	} from '#lib/mocks/playlists.js';
+	import FollowToggle from './follow-toggle.svelte';
+	import FollowedPlaylistCard from './followed-playlist-card.svelte';
 	import PlaylistCard from './playlist-card.svelte';
 	import PlaylistFormDialog from './playlist-form-dialog.svelte';
 	import CourseBadge from './course-badge.svelte';
@@ -26,6 +33,7 @@
 	let items = $state(mockPlaylist.items);
 	let dialogOpen = $state(false);
 	let saved = $state<PlaylistFields>();
+	let following = $state(false);
 
 	const youtubeList = {
 		id: 'PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI',
@@ -53,6 +61,24 @@
 
 <Story name="Course badge" asChild>
 	<CourseBadge />
+</Story>
+
+<Story name="Followed playlists" asChild>
+	<div class="@container">
+		<ul class="video-list" data-layout="grid">
+			{#each mockFollowedPlaylists as playlist (playlist.id)}
+				<li class="min-w-0"><FollowedPlaylistCard {playlist} /></li>
+			{/each}
+		</ul>
+	</div>
+</Story>
+
+<Story name="Follow toggle" asChild>
+	<div class="flex flex-wrap gap-2">
+		<FollowToggle {following} onclick={() => (following = !following)} />
+		<FollowToggle loading />
+		<FollowToggle signInHref="/login" />
+	</div>
 </Story>
 
 <Story name="Visibility labels" asChild>

@@ -2,11 +2,13 @@
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { goto } from '$app/navigation';
+	import { createFollowedPlaylistsQuery } from '#lib/api/playlist-follows.js';
 	import {
 		createCreatePlaylistMutation,
 		createPlaylistsQuery,
 		type PlaylistFields
 	} from '#lib/api/playlists.js';
+	import FollowedPlaylistCard from '#lib/components/playlist/followed-playlist-card.svelte';
 	import { playlistHref } from '#lib/components/playlist/links.js';
 	import PlaylistCard from '#lib/components/playlist/playlist-card.svelte';
 	import PlaylistFormDialog from '#lib/components/playlist/playlist-form-dialog.svelte';
@@ -20,8 +22,12 @@
 	import { session } from '#lib/session.svelte.js';
 
 	const playlists = createPlaylistsQuery();
+	const followed = createFollowedPlaylistsQuery();
 	const create = createCreatePlaylistMutation();
 	let createOpen = $state(false);
+
+	const followedList = $derived(followed.data ?? []);
+	const empty = $derived(playlists.data?.length === 0 && followedList.length === 0);
 
 	async function submit(fields: PlaylistFields) {
 		const playlist = await create.mutateAsync(fields);
@@ -33,7 +39,7 @@
 <div class="flex flex-col gap-6 px-(--page-gutter) py-6">
 	<PageHeader title={m.nav_playlists()}>
 		{#snippet actions()}
-			{#if session.user && playlists.data?.length}
+			{#if session.user && !empty && playlists.data}
 				<Button size="sm" onclick={() => (createOpen = true)}>
 					<PlusIcon />
 					{m.playlist_new()}
@@ -52,7 +58,7 @@
 		>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
-	{:else if playlists.isPending}
+	{:else if playlists.isPending || (followed.isPending && followed.failureCount === 0)}
 		<VideoGrid loading skeletonCount={8} showChannel={false} />
 	{:else if playlists.isError}
 		<ErrorState
@@ -60,7 +66,7 @@
 			description={m.error_load_body()}
 			onretry={() => void playlists.refetch()}
 		/>
-	{:else if playlists.data.length === 0}
+	{:else if empty}
 		<EmptyState
 			icon={ListVideoIcon}
 			title={m.empty_playlists_title()}
@@ -74,13 +80,32 @@
 			{/snippet}
 		</EmptyState>
 	{:else}
-		<div class="@container">
-			<ul class="video-list" data-layout="grid" aria-label={m.nav_playlists()}>
-				{#each playlists.data as playlist (playlist.id)}
-					<li class="min-w-0"><PlaylistCard {playlist} /></li>
-				{/each}
-			</ul>
-		</div>
+		<section class="@container flex flex-col gap-3" aria-labelledby="own-playlists">
+			<h2 id="own-playlists" class="text-base font-semibold tracking-tight">
+				{m.playlist_section_own()}
+			</h2>
+			{#if playlists.data.length === 0}
+				<p class="text-sm text-muted-foreground">{m.playlist_own_empty()}</p>
+			{:else}
+				<ul class="video-list" data-layout="grid" aria-labelledby="own-playlists">
+					{#each playlists.data as playlist (playlist.id)}
+						<li class="min-w-0"><PlaylistCard {playlist} /></li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+		{#if followedList.length > 0}
+			<section class="@container flex flex-col gap-3" aria-labelledby="followed-playlists">
+				<h2 id="followed-playlists" class="text-base font-semibold tracking-tight">
+					{m.playlist_section_followed()}
+				</h2>
+				<ul class="video-list" data-layout="grid" aria-labelledby="followed-playlists">
+					{#each followedList as playlist (playlist.id)}
+						<li class="min-w-0"><FollowedPlaylistCard {playlist} /></li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 	{/if}
 </div>
 

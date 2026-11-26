@@ -439,5 +439,27 @@
 	"shorts_previous": "Vorheriger Short",
 	"shorts_next": "Nächster Short",
 	"shorts_open_watch": "Auf der Wiedergabeseite öffnen",
-	"shorts_loading": "Short wird geladen"
+	"shorts_loading": "Short wird geladen",
+	"playlist_follow": "Folgen",
+	"playlist_following": "Gefolgt",
+	"playlist_copy": "Als Kopie speichern",
+	"playlist_copying": "Wird kopiert …",
+	"playlist_copy_error": "Die Playlist konnte nicht kopiert werden. Versuche es noch einmal.",
+	"playlist_copy_hint": "Kopiert die Videos in eine eigene Playlist, die du bearbeiten kannst.",
+	"playlist_follow_hint": "Behält die Playlist in deiner Mediathek und zeigt neue Videos an.",
+	"playlist_section_own": "Deine Playlists",
+	"playlist_section_followed": "Auf YouTube gefolgt",
+	"playlist_own_empty": "Noch keine eigenen Playlists.",
+	"playlist_new_videos": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} neues Video",
+				"countPlural=*": "{formatted} neue Videos"
+			}
+		}
+	],
+	"playlist_pending": "Wird von YouTube geladen …",
+	"playlist_follow_unavailable": "Auf YouTube nicht verfügbar"
 }
