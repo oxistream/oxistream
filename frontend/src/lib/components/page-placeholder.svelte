@@ -1,14 +1,13 @@
 <script lang="ts">
+	import ConstructionIcon from '@lucide/svelte/icons/construction';
 	import { m } from '#lib/paraglide/messages.js';
+	import PageHeader from './page-header.svelte';
+	import EmptyState from './state/empty-state.svelte';
 
 	let { title }: { title: string } = $props();
 </script>
 
-<svelte:head>
-	<title>{title} · Oxistream</title>
-</svelte:head>
-
-<section class="flex flex-1 flex-col gap-4 p-4">
-	<h1 class="text-xl font-semibold tracking-tight">{title}</h1>
-	<p class="text-sm text-muted-foreground">{m.page_placeholder()}</p>
-</section>
+<div class="flex flex-col gap-6 px-(--page-gutter) py-6">
+	<PageHeader {title} />
+	<EmptyState icon={ConstructionIcon} title={m.page_placeholder()} />
+</div>

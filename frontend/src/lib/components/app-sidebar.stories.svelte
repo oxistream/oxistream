@@ -1,8 +1,10 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { mockUser, mockVideos } from '#lib/mocks/videos.js';
 	import AppHeader from './app-header.svelte';
 	import AppSidebar from './app-sidebar.svelte';
+	import VideoGrid from './video/video-grid.svelte';
 
 	const { Story } = defineMeta({
 		title: 'Shell/AppSidebar',
@@ -11,22 +13,26 @@
 	});
 </script>
 
-<Story name="Shell" asChild>
-	<Sidebar.Provider>
-		<AppSidebar />
-		<Sidebar.Inset>
+{#snippet shell(open: boolean, user: typeof mockUser | null)}
+	<Sidebar.Provider {open}>
+		<AppSidebar {user} />
+		<Sidebar.Inset class="overflow-clip md:ring-1 md:ring-sidebar-border">
 			<AppHeader />
-			<div class="flex-1 p-4"></div>
+			<main class="flex-1 px-(--page-gutter) py-6">
+				<VideoGrid videos={mockVideos.slice(0, 8)} />
+			</main>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
+{/snippet}
+
+<Story name="Signed out" asChild>
+	{@render shell(true, null)}
+</Story>
+
+<Story name="Signed in" asChild>
+	{@render shell(true, mockUser)}
 </Story>
 
 <Story name="Collapsed" asChild>
-	<Sidebar.Provider open={false}>
-		<AppSidebar collapsible="icon" />
-		<Sidebar.Inset>
-			<AppHeader />
-			<div class="flex-1 p-4"></div>
-		</Sidebar.Inset>
-	</Sidebar.Provider>
+	{@render shell(false, mockUser)}
 </Story>

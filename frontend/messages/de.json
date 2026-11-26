@@ -20,11 +20,80 @@
 	"theme_light": "Hell",
 	"theme_dark": "Dunkel",
 	"theme_system": "System",
-	"page_placeholder": "Hier gibt es noch nichts.",
+	"page_placeholder": "Diese Seite folgt in einer späteren Version.",
 	"error_not_found": "Seite nicht gefunden",
 	"error_generic": "Etwas ist schiefgelaufen",
 	"error_back_home": "Zur Startseite",
 	"search_results_title": "Ergebnisse für „{query}“",
 	"sidebar_description": "Hauptnavigation",
-	"close": "Schließen"
+	"close": "Schließen",
+	"skip_to_content": "Zum Inhalt springen",
+	"nav_library": "Mediathek",
+	"search_shortcut": "Drücke / zum Suchen",
+	"user_menu_label": "Kontomenü",
+	"user_register": "Registrieren",
+	"user_sign_out": "Abmelden",
+	"home_continue_watching": "Weiterschauen",
+	"home_recent": "Neue Videos",
+	"video_views": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Aufruf",
+				"countPlural=*": "{formatted} Aufrufe"
+			}
+		}
+	],
+	"video_watched": "{percent} angesehen",
+	"video_duration": "Dauer {duration}",
+	"video_loading": "Videos werden geladen",
+	"empty_subscriptions_title": "Noch keine Abos",
+	"empty_subscriptions_body": "Folge Kanälen, dann erscheinen ihre neuen Videos hier, die neuesten zuerst.",
+	"empty_playlists_title": "Noch keine Playlists",
+	"empty_playlists_body": "Speichere Videos in einer Playlist, um sie später anzusehen oder per Link zu teilen.",
+	"empty_history_title": "Dein Verlauf ist leer",
+	"empty_history_body": "Hier stehen die Videos, die du ansiehst, damit du später weiterschauen kannst.",
+	"empty_sign_in_hint": "Melde dich an, um Abos, Playlists und Verlauf auf diesem Server zu speichern.",
+	"error_load_title": "Videos konnten nicht geladen werden",
+	"error_load_body": "Der Server hat nicht geantwortet. Prüfe deine Verbindung und versuche es erneut.",
+	"action_retry": "Erneut versuchen",
+	"settings_appearance": "Darstellung",
+	"settings_appearance_hint": "Folgt dem System, bis du ein Design wählst.",
+	"settings_language_hint": "Gilt für Menüs, Datumsangaben und Zahlen.",
+	"settings_more": "Wiedergabe- und Kontoeinstellungen folgen mit der Anmeldung.",
+	"auth_login_title": "Bei Oxistream anmelden",
+	"auth_login_subtitle": "Abos, Playlists und Verlauf bleiben auf diesem Server.",
+	"auth_register_title": "Konto erstellen",
+	"auth_register_subtitle": "Deine Daten bleiben auf diesem Server. Ein YouTube-Konto brauchst du nicht.",
+	"auth_username": "Benutzername",
+	"auth_password": "Passwort",
+	"auth_password_confirm": "Passwort bestätigen",
+	"auth_password_hint": "Mindestens {min} Zeichen.",
+	"auth_sign_in_submit": "Anmelden",
+	"auth_register_submit": "Konto erstellen",
+	"auth_sso": "Mit SSO anmelden",
+	"auth_or": "oder",
+	"auth_no_account": "Noch kein Konto?",
+	"auth_register_link": "Jetzt erstellen",
+	"auth_have_account": "Schon registriert?",
+	"auth_login_link": "Anmelden",
+	"auth_error_username_required": "Gib deinen Benutzernamen ein.",
+	"auth_error_username_format": "Verwende 3 bis 32 Buchstaben, Ziffern, Punkte, Binde- oder Unterstriche.",
+	"auth_error_password_required": "Gib dein Passwort ein.",
+	"auth_error_password_length": "Verwende mindestens {min} Zeichen.",
+	"auth_error_password_mismatch": "Die Passwörter stimmen nicht überein.",
+	"auth_error_summary": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Feld muss korrigiert werden.",
+				"countPlural=*": "{formatted} Felder müssen korrigiert werden."
+			}
+		}
+	],
+	"auth_not_connected": "Konten sind noch nicht angebunden, daher wurde nichts gesendet. Sie folgen in einer späteren Version.",
+	"watch_title": "Ansehen",
+	"channel_title": "Kanal"
 }
