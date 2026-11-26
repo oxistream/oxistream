@@ -1,7 +1,6 @@
 <script lang="ts">
 	import '#lib/sponsorblock/colors.css';
 	import ChevronsRightIcon from '@lucide/svelte/icons/chevrons-right';
-	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import { m } from '#lib/paraglide/messages.js';
 	import { categoryColor, categoryLabel } from '#lib/sponsorblock/categories.js';
 	import type { SegmentCategory } from '#lib/sponsorblock/settings.js';
@@ -11,8 +10,6 @@
 		onundo,
 		skippable,
 		onskip,
-		highlight = false,
-		onhighlight,
 		label
 	}: {
 		/** Category just skipped automatically; shows a notice with undo. */
@@ -21,9 +18,6 @@
 		/** Category of the segment playing now that offers a skip button. */
 		skippable?: SegmentCategory;
 		onskip?: () => void;
-		/** Offers to jump to the highlight. */
-		highlight?: boolean;
-		onhighlight?: () => void;
 		/** Category of a label for the whole video. */
 		label?: SegmentCategory;
 	} = $props();
@@ -68,18 +62,6 @@
 				<span class="oxi-segment-dot" style:background-color={categoryColor(skippable)}></span>
 				{m.sponsorblock_skip({ category: categoryLabel(skippable) })}
 				<ChevronsRightIcon aria-hidden="true" />
-			</button>
-		{:else if highlight}
-			<button
-				type="button"
-				class="oxi-segment-chip oxi-segment-button"
-				data-testid="segment-highlight"
-				onclick={onhighlight}
-				onpointerdown={stop}
-				onpointerup={stop}
-			>
-				<SparklesIcon aria-hidden="true" style="color: {categoryColor('poi_highlight')}" />
-				{m.sponsorblock_jump_highlight()}
 			</button>
 		{/if}
 	</div>

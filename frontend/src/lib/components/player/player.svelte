@@ -30,8 +30,20 @@
 	import { bridgeDashAudioTracks, type AudioTrackHost } from './dash-audio-tracks';
 	import { applyPlaybackPreferences, pickRendition, type PlaybackPreferences } from './playback';
 	import { createProgressEmitter, type ProgressReport } from './progress';
-	import { categoryColor } from '#lib/sponsorblock/categories.js';
-	import { createSkipper, type AutoSkip, type PlayerSegment } from '#lib/sponsorblock/skip.js';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import { categoryColor, categoryLabel } from '#lib/sponsorblock/categories.js';
+	import {
+		createSkipper,
+		segmentAt,
+		type AutoSkip,
+		type PlayerSegment
+	} from '#lib/sponsorblock/skip.js';
+	import {
+		createPrefetcher,
+		isBuffered,
+		type DashEngine,
+		type Prefetcher
+	} from '#lib/sponsorblock/prefetch.js';
 	import SegmentOverlay from './segment-overlay.svelte';
 
 	let {
@@ -125,12 +137,8 @@
 	const skipper = $derived(createSkipper(activeSegments));
 	let lastSkip = $state<AutoSkip | null>(null);
 	const skipButton = $derived(variant === 'video' ? skipper.button(currentTime) : undefined);
-	const highlight = $derived(activeSegments.find((s) => s.kind === 'highlight'));
-	const offerHighlight = $derived(
-		variant === 'video' &&
-			!!highlight &&
-			currentTime < INTRO_WINDOW &&
-			currentTime < highlight.start - 1
+	const highlight = $derived(
+		variant === 'video' ? activeSegments.find((s) => s.kind === 'highlight') : undefined
 	);
 	const fullLabel = $derived(activeSegments.find((s) => s.kind === 'full'));
 	const markers = $derived(
@@ -145,6 +153,20 @@
 						width: ((Math.min(s.end, duration) - s.start) / duration) * 100
 					}))
 			: []
+	);
+
+	let timeSlider: HTMLElement;
+	let thumbnail: HTMLElement;
+	/** Time under the pointer while hovering or scrubbing the progress bar. */
+	let pointerTime = $state<number | null>(null);
+	let thumbnailHeight = $state(0);
+	// Video.js shows the thumbnail and time only while pointing, not while scrubbing by touch.
+	let pointing = $state(false);
+	const hoverAbove = $derived(pointing ? (thumbnailHeight > 0 ? 'thumbnail' : 'time') : undefined);
+	const hoveredSegment = $derived(
+		markers.length && pointerTime !== null
+			? segmentAt(activeSegments, pointerTime, duration * 0.005)
+			: undefined
 	);
 
 	// Our own seeks must not count as the user seeking into a segment.
@@ -313,7 +335,33 @@
 			if (media.seeking) return;
 			const skip = skipper.autoSkip(media.currentTime);
 			if (skip) autoSkip(skip);
+			else prefetchSkip();
 		};
+
+		// Seconds ahead of an automatic skip to load what playback resumes with.
+		const PREFETCH_LEAD = 8;
+		let prefetcher: Prefetcher | undefined;
+		let prefetchEngine: DashEngine | undefined;
+		// Installed before dash.js loads anything, since it learns the stream URLs from requests.
+		const attachPrefetcher = () => {
+			const engine = (media as unknown as { engine?: DashEngine }).engine;
+			if (!engine || engine === prefetchEngine) return;
+			prefetcher?.destroy();
+			prefetchEngine = engine;
+			prefetcher = createPrefetcher(engine);
+		};
+		const prefetchSkip = () => {
+			if (!activeSegments.length) return;
+			const time = media.currentTime;
+			const target =
+				skipper.upcoming(time, PREFETCH_LEAD) ??
+				(variant === 'video' ? skipper.button(time)?.end : undefined);
+			if (target === undefined || target === null) return;
+			if (isBuffered((media as unknown as HTMLMediaElement).buffered, target)) return;
+			attachPrefetcher();
+			prefetcher?.prefetch(target);
+		};
+		attachPrefetcher();
 		const onSeeking = () => {
 			const target = media.currentTime;
 			const internal = internalTarget !== null && Math.abs(target - internalTarget) < 1;
@@ -337,6 +385,26 @@
 			if (document.visibilityState === 'hidden') onUnload();
 		};
 
+		// The time slider exposes its pointer only as a CSS variable and data attributes.
+		const readPointer = () => {
+			pointing = timeSlider.hasAttribute('data-pointing');
+			const active = pointing || timeSlider.hasAttribute('data-dragging');
+			const percent = parseFloat(timeSlider.style.getPropertyValue('--media-slider-pointer'));
+			const total = selectTime(store.state)?.duration ?? 0;
+			pointerTime =
+				active && total > 0 && Number.isFinite(percent) ? (percent / 100) * total : null;
+		};
+		const pointerObserver = new MutationObserver(readPointer);
+		pointerObserver.observe(timeSlider, {
+			attributes: true,
+			attributeFilter: ['style', 'data-pointing', 'data-dragging']
+		});
+		const thumbnailObserver = new ResizeObserver(() => {
+			thumbnailHeight = thumbnail.offsetHeight;
+		});
+		thumbnailObserver.observe(thumbnail);
+
+		media.addEventListener('loadstart', attachPrefetcher);
 		media.addEventListener('loadedmetadata', onLoadedMetadata);
 		media.addEventListener('timeupdate', onTimeUpdate);
 		media.addEventListener('seeking', onSeeking);
@@ -352,6 +420,10 @@
 			unsubscribe();
 			unbridgeAudio();
 			unapplyPlayback();
+			pointerObserver.disconnect();
+			thumbnailObserver.disconnect();
+			prefetcher?.destroy();
+			media.removeEventListener('loadstart', attachPrefetcher);
 			media.removeEventListener('loadedmetadata', onLoadedMetadata);
 			media.removeEventListener('timeupdate', onTimeUpdate);
 			media.removeEventListener('seeking', onSeeking);
@@ -517,6 +589,29 @@
 									</media-slider-thumb>
 								</media-volume-slider>
 							</media-volume-popover>
+							{#if highlight}
+								<button
+									type="button"
+									class="media-button oxi-highlight-button"
+									id="{uid}-highlight"
+									data-testid="player-highlight"
+									aria-label={m.sponsorblock_jump_highlight()}
+									onclick={() => highlight && seekInternal(highlight.start)}
+								>
+									<SparklesIcon
+										class="media-button-icon"
+										aria-hidden="true"
+										style="color: {categoryColor('poi_highlight')}"
+									/>
+								</button>
+								<media-tooltip
+									trigger="{uid}-highlight"
+									side="top"
+									class="media-popup media-popup-safe-area media-popup-transition media-popup-surface media-tooltip"
+								>
+									<span>{m.sponsorblock_jump_highlight()}</span>
+								</media-tooltip>
+							{/if}
 							<media-controls-group class="video-time-slider-group">
 								<media-time
 									class="media-time-value video-controls-current-time-value"
@@ -524,6 +619,7 @@
 								>
 								</media-time>
 								<media-time-slider
+									bind:this={timeSlider}
 									class="media-slider media-time-slider video-controls-time-slider"
 								>
 									<media-time-slider-chapters class="media-time-slider-chapters">
@@ -561,7 +657,23 @@
 									<media-slider-thumb class="media-slider-thumb media-time-slider-thumb">
 									</media-slider-thumb>
 									<media-slider-preview class="media-slider-preview" overflow="visible">
+										{#if hoveredSegment}
+											<div
+												class="oxi-segment-hover"
+												data-testid="segment-hover"
+												data-category={hoveredSegment.category}
+												data-above={hoverAbove}
+												style:--oxi-thumbnail-height="{thumbnailHeight}px"
+											>
+												<span
+													class="oxi-segment-hover-dot"
+													style:background-color={categoryColor(hoveredSegment.category)}
+												></span>
+												{categoryLabel(hoveredSegment.category)}
+											</div>
+										{/if}
 										<media-slider-thumbnail
+											bind:this={thumbnail}
 											class="media-slider-preview-content media-popup-surface media-slider-thumbnail"
 										>
 											<img
@@ -870,8 +982,6 @@
 					onundo={undoSkip}
 					skippable={skipButton?.category}
 					onskip={() => skipButton && seekInternal(skipButton.end)}
-					highlight={offerHighlight}
-					onhighlight={() => highlight && seekInternal(highlight.start)}
 					label={variant === 'video' && fullLabel && (currentTime < INTRO_WINDOW || showPaused)
 						? fullLabel.category
 						: undefined}
@@ -1028,12 +1138,50 @@
 		translate: -50% 0;
 	}
 
+	.oxi-segment-hover {
+		position: absolute;
+		bottom: calc(100% + var(--media-slider-preview-offset));
+		left: 50%;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		translate: -50% 0;
+		padding: 0.1875rem 0.5rem;
+		border-radius: 9999px;
+		background: oklch(0.13 0.004 286 / 84%);
+		color: oklch(0.99 0 0);
+		font-size: 0.75rem;
+		font-weight: 500;
+		line-height: 1rem;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
+	.oxi-segment-hover[data-above='time'] {
+		bottom: calc(100% + var(--media-slider-preview-label-offset) + 1.75rem);
+	}
+
+	.oxi-segment-hover[data-above='thumbnail'] {
+		bottom: calc(
+			100% + var(--media-slider-preview-offset) + var(--oxi-thumbnail-height) + 0.375rem
+		);
+	}
+
+	.oxi-segment-hover-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		flex-shrink: 0;
+		border-radius: 9999px;
+	}
+
 	.oxi-player :global(.oxi-sponsorblock-item svg) {
 		width: 1.125rem;
 		height: 1.125rem;
 	}
 
-	.oxi-player :global(.oxi-theater-button svg) {
+	.oxi-player :global(.oxi-theater-button svg),
+	.oxi-player :global(.oxi-highlight-button svg) {
 		width: calc(var(--media-spacing) * 5);
 		height: calc(var(--media-spacing) * 5);
 		stroke-width: 1.75;
