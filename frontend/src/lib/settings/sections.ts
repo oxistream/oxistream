@@ -3,6 +3,7 @@ import ClockIcon from '@lucide/svelte/icons/clock';
 import HouseIcon from '@lucide/svelte/icons/house';
 import PaletteIcon from '@lucide/svelte/icons/palette';
 import PlayIcon from '@lucide/svelte/icons/play';
+import SkipForwardIcon from '@lucide/svelte/icons/skip-forward';
 import UserIcon from '@lucide/svelte/icons/user';
 import type { Component } from 'svelte';
 import { resolve } from '$app/paths';
@@ -11,7 +12,9 @@ import AccountSection from '#lib/components/settings/sections/account-section.sv
 import HistorySection from '#lib/components/settings/sections/history-section.svelte';
 import HomeSection from '#lib/components/settings/sections/home-section.svelte';
 import PlaybackSection from '#lib/components/settings/sections/playback-section.svelte';
+import SponsorBlockSection from '#lib/components/settings/sections/sponsorblock-section.svelte';
 import { m } from '#lib/paraglide/messages.js';
+import { session } from '#lib/session.svelte.js';
 
 type Base = {
 	/** Route segment: the section lives at `/settings/{id}`. */
@@ -21,6 +24,8 @@ type Base = {
 	icon: Component;
 	/** Only shown to signed-in users. */
 	account: boolean;
+	/** Hidden while this returns false, e.g. for a feature the server has turned off. */
+	available?: () => boolean;
 };
 
 /**
@@ -32,7 +37,7 @@ export type SettingsSection =
 	| (Base & { component: Component; href?: never })
 	| (Base & { href: () => string; component?: never });
 
-/** In navigation order. A new feature adds its section here, e.g. SponsorBlock after history. */
+/** In navigation order. A new feature adds its section here. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'playback',
@@ -57,6 +62,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 		icon: ClockIcon,
 		account: true,
 		component: HistorySection
+	},
+	{
+		id: 'sponsorblock',
+		title: m.sponsorblock_title,
+		description: m.settings_sponsorblock_hint,
+		icon: SkipForwardIcon,
+		account: false,
+		available: () => session.sponsorblock,
+		component: SponsorBlockSection
 	},
 	{
 		id: 'blocked',
@@ -85,7 +99,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ];
 
 export function visibleSections(signedIn: boolean): SettingsSection[] {
-	return SETTINGS_SECTIONS.filter((section) => signedIn || !section.account);
+	return SETTINGS_SECTIONS.filter(
+		(section) => (signedIn || !section.account) && (section.available?.() ?? true)
+	);
 }
 
 export function sectionHref(section: SettingsSection): string {

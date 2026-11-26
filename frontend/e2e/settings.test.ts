@@ -17,7 +17,11 @@ type Calls = { patches: unknown[]; password: unknown[]; deletions: unknown[]; si
 
 async function mockApi(
 	page: Page,
-	{ signedIn = true, hasPassword = true }: { signedIn?: boolean; hasPassword?: boolean } = {}
+	{
+		signedIn = true,
+		hasPassword = true,
+		sponsorblock = false
+	}: { signedIn?: boolean; hasPassword?: boolean; sponsorblock?: boolean } = {}
 ): Promise<Calls> {
 	const calls: Calls = { patches: [], password: [], deletions: [], signedOut: false };
 	let settings: Record<string, unknown> = {
@@ -38,7 +42,8 @@ async function mockApi(
 				require_login: false,
 				oidc_enabled: false,
 				oidc_name: null
-			}
+			},
+			sponsorblock
 		})
 	);
 	await page.route('**/api/v0/auth/me', (route) =>
@@ -105,6 +110,22 @@ test('guests only get appearance settings and a sign-in prompt', async ({ page }
 	await page.goto('/settings/playback');
 	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
 	await expect(page.getByRole('combobox', { name: 'Maximum quality' })).toHaveCount(0);
+});
+
+test('sponsorblock has its own section when the server offers it', async ({ page }) => {
+	await mockApi(page, { signedIn: false, sponsorblock: true });
+	await page.goto('/settings');
+	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
+	await expect(overview.getByRole('link')).toHaveText([/SponsorBlock/, /Appearance/]);
+
+	await page.locator('[data-slot="sidebar"]').getByRole('link', { name: 'SponsorBlock' }).click();
+	await expect(page).toHaveURL(/\/settings\/sponsorblock$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'SponsorBlock' })).toBeVisible();
+	await page.locator('[data-category="sponsor"]').getByText('Off').click();
+	const stored = await page.evaluate(() => localStorage.getItem('oxistream:sponsorblock'));
+	expect((JSON.parse(stored!) as { categories: Record<string, string> }).categories.sponsor).toBe(
+		'off'
+	);
 });
 
 test('the overview links every section', async ({ page }) => {
