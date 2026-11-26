@@ -1,0 +1,51 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/oxistream/oxistream"
+publish = false
+
+[workspace.dependencies]
+oxistream-db = { path = "crates/oxistream-db" }
+
+anyhow = "1.0.105"
+axum = "0.8.9"
+http-body-util = "0.1.5"
+metrics = "0.24.6"
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+rust-embed = { version = "8.14.0", features = ["mime-guess"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlx = { version = "0.9.1", default-features = false, features = [
+  "postgres",
+  "runtime-tokio",
+  "tls-rustls",
+  "migrate",
+  "macros",
+  "time",
+] }
+testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "signal", "net", "time"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.1", features = ["trace", "compression-full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+utoipa = "6.0.0"
+utoipa-axum = "0.3.0"
+utoipa-scalar = { version = "0.4.0", features = ["axum"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
