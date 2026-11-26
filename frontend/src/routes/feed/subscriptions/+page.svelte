@@ -20,7 +20,6 @@
 	import InfiniteLoader from '#lib/components/state/infinite-loader.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import VideoGrid from '#lib/components/video/video-grid.svelte';
-	import { importExportHref } from '#lib/components/subscription/links.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
 
@@ -71,8 +70,7 @@
 			description={m.empty_subscriptions_body()}
 		>
 			{#snippet actions()}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in navigation.ts -->
-				<Button href={importExportHref()} variant="outline">
+				<Button href={resolve('/subscriptions/import-export')} variant="outline">
 					<ArrowDownUpIcon />
 					{m.subscriptions_import_export()}
 				</Button>
