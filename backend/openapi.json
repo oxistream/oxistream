@@ -2755,6 +2755,181 @@
           }
         }
       }
+    },
+    "/api/v0/youtube/playlists/{id}": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A YouTube playlist with the first page of its videos.",
+        "operationId": "playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube playlist ID (`PL…`, `UU…`, `OLAK…`, …)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YouTubePlaylist"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid playlist ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, private, or a mix (`reason` is `mix`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/youtube/playlists/{id}/videos": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "A further page of a YouTube playlist's videos.",
+        "operationId": "playlist_videos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube playlist ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid playlist ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, private, or a mix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4065,6 +4240,71 @@
             "format": "int64",
             "description": "Current viewers of a livestream.",
             "minimum": 0
+          }
+        }
+      },
+      "YouTubePlaylist": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "video_count",
+          "thumbnails",
+          "videos"
+        ],
+        "properties": {
+          "channel": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelRef",
+                "description": "Absent for auto-generated lists like albums."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Plain text; empty without description."
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_update": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date of the last change, `YYYY-MM-DD`."
+          },
+          "last_update_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Localized text as shown by YouTube, e.g. `Last updated on Feb 16, 2026`."
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "video_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "As reported by YouTube; hidden unavailable videos make the list shorter.",
+            "minimum": 0
+          },
+          "videos": {
+            "$ref": "#/components/schemas/VideoPage",
+            "description": "First page; more via `/youtube/playlists/{id}/videos`."
           }
         }
       }

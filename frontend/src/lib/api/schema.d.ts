@@ -604,6 +604,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/youtube/playlists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A YouTube playlist with the first page of its videos. */
+        get: operations["playlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/youtube/playlists/{id}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A further page of a YouTube playlist's videos. */
+        get: operations["playlist_videos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1006,6 +1040,28 @@ export interface components {
              * @description Current viewers of a livestream.
              */
             viewers?: number | null;
+        };
+        YouTubePlaylist: {
+            channel?: components["schemas"]["ChannelRef"] | null;
+            /** @description Plain text; empty without description. */
+            description: string;
+            id: string;
+            /**
+             * Format: date
+             * @description Date of the last change, `YYYY-MM-DD`.
+             */
+            last_update?: string | null;
+            /** @description Localized text as shown by YouTube, e.g. `Last updated on Feb 16, 2026`. */
+            last_update_text?: string | null;
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+            /**
+             * Format: int64
+             * @description As reported by YouTube; hidden unavailable videos make the list shorter.
+             */
+            video_count: number;
+            /** @description First page; more via `/youtube/playlists/{id}/videos`. */
+            videos: components["schemas"]["VideoPage"];
         };
     };
     responses: never;
@@ -3018,6 +3074,131 @@ export interface operations {
                 };
             };
             /** @description Not found, unavailable or without storyboard */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    playlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube playlist ID (`PL…`, `UU…`, `OLAK…`, …) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["YouTubePlaylist"];
+                };
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, private, or a mix (`reason` is `mix`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    playlist_videos: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+            };
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path: {
+                /** @description YouTube playlist ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoPage"];
+                };
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, private, or a mix */
             404: {
                 headers: {
                     [name: string]: unknown;

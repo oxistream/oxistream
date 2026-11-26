@@ -9,7 +9,7 @@ use moka::future::Cache;
 use rustypipe::client::{ClientType, RustyPipe, RustyPipeQuery};
 use rustypipe::model::paginator::{ContinuationEndpoint, Paginator};
 use rustypipe::model::{
-    Channel, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
+    Channel, Playlist, SearchResult, UrlTarget, VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
 };
 use rustypipe::param::{Country, Language, TrendingCategory};
 use rustypipe::validate;
@@ -199,6 +199,24 @@ impl YouTube {
             .await?)
     }
 
+    pub async fn playlist(&self, playlist_id: &str, lang: Language) -> Result<Playlist> {
+        check_playlist_id(playlist_id)?;
+        Ok(self.query(lang).playlist(playlist_id).await?)
+    }
+
+    pub async fn playlist_continuation(
+        &self,
+        playlist_id: &str,
+        token: &str,
+        lang: Language,
+    ) -> Result<Paginator<VideoItem>> {
+        check_playlist_id(playlist_id)?;
+        Ok(self
+            .query(lang)
+            .continuation(token, ContinuationEndpoint::Browse, None)
+            .await?)
+    }
+
     /// Resolves a YouTube URL, URL path (`/@handle`), ID or handle.
     pub async fn resolve(&self, input: &str) -> Result<UrlTarget> {
         let input = normalize_resolve_input(input)?;
@@ -243,6 +261,26 @@ fn normalize_resolve_input(input: &str) -> Result<String> {
 
 fn check_video_id(video_id: &str) -> Result<()> {
     validate::video_id(video_id).map_err(|_| YouTubeError::InvalidInput("invalid video id".into()))
+}
+
+/// Mixes are generated per viewer and have no playlist page; `RDCLAK…` lists are curated.
+pub fn is_mix_id(playlist_id: &str) -> bool {
+    playlist_id.starts_with("RD") && !playlist_id.starts_with("RDCLAK")
+}
+
+fn check_playlist_id(playlist_id: &str) -> Result<()> {
+    // Watch later, liked videos etc. exist only for signed-in YouTube accounts.
+    let account_list = playlist_id.len() == 2;
+    if account_list || validate::playlist_id(playlist_id).is_err() {
+        return Err(YouTubeError::InvalidInput("invalid playlist id".into()));
+    }
+    if is_mix_id(playlist_id) {
+        return Err(YouTubeError::Unavailable {
+            reason: "mix".into(),
+            message: "YouTube mixes cannot be opened as playlists".into(),
+        });
+    }
+    Ok(())
 }
 
 struct PlayerExpiry;
@@ -321,5 +359,26 @@ mod tests {
             youtube.channel_videos("nope", Language::En).await,
             Err(YouTubeError::InvalidInput(_))
         ));
+        for id in ["nope", "WL", "LL", "PL", "Rd7xQ2mKp9LsVb3N"] {
+            assert!(
+                matches!(
+                    youtube.playlist(id, Language::En).await,
+                    Err(YouTubeError::InvalidInput(_))
+                ),
+                "{id}"
+            );
+        }
+        assert!(matches!(
+            youtube.playlist("RDdQw4w9WgXcQ", Language::En).await,
+            Err(YouTubeError::Unavailable { reason, .. }) if reason == "mix"
+        ));
+    }
+
+    #[test]
+    fn detects_mixes() {
+        assert!(is_mix_id("RDdQw4w9WgXcQ"));
+        assert!(is_mix_id("RDMMdQw4w9WgXcQ"));
+        assert!(!is_mix_id("RDCLAK5uy_kFQXdnqMaQCVx2wpUM4ZfbsGCDibZtkJk"));
+        assert!(!is_mix_id("PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI"));
     }
 }

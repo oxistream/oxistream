@@ -196,6 +196,26 @@ pub struct ChannelDetails {
     pub videos: VideoPage,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct YouTubePlaylist {
+    pub id: String,
+    pub title: String,
+    /// Plain text; empty without description.
+    pub description: String,
+    /// Absent for auto-generated lists like albums.
+    pub channel: Option<ChannelRef>,
+    /// As reported by YouTube; hidden unavailable videos make the list shorter.
+    pub video_count: u64,
+    pub thumbnails: Vec<Thumbnail>,
+    /// Date of the last change, `YYYY-MM-DD`.
+    #[schema(format = Date)]
+    pub last_update: Option<String>,
+    /// Localized text as shown by YouTube, e.g. `Last updated on Feb 16, 2026`.
+    pub last_update_text: Option<String>,
+    /// First page; more via `/youtube/playlists/{id}/videos`.
+    pub videos: VideoPage,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ResolvedKind {
@@ -419,6 +439,31 @@ impl ChannelDetails {
             tags: channel.tags,
             id: channel.id,
             name: channel.name,
+        }
+    }
+}
+
+impl YouTubePlaylist {
+    pub fn from_rp(playlist: rp::Playlist, img: &impl Fn(&str) -> String) -> Self {
+        Self {
+            description: playlist
+                .description
+                .map(|d| d.to_plaintext())
+                .unwrap_or_default(),
+            channel: playlist.channel.map(|c| ChannelRef {
+                id: c.id,
+                name: c.name,
+                avatar: Vec::new(),
+                subscriber_count: None,
+                verified: false,
+            }),
+            video_count: playlist.video_count,
+            thumbnails: thumbnails(&playlist.thumbnail, img),
+            last_update: playlist.last_update.map(|d| d.to_string()),
+            last_update_text: playlist.last_update_txt,
+            videos: VideoPage::from_rp(playlist.videos, img),
+            id: playlist.id,
+            title: playlist.name,
         }
     }
 }
@@ -709,6 +754,66 @@ mod tests {
         let dto = VideoDetails::from_rp(details, None, &img, &sub);
         assert_eq!(dto.view_count, None);
         assert_eq!(dto.viewers, Some(1_000));
+    }
+
+    #[test]
+    fn maps_youtube_playlist() {
+        let playlist: rp::Playlist = from_json(json!({
+            "id": "PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI",
+            "name": "The longest mixtape",
+            "videos": paginator(
+                &json!([video_item("aaaaaaaaaaa"), video_item("bbbbbbbbbbb")]),
+                Some("more"),
+                "browse",
+            ),
+            "video_count": 940,
+            "thumbnail": [thumb("https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg")],
+            "description": [{ "Text": { "text": "1000 songs" } }],
+            "channel": { "id": "UCBvCrmhpqZpDdyy4f4uwVXA", "name": "Caribou" },
+            "last_update": "2026-05-05",
+            "last_update_txt": "Last updated on May 5, 2026",
+            "visitor_data": null,
+        }));
+        let dto = YouTubePlaylist::from_rp(playlist, &img);
+
+        assert_eq!(dto.title, "The longest mixtape");
+        assert_eq!(dto.description, "1000 songs");
+        assert_eq!(dto.video_count, 940);
+        assert_eq!(dto.last_update.as_deref(), Some("2026-05-05"));
+        assert_eq!(
+            dto.last_update_text.as_deref(),
+            Some("Last updated on May 5, 2026")
+        );
+        let channel = dto.channel.as_ref().unwrap();
+        assert_eq!(
+            (channel.id.as_str(), channel.name.as_str()),
+            ("UCBvCrmhpqZpDdyy4f4uwVXA", "Caribou")
+        );
+        assert_eq!(dto.videos.items.len(), 2);
+        assert_eq!(dto.videos.items[1].id, "bbbbbbbbbbb");
+        assert_eq!(dto.videos.continuation.as_deref(), Some("more"));
+        assert_images_mapped(&dto);
+    }
+
+    #[test]
+    fn maps_youtube_playlist_without_channel_or_description() {
+        let playlist: rp::Playlist = from_json(json!({
+            "id": "OLAK5uy_k0yFrZlFRgCf3rLPza-lkRmCrtLPbK9pE",
+            "name": "Album - Best Of",
+            "videos": paginator(&json!([]), None, "browse"),
+            "video_count": 0,
+            "thumbnail": [thumb("https://i.ytimg.com/vi/x/hqdefault.jpg")],
+            "description": null,
+            "channel": null,
+            "last_update": null,
+            "last_update_txt": null,
+            "visitor_data": null,
+        }));
+        let dto = YouTubePlaylist::from_rp(playlist, &img);
+        assert_eq!(dto.description, "");
+        assert_eq!(dto.channel, None);
+        assert_eq!(dto.last_update, None);
+        assert_eq!(dto.videos.continuation, None);
     }
 
     #[test]

@@ -37,7 +37,7 @@ reqwest = { version = "0.13.5", default-features = false, features = [
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 rsa = "0.10.0"
 rust-embed = { version = "8.14.0", features = ["mime-guess"] }
-rustypipe = { package = "oxipipe", git = "https://github.com/oxistream/oxipipe", rev = "303bcfa50d734e2d7f08ee73eca13f7361cb21ba", default-features = false, features = [
+rustypipe = { package = "oxipipe", git = "https://github.com/oxistream/oxipipe", rev = "b3cc76d7e95586a8941abc50cf0c94cbf80b0e1b", default-features = false, features = [
   "rustls-tls-webpki-roots",
 ] }
 serde = { version = "1.0.229", features = ["derive"] }
