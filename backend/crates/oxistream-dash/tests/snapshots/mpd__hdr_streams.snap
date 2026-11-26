@@ -1,0 +1,54 @@
+---
+source: crates/oxistream-dash/tests/mpd.rs
+expression: "mpd(&video, &audio)"
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT212.091S" minBufferTime="PT1.5S">
+  <Period>
+    <AdaptationSet id="0" contentType="video" mimeType="video/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="248" codecs="vp9" bandwidth="2646000" width="1920" height="1080" frameRate="60">
+        <BaseURL>https://oxistream.example/proxy/video/abc248?sig=x</BaseURL>
+        <SegmentBase indexRange="220-940">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <EssentialProperty schemeIdUri="urn:mpeg:mpegB:cicp:TransferCharacteristics" value="16"/>
+      <SupplementalProperty schemeIdUri="urn:mpeg:mpegB:cicp:ColourPrimaries" value="9"/>
+      <SupplementalProperty schemeIdUri="urn:mpeg:mpegB:cicp:MatrixCoefficients" value="9"/>
+      <Representation id="336" codecs="vp09.02.41.10.01.09.16.09.00" bandwidth="8400000" width="2560" height="1440" frameRate="60">
+        <BaseURL>https://oxistream.example/proxy/video/abc336?sig=x</BaseURL>
+        <SegmentBase indexRange="219-1143">
+          <Initialization range="0-218"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="337" codecs="vp09.02.51.10.01.09.16.09.00" bandwidth="21000000" width="3840" height="2160" frameRate="60">
+        <BaseURL>https://oxistream.example/proxy/video/abc337?sig=x</BaseURL>
+        <SegmentBase indexRange="219-1143">
+          <Initialization range="0-218"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="2" contentType="video" mimeType="video/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <EssentialProperty schemeIdUri="urn:mpeg:mpegB:cicp:TransferCharacteristics" value="16"/>
+      <SupplementalProperty schemeIdUri="urn:mpeg:mpegB:cicp:ColourPrimaries" value="9"/>
+      <SupplementalProperty schemeIdUri="urn:mpeg:mpegB:cicp:MatrixCoefficients" value="9"/>
+      <Representation id="701" codecs="av01.0.13M.10.0.110.09.16.09.0" bandwidth="15000000" width="3840" height="2160" frameRate="60">
+        <BaseURL>https://oxistream.example/proxy/video/abc701?sig=x</BaseURL>
+        <SegmentBase indexRange="700-1251">
+          <Initialization range="0-699"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="3" contentType="audio" mimeType="audio/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="251" codecs="opus" bandwidth="141000" audioSamplingRate="48000">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc251?sig=x</BaseURL>
+        <SegmentBase indexRange="259-882">
+          <Initialization range="0-258"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
