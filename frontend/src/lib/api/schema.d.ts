@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/api/v0/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with a local account. */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the current session. Succeeds without a session, too. */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in account. */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a local account and sign in. The first account of an instance becomes an admin. */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/channels/{id}": {
         parameters: {
             query?: never;
@@ -144,6 +212,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The signed-in account. */
+        Account: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            role: components["schemas"]["UserRole"];
+            username: string;
+        };
+        /** @description Which sign-in methods this instance offers. */
+        AuthCapabilities: {
+            /** @description Local accounts with username and password. */
+            local_enabled: boolean;
+            /** @description Single sign-on via `OpenID` Connect. */
+            oidc_enabled: boolean;
+            /** @description New local accounts can be created. */
+            registration_enabled: boolean;
+            /** @description Anonymous users cannot use the API or proxy. */
+            require_login: boolean;
+        };
         ChannelDetails: {
             avatar: components["schemas"]["Thumbnail"][];
             banner: components["schemas"]["Thumbnail"][];
@@ -177,15 +265,31 @@ export interface components {
             subscriber_count?: number | null;
             verified: boolean;
         };
+        Credentials: {
+            /** @description 12 to 256 characters. */
+            password: string;
+            /** @description 3 to 32 letters, digits, dots, dashes or underscores. Case-insensitive for sign-in. */
+            username: string;
+        };
         ErrorBody: {
             code: components["schemas"]["ErrorCode"];
+            /** @description Per-field errors for `validation_failed`. */
+            fields?: {
+                [key: string]: components["schemas"]["FieldError"];
+            } | null;
             message: string;
             /** @description Machine-readable detail, e.g. the unavailability reason. */
             reason?: string | null;
         };
         /** @enum {string} */
-        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error";
+        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "internal";
+        /**
+         * @description Why a request field was rejected.
+         * @enum {string}
+         */
+        FieldError: "required" | "format" | "length" | "too_long" | "taken";
         InstanceInfo: {
+            auth: components["schemas"]["AuthCapabilities"];
             /** @description Software name. */
             name: string;
             /** @description Server version. */
@@ -245,6 +349,8 @@ export interface components {
             /** Format: int32 */
             width: number;
         };
+        /** @enum {string} */
+        UserRole: "user" | "admin";
         VideoDetails: {
             channel: components["schemas"]["ChannelRef"];
             /** @description Plain text; links are written out as URLs. */
@@ -301,6 +407,196 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Signed in, session cookie set */
+            200: {
+                headers: {
+                    /** @description `oxistream_session` cookie */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown username or wrong password */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Account disabled, local accounts disabled, or foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out, session cookie cleared */
+            204: {
+                headers: {
+                    /** @description Expired `oxistream_session` cookie */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Account created, session cookie set */
+            201: {
+                headers: {
+                    /** @description `oxistream_session` cookie */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Local accounts or registration disabled, or foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Username taken (`fields.username = taken`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid username or password, see `fields` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     channel: {
         parameters: {
             query?: never;
