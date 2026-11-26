@@ -11,7 +11,8 @@
 		class: className
 	}: {
 		src?: string;
-		count: number;
+		/** Left out when YouTube does not say how many videos there are. */
+		count?: number;
 		class?: string;
 	} = $props();
 
@@ -37,11 +38,13 @@
 				<ListVideoIcon class="size-8" />
 			</div>
 		{/if}
-		<span
-			class="absolute end-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-sm bg-overlay px-1.5 py-px text-xs font-medium text-overlay-foreground tabular"
-		>
-			<ListVideoIcon class="size-3.5" />
-			{m.playlist_video_count({ count, formatted: formatNumber(count, locale) })}
-		</span>
+		{#if count !== undefined}
+			<span
+				class="absolute end-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-sm bg-overlay px-1.5 py-px text-xs font-medium text-overlay-foreground tabular"
+			>
+				<ListVideoIcon class="size-3.5" />
+				{m.playlist_video_count({ count, formatted: formatNumber(count, locale) })}
+			</span>
+		{/if}
 	</div>
 </div>

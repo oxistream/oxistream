@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { createHandleQuery } from '#lib/api/channel.js';
 	import ChannelView from '#lib/components/channel/channel-view.svelte';
@@ -11,6 +12,7 @@
 {#key handle}
 	<ChannelView
 		id={resolved.data}
+		base={resolve('/@[handle=handle]', { handle })}
 		resolving={resolved.isPending}
 		resolveError={resolved.error ?? undefined}
 		onretry={() => void resolved.refetch()}

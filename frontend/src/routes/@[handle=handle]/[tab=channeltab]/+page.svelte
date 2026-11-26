@@ -1,0 +1,23 @@
+<script lang="ts">
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { createHandleQuery } from '#lib/api/channel.js';
+	import { parseChannelTab } from '#lib/channel-tabs.js';
+	import ChannelView from '#lib/components/channel/channel-view.svelte';
+
+	// The URL stays on /@handle, like on YouTube; the handle is only resolved to load the channel.
+	const handle = $derived(page.params.handle ?? '');
+	const tab = $derived(parseChannelTab(page.params.tab));
+	const resolved = createHandleQuery(() => handle);
+</script>
+
+{#key handle}
+	<ChannelView
+		id={resolved.data}
+		base={resolve('/@[handle=handle]', { handle })}
+		{tab}
+		resolving={resolved.isPending}
+		resolveError={resolved.error ?? undefined}
+		onretry={() => void resolved.refetch()}
+	/>
+{/key}
