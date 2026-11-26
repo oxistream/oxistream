@@ -409,6 +409,221 @@
         }
       }
     },
+    "/api/v0/blocks": {
+      "get": {
+        "tags": [
+          "blocks"
+        ],
+        "summary": "Channels the signed-in user blocked, most recently blocked first.",
+        "operationId": "list_blocks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlockedChannel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/blocks/{channel_id}": {
+      "put": {
+        "tags": [
+          "blocks"
+        ],
+        "summary": "Block a channel. Its videos, shorts and playlists are left out of search, related videos and\ntrending, and a subscription to it ends. Subscribing to the channel again lifts the block.\nIdempotent.",
+        "operationId": "block",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Was already blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedChannel"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedChannel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "blocks"
+        ],
+        "summary": "Unblock a channel. Succeeds if not blocked, too.",
+        "operationId": "unblock",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not blocked anymore"
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/channels/{id}": {
       "get": {
         "tags": [
@@ -4201,6 +4416,35 @@
           "require_login": {
             "type": "boolean",
             "description": "Anonymous users cannot use the API or proxy."
+          }
+        }
+      },
+      "BlockedChannel": {
+        "type": "object",
+        "description": "A channel the signed-in user blocked.",
+        "required": [
+          "id",
+          "name",
+          "avatar",
+          "blocked_at"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "blocked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "As it was when the channel was blocked."
           }
         }
       },

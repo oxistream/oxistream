@@ -6,11 +6,12 @@ use std::sync::Arc;
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
-    HistoryRepository, LikeRepository, PgChannelRepository, PgHistoryRepository, PgLikeRepository,
-    PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgSessionRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PgYouTubePlaylistRepository, PlaylistFollowRepository, PlaylistRepository,
-    SubscriptionRepository, UserSettingsRepository, VideoRepository,
+    ChannelBlockRepository, HistoryRepository, LikeRepository, PgChannelBlockRepository,
+    PgChannelRepository, PgHistoryRepository, PgLikeRepository, PgPlaylistFollowRepository,
+    PgPlaylistRepository, PgPool, PgSessionRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
+    PlaylistFollowRepository, PlaylistRepository, SubscriptionRepository, UserSettingsRepository,
+    VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -45,6 +46,8 @@ pub struct AppState {
     /// Followed YouTube playlists.
     pub follows: Arc<dyn PlaylistFollowRepository>,
     pub likes: Arc<dyn LikeRepository>,
+    /// Blocked channels.
+    pub blocks: Arc<dyn ChannelBlockRepository>,
     pub feed: feed::Feed,
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
@@ -164,6 +167,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
             follows: Arc::new(PgPlaylistFollowRepository::new(db.clone())),
             likes: Arc::new(PgLikeRepository::new(db.clone())),
+            blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
             feed,
             db: db.clone(),
             metrics,

@@ -10,6 +10,7 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use super::blocks::BlockedChannels;
 use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{
@@ -65,17 +66,18 @@ async fn trending(
     State(state): State<AppState>,
     params: Result<Query<TrendingParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<TrendingVideos>, ApiError> {
     let Query(params) = params
         .map_err(|_| ApiError::bad_request("`category` must be `podcasts`, `gaming` or `news`"))?;
     let category = params.category.unwrap_or_default();
     let videos = state.youtube.trending(category.into(), lang).await?;
-    Ok(Json(TrendingVideos::from_rp(
-        state.youtube.trending_region(),
-        category,
-        &videos,
-        &|url| state.image_url(url),
-    )))
+    let mut trending =
+        TrendingVideos::from_rp(state.youtube.trending_region(), category, &videos, &|url| {
+            state.image_url(url)
+        });
+    blocked.retain(&mut trending.items);
+    Ok(Json(trending))
 }
 
 /// Video details and related videos.
@@ -99,6 +101,7 @@ async fn video(
     State(state): State<AppState>,
     Path(id): Path<String>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<VideoDetails>, ApiError> {
     let (details, player) = tokio::join!(
         state.youtube.video_details(&id, lang),
@@ -124,6 +127,7 @@ async fn video(
         &|subtitle| state.subtitle_url(&id, subtitle),
     );
     video.storyboard_url = player.as_deref().and_then(storyboard::track_url);
+    blocked.retain(&mut video.related);
     Ok(Json(video))
 }
 
@@ -214,6 +218,7 @@ async fn search(
     State(state): State<AppState>,
     params: Result<Query<SearchParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<SearchPage>, ApiError> {
     let Query(params) = params.map_err(|_| {
         ApiError::bad_request("`type` must be `all`, `videos`, `shorts`, `channels` or `playlists`")
@@ -230,6 +235,7 @@ async fn search(
         SearchPage::from_rp(result.items, result.corrected_query, &img)
     };
     page.items.retain(|item| kind.matches(item));
+    blocked.retain(&mut page.items);
     Ok(Json(page))
 }
 
@@ -287,11 +293,14 @@ async fn channel(
     State(state): State<AppState>,
     Path(id): Path<String>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<ChannelDetails>, ApiError> {
     let channel = state.youtube.channel_videos(&id, lang).await?;
-    Ok(Json(ChannelDetails::from_rp(channel, &|url| {
-        state.image_url(url)
-    })))
+    let mut details = ChannelDetails::from_rp(channel, &|url| state.image_url(url));
+    if blocked.contains(&details.id) {
+        details.videos = VideoPage::default();
+    }
+    Ok(Json(details))
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
@@ -329,10 +338,14 @@ async fn channel_tab_page(
     tab: ChannelVideoTab,
     params: Result<Query<ChannelTabParams>, QueryRejection>,
     lang: Language,
+    blocked: &BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
     let Query(params) = params
         .map_err(|_| ApiError::bad_request("`sort` must be `latest`, `popular` or `oldest`"))?;
     check_channel_id(id)?;
+    if blocked.contains(id) {
+        return Ok(Json(VideoPage::default()));
+    }
     let page = if let Some(token) = non_empty(params.continuation.as_deref()) {
         state
             .youtube
@@ -368,8 +381,9 @@ async fn channel_videos(
     Path(id): Path<String>,
     params: Result<Query<ChannelTabParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
-    channel_tab_page(&state, &id, ChannelVideoTab::Videos, params, lang).await
+    channel_tab_page(&state, &id, ChannelVideoTab::Videos, params, lang, &blocked).await
 }
 
 /// A page of a channel's shorts.
@@ -395,8 +409,9 @@ async fn channel_shorts(
     Path(id): Path<String>,
     params: Result<Query<ChannelTabParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
-    channel_tab_page(&state, &id, ChannelVideoTab::Shorts, params, lang).await
+    channel_tab_page(&state, &id, ChannelVideoTab::Shorts, params, lang, &blocked).await
 }
 
 /// A page of a channel's past, current and upcoming livestreams.
@@ -422,8 +437,9 @@ async fn channel_live(
     Path(id): Path<String>,
     params: Result<Query<ChannelTabParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
-    channel_tab_page(&state, &id, ChannelVideoTab::Live, params, lang).await
+    channel_tab_page(&state, &id, ChannelVideoTab::Live, params, lang, &blocked).await
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -456,8 +472,12 @@ async fn channel_playlists(
     Path(id): Path<String>,
     Query(params): Query<ContinuationParams>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<PlaylistPage>, ApiError> {
     check_channel_id(&id)?;
+    if blocked.contains(&id) {
+        return Ok(Json(PlaylistPage::default()));
+    }
     let page = match non_empty(params.continuation.as_deref()) {
         Some(token) => {
             state
@@ -495,8 +515,12 @@ async fn channel_search(
     Path(id): Path<String>,
     Query(params): Query<SearchParams>,
     ContentLanguage(lang): ContentLanguage,
+    blocked: BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
     check_channel_id(&id)?;
+    if blocked.contains(&id) {
+        return Ok(Json(VideoPage::default()));
+    }
     let page = if let Some(token) = non_empty(params.continuation.as_deref()) {
         state
             .youtube
