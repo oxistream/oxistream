@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import VideoMeta from '#lib/components/video/video-meta.svelte';
 	import VideoThumbnail from '#lib/components/video/video-thumbnail.svelte';
-	import { formatDurationLong } from '#lib/format.js';
+	import { formatDurationLong, formatPercent } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
@@ -33,6 +33,7 @@
 	<VideoThumbnail
 		src={video.thumbnailUrl}
 		durationSeconds={video.durationSeconds}
+		progress={video.progress}
 		class="w-40 shrink-0 rounded-md @xl:w-full @xl:rounded-lg"
 	/>
 	<div class="min-w-0 flex-1 py-0.5 @xl:py-0">
@@ -45,6 +46,8 @@
 			>
 				{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
 						, {m.video_duration({ duration: formatDurationLong(video.durationSeconds, locale) })}
+					</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
+						, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
 					</span>{/if}
 			</a>
 		</h3>

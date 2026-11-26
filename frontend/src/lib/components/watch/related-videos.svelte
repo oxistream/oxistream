@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { createProgressLookup } from '#lib/api/history.js';
+	import { withProgress } from '#lib/api/history-list.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
@@ -16,6 +18,9 @@
 		now?: Date;
 		class?: string;
 	} = $props();
+
+	const progress = createProgressLookup(() => videos.map((v) => v.id));
+	const shown = $derived(withProgress(videos, progress.get));
 
 	const listClass = 'grid gap-3 @xl:grid-cols-2 @xl:gap-x-4 @xl:gap-y-6 @4xl:grid-cols-3';
 </script>
@@ -39,7 +44,7 @@
 		<p class="text-sm text-muted-foreground">{m.watch_related_empty()}</p>
 	{:else}
 		<ul class={listClass}>
-			{#each videos as video (video.id)}
+			{#each shown as video (video.id)}
 				<li class="min-w-0"><RelatedVideoCard {video} {now} /></li>
 			{/each}
 		</ul>

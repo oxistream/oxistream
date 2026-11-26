@@ -97,7 +97,9 @@
 	onMount(() => {
 		const store = player.store;
 		const prefs = readPreferences();
-		const progress = createProgressEmitter((report) => onprogress?.(report));
+		// Bound once: on teardown, the props may already describe the next video.
+		const report = onprogress;
+		const progress = createProgressEmitter((r) => report?.(r));
 
 		let restoredVolume = false;
 		let restoredCaptions = false;

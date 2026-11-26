@@ -53,7 +53,9 @@ export function saveLocalProgress(videoId: string, report: ProgressReport, now =
 }
 
 /** Where to pick up again: unfinished videos resume a few seconds back, finished ones from the start. */
-export function resumePosition(progress: StoredProgress | null): number | null {
+export function resumePosition(
+	progress: Pick<StoredProgress, 'position' | 'finished'> | null
+): number | null {
 	if (!progress || progress.finished || progress.position < 10) return null;
 	return Math.max(0, Math.floor(progress.position - 3));
 }

@@ -6,6 +6,8 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { resolve } from '$app/paths';
+	import { createProgressLookup } from '#lib/api/history.js';
+	import { withProgress } from '#lib/api/history-list.js';
 	import { uniqueBy } from '#lib/api/mapping.js';
 	import { hasPendingChannels } from '#lib/api/subscription-list.js';
 	import {
@@ -28,9 +30,11 @@
 	const pending = $derived(subscriptions.data ? hasPendingChannels(subscriptions.data) : false);
 	const feed = createFeedQuery(() => pending);
 
-	const items = $derived(
+	const listed = $derived(
 		uniqueBy(feed.data?.pages.flatMap((p) => p.items) ?? [], (video) => video.id)
 	);
+	const progress = createProgressLookup(() => listed.map((v) => v.id));
+	const items = $derived(withProgress(listed, progress.get));
 	const noSubscriptions = $derived(subscriptions.data?.length === 0);
 
 	// The last pending channel just landed: load the feed once more to pick up its videos.

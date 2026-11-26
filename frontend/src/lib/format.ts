@@ -14,6 +14,11 @@ export function formatNumber(value: number, locale: string): string {
 	return new Intl.NumberFormat(locale).format(value);
 }
 
+/** Whole percent such as "42%" (en) or "42 %" (de); `share` is between 0 and 1. */
+export function formatPercent(share: number, locale: string): string {
+	return new Intl.NumberFormat(locale, { style: 'percent' }).format(share);
+}
+
 function splitSeconds(totalSeconds: number) {
 	const total = Math.max(0, Math.floor(totalSeconds));
 	return {

@@ -2,19 +2,15 @@
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { page } from '$app/state';
 	import { pickImage } from '#lib/api/mapping.js';
+	import { createProgressReporter, createVideoProgressQuery } from '#lib/api/history.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
-	import type { ProgressReport } from '#lib/components/player/progress.js';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
-	import {
-		readLocalProgress,
-		resumePosition,
-		saveLocalProgress
-	} from '#lib/components/watch/local-progress.js';
+	import { readLocalProgress, resumePosition } from '#lib/components/watch/local-progress.js';
 	import PlayerMessage from '#lib/components/watch/player-message.svelte';
 	import { playableRelated } from '#lib/components/watch/related.js';
 	import RelatedVideos from '#lib/components/watch/related-videos.svelte';
@@ -22,6 +18,7 @@
 	import VideoDetails from '#lib/components/watch/video-details.svelte';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { session } from '#lib/session.svelte.js';
 
 	const THEATER_KEY = 'oxistream:theater';
 
@@ -60,10 +57,21 @@
 				: pageTitle(m.watch_title())
 	);
 
-	// Read once per video: an explicit ?t= wins over where this browser left off.
+	const explicitStart = $derived(parseStartTime(timeParam));
+	const savedProgress = createVideoProgressQuery(() => (explicitStart === null ? videoId : null));
+	const reportProgress = createProgressReporter();
+	// The player reads the start time once, so it waits until the saved position is known.
+	const startKnown = $derived(
+		explicitStart !== null ||
+			(session.ready && (!session.user || !savedProgress.isPending || !videoId))
+	);
+
+	// An explicit ?t= wins over where the user left off.
 	const startTime = $derived.by(() => {
 		if (!videoId) return 0;
-		return parseStartTime(timeParam) ?? resumePosition(readLocalProgress(videoId)) ?? 0;
+		if (explicitStart !== null) return explicitStart;
+		const saved = session.user ? (savedProgress.data ?? null) : readLocalProgress(videoId);
+		return resumePosition(saved) ?? 0;
 	});
 
 	// A new ?t= for the video that is already playing, e.g. from a link in its description.
@@ -85,11 +93,6 @@
 	function toggleTheater() {
 		theater = !theater;
 		writeJson(THEATER_KEY, theater);
-	}
-
-	function saveProgress(id: string) {
-		// Anonymous fallback. Signed-in users will report to the server (#18).
-		return (report: ProgressReport) => saveLocalProgress(id, report);
 	}
 
 	function seek(seconds: number) {
@@ -140,7 +143,7 @@
 						onretry={problem.retry ? retry : undefined}
 						class="watch-frame"
 					/>
-				{:else if details}
+				{:else if details && startKnown}
 					{#key videoId}
 						<Player
 							bind:this={player}
@@ -152,7 +155,7 @@
 							{theater}
 							autoplay
 							ontheatertoggle={toggleTheater}
-							onprogress={saveProgress(videoId)}
+							onprogress={reportProgress(videoId)}
 							class="watch-frame"
 						/>
 					{/key}
