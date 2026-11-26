@@ -1,0 +1,56 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Oxistream API",
+    "description": "HTTP API of the Oxistream server.",
+    "license": {
+      "name": "AGPL-3.0-or-later",
+      "identifier": "AGPL-3.0-or-later"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v0/instance": {
+      "get": {
+        "tags": [
+          "instance"
+        ],
+        "summary": "Basic information about this instance.",
+        "operationId": "instance",
+        "responses": {
+          "200": {
+            "description": "Instance information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "InstanceInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Software name."
+          },
+          "version": {
+            "type": "string",
+            "description": "Server version."
+          }
+        }
+      }
+    }
+  }
+}
