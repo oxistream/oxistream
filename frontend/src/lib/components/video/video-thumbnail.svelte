@@ -6,11 +6,14 @@
 		src,
 		durationSeconds,
 		progress,
+		badge,
 		class: className
 	}: {
 		src?: string;
 		durationSeconds?: number;
 		progress?: number;
+		/** Replaces the duration chip, e.g. for live streams. */
+		badge?: string;
 		class?: string;
 	} = $props();
 
@@ -35,7 +38,13 @@
 			class="size-full object-cover transition-transform duration-(--motion-image) ease-ui group-hover/video:scale-[1.03]"
 		/>
 	{/if}
-	{#if durationSeconds !== undefined}
+	{#if badge}
+		<span
+			class="absolute end-1.5 bottom-1.5 rounded-sm bg-primary px-1.5 py-px text-xs font-semibold text-primary-foreground uppercase"
+		>
+			{badge}
+		</span>
+	{:else if durationSeconds !== undefined}
 		<span
 			class={cn(
 				'absolute end-1.5 rounded-sm bg-overlay px-1.5 py-px text-xs font-medium text-overlay-foreground tabular',

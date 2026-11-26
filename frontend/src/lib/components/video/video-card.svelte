@@ -1,16 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
-	import {
-		formatCompactNumber,
-		formatDate,
-		formatDurationLong,
-		formatRelativeTime
-	} from '#lib/format.js';
+	import { formatDurationLong } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
 	import type { VideoSummary } from '#lib/video.js';
+	import VideoMeta from './video-meta.svelte';
 	import VideoThumbnail from './video-thumbnail.svelte';
 
 	let {
@@ -63,9 +59,9 @@
 					class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 				>
 					{video.title}<span class="sr-only">
-						, {m.video_duration({
-							duration: formatDurationLong(video.durationSeconds, locale)
-						})}{#if watched}, {m.video_watched({ percent: watched })}{/if}
+						{#if video.durationSeconds !== undefined}, {m.video_duration({
+								duration: formatDurationLong(video.durationSeconds, locale)
+							})}{/if}{#if watched}, {m.video_watched({ percent: watched })}{/if}
 					</span>
 				</a>
 			</svelte:element>
@@ -77,16 +73,7 @@
 					{video.channel.name}
 				</a>
 			{/if}
-			<p class="truncate text-xs text-muted-foreground tabular">
-				{m.video_views({
-					count: video.viewCount,
-					formatted: formatCompactNumber(video.viewCount, locale)
-				})}
-				<span aria-hidden="true">·</span>
-				<time datetime={video.publishedAt} title={formatDate(video.publishedAt, locale)}>
-					{formatRelativeTime(video.publishedAt, locale, now)}
-				</time>
-			</p>
+			<VideoMeta {video} {now} />
 		</div>
 	</div>
 </article>

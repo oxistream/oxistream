@@ -11,6 +11,7 @@
 		skeletonCount = 8,
 		layout = 'grid',
 		headingLevel = 3,
+		showChannel = true,
 		now,
 		label,
 		class: className
@@ -21,6 +22,7 @@
 		/** `row` is a single line that scrolls sideways, for shelves such as "Continue watching". */
 		layout?: 'grid' | 'row';
 		headingLevel?: 2 | 3 | 4;
+		showChannel?: boolean;
 		/** Reference time for relative dates; fixed in stories. */
 		now?: Date;
 		label?: string;
@@ -32,14 +34,14 @@
 	{#if loading}
 		<div class="video-list" data-layout={layout} role="status" aria-label={m.video_loading()}>
 			{#each { length: skeletonCount }, i (i)}
-				<VideoCardSkeleton />
+				<VideoCardSkeleton {showChannel} />
 			{/each}
 		</div>
 	{:else}
 		<ul class="video-list" data-layout={layout} aria-label={label}>
 			{#each videos as video (video.id)}
 				<li class="min-w-0">
-					<VideoCard {video} {headingLevel} {now} />
+					<VideoCard {video} {headingLevel} {showChannel} {now} />
 				</li>
 			{/each}
 		</ul>

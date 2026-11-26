@@ -7,12 +7,15 @@
 		name,
 		src,
 		size = 'default',
-		class: className
+		class: className,
+		fallbackClass
 	}: {
 		name: string;
 		src?: string;
 		size?: 'sm' | 'default' | 'lg';
 		class?: string;
+		/** Sizes the initials for avatars larger than `lg`. */
+		fallbackClass?: string;
 	} = $props();
 </script>
 
@@ -21,7 +24,10 @@
 		<!-- The name is always printed next to the avatar, so the image is decorative. -->
 		<Avatar.Image {src} alt="" class="object-cover" />
 	{/if}
-	<Avatar.Fallback class="bg-muted text-xs font-medium text-muted-foreground" aria-hidden="true">
+	<Avatar.Fallback
+		class={cn('bg-muted text-xs font-medium text-muted-foreground', fallbackClass)}
+		aria-hidden="true"
+	>
 		{initials(name)}
 	</Avatar.Fallback>
 </Avatar.Root>

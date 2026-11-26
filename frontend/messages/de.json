@@ -95,5 +95,64 @@
 	],
 	"auth_not_connected": "Konten sind noch nicht angebunden, daher wurde nichts gesendet. Sie folgen in einer späteren Version.",
 	"watch_title": "Ansehen",
-	"channel_title": "Kanal"
+	"channel_title": "Kanal",
+	"search_suggestions_label": "Suchvorschläge",
+	"search_resolving": "Link wird geöffnet …",
+	"search_corrected": "Stattdessen Ergebnisse für „{query}“",
+	"search_prompt_title": "Videos, Kanäle und Playlists suchen",
+	"search_prompt_body": "Gib etwas ins Suchfeld ein oder füge einen YouTube-Link ein, um ihn direkt zu öffnen.",
+	"search_empty_title": "Keine Ergebnisse für „{query}“",
+	"search_empty_body": "Prüfe die Schreibweise oder versuche es mit weniger, allgemeineren Begriffen.",
+	"search_error_title": "Suche fehlgeschlagen",
+	"search_error_body": "Der Server hat keine Ergebnisse von YouTube erhalten. Versuche es gleich noch einmal.",
+	"search_loading": "Ergebnisse werden geladen",
+	"search_results_label": "Suchergebnisse",
+	"search_load_more": "Mehr laden",
+	"search_loading_more": "Wird geladen …",
+	"search_end": "Keine weiteren Ergebnisse",
+	"search_live": "Live",
+	"search_verified": "Verifiziert",
+	"search_playlist": "Playlist",
+	"search_playlist_videos": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Video",
+				"countPlural=*": "{formatted} Videos"
+			}
+		}
+	],
+	"search_playlist_soon": "Playlists von YouTube folgen in einer späteren Version.",
+	"channel_subscribers": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Abonnent",
+				"countPlural=*": "{formatted} Abonnenten"
+			}
+		}
+	],
+	"channel_video_count": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} Video",
+				"countPlural=*": "{formatted} Videos"
+			}
+		}
+	],
+	"channel_subscribe": "Abonnieren",
+	"channel_subscribe_soon": "Abos folgen in einer späteren Version.",
+	"channel_videos": "Videos",
+	"channel_loading": "Kanal wird geladen",
+	"channel_more": "Mehr",
+	"channel_less": "Weniger",
+	"channel_not_found_title": "Kanal nicht gefunden",
+	"channel_not_found_body": "Diesen Kanal gibt es nicht oder er ist nicht mehr verfügbar.",
+	"channel_error_title": "Kanal konnte nicht geladen werden",
+	"channel_no_videos_title": "Noch keine Videos",
+	"channel_no_videos_body": "Dieser Kanal hat noch keine Videos veröffentlicht."
 }
