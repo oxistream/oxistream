@@ -70,6 +70,9 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - Exactly one OIDC provider, by design. Authorization code flow with PKCE (`openidconnect`), auto-provisioning, identity is `(issuer, sub)`, never email. Admin role via configurable groups claim.
 - Back-channel logout: validate the logout token manually against JWKS. Check `iss`, `aud`, `iat`, the `events` claim, presence of `sid` or `sub`, and absence of `nonce`; store `jti` to reject replays. Then end matching sessions.
 - Server-side sessions in DB; httpOnly, Secure, SameSite=Lax cookie; Origin check. No JWT sessions.
+  - Cookie `oxistream_session`: random 256-bit token, only its SHA-256 is stored. Sliding expiry (`OXISTREAM_SESSION_TTL_DAYS`, default 30), renewed at most every 5 min.
+  - Non-GET requests need `Origin` (or `Referer`) matching the `Host` header or `OXISTREAM_PUBLIC_URL` (optional, for proxies that rewrite `Host`), else 403.
+  - ENV: `OXISTREAM_AUTH_LOCAL_ENABLED`, `OXISTREAM_REGISTRATION_ENABLED` (both default `true`), `OXISTREAM_COOKIE_SECURE` (default `true`, `false` only for plain-HTTP dev).
 - `OXISTREAM_REQUIRE_LOGIN` (default `false`): anonymous users may search and watch. Subscriptions, playlists and history need an account; anonymous progress lives in localStorage.
 
 ### YouTube data
