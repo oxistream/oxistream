@@ -1,0 +1,28 @@
+---
+source: crates/oxistream-dash/tests/mpd.rs
+expression: xml
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT212.091S" minBufferTime="PT1.5S">
+  <Period>
+    <AdaptationSet id="0" contentType="video" mimeType="video/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="137" codecs="avc1.640028" bandwidth="4350000" width="1920" height="1080" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/x?a=1&amp;b=&lt;2&gt;&amp;c=&quot;3&quot;</BaseURL>
+        <SegmentBase indexRange="740-1231">
+          <Initialization range="0-739"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="audio" mimeType="audio/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1" lang="fr" selectionPriority="2">
+      <Label>Français &lt;dub&gt; &amp; &quot;more&quot;</Label>
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+      <Representation id="140-fr.3" codecs="mp4a.40.2" bandwidth="130000" audioSamplingRate="44100">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc140?sig=x</BaseURL>
+        <SegmentBase indexRange="632-1135">
+          <Initialization range="0-631"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>

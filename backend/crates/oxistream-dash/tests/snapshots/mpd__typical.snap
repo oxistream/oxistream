@@ -1,0 +1,144 @@
+---
+source: crates/oxistream-dash/tests/mpd.rs
+expression: "mpd(&typical_video(), &typical_audio())"
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT212.091S" minBufferTime="PT1.5S">
+  <Period>
+    <AdaptationSet id="0" contentType="video" mimeType="video/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="160" codecs="avc1.4d400c" bandwidth="113000" width="256" height="144" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc160?sig=x</BaseURL>
+        <SegmentBase indexRange="738-1229">
+          <Initialization range="0-737"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="133" codecs="avc1.4d4015" bandwidth="248000" width="426" height="240" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc133?sig=x</BaseURL>
+        <SegmentBase indexRange="739-1230">
+          <Initialization range="0-738"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="134" codecs="avc1.4d401e" bandwidth="553000" width="640" height="360" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc134?sig=x</BaseURL>
+        <SegmentBase indexRange="739-1230">
+          <Initialization range="0-738"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="135" codecs="avc1.4d401f" bandwidth="1155000" width="854" height="480" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc135?sig=x</BaseURL>
+        <SegmentBase indexRange="739-1230">
+          <Initialization range="0-738"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="136" codecs="avc1.4d401f" bandwidth="2310000" width="1280" height="720" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc136?sig=x</BaseURL>
+        <SegmentBase indexRange="739-1230">
+          <Initialization range="0-738"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="137" codecs="avc1.640028" bandwidth="4350000" width="1920" height="1080" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc137?sig=x</BaseURL>
+        <SegmentBase indexRange="740-1231">
+          <Initialization range="0-739"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="278" codecs="vp9" bandwidth="95000" width="256" height="144" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc278?sig=x</BaseURL>
+        <SegmentBase indexRange="219-936">
+          <Initialization range="0-218"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="242" codecs="vp9" bandwidth="224000" width="426" height="240" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc242?sig=x</BaseURL>
+        <SegmentBase indexRange="220-937">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="243" codecs="vp9" bandwidth="405000" width="640" height="360" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc243?sig=x</BaseURL>
+        <SegmentBase indexRange="220-938">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="244" codecs="vp9" bandwidth="750000" width="854" height="480" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc244?sig=x</BaseURL>
+        <SegmentBase indexRange="220-938">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="247" codecs="vp9" bandwidth="1505000" width="1280" height="720" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc247?sig=x</BaseURL>
+        <SegmentBase indexRange="220-939">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="248" codecs="vp9" bandwidth="2646000" width="1920" height="1080" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc248?sig=x</BaseURL>
+        <SegmentBase indexRange="220-940">
+          <Initialization range="0-219"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="2" contentType="video" mimeType="video/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="394" codecs="av01.0.00M.08" bandwidth="83000" width="256" height="144" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc394?sig=x</BaseURL>
+        <SegmentBase indexRange="700-1191">
+          <Initialization range="0-699"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="398" codecs="av01.0.05M.08" bandwidth="1135000" width="1280" height="720" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc398?sig=x</BaseURL>
+        <SegmentBase indexRange="700-1191">
+          <Initialization range="0-699"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="399" codecs="av01.0.08M.08" bandwidth="2105000" width="1920" height="1080" frameRate="30">
+        <BaseURL>https://oxistream.example/proxy/video/abc399?sig=x</BaseURL>
+        <SegmentBase indexRange="700-1191">
+          <Initialization range="0-699"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="3" contentType="audio" mimeType="audio/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="139" codecs="mp4a.40.5" bandwidth="49000" audioSamplingRate="44100">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc139?sig=x</BaseURL>
+        <SegmentBase indexRange="641-1144">
+          <Initialization range="0-640"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="140" codecs="mp4a.40.2" bandwidth="130000" audioSamplingRate="44100">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc140?sig=x</BaseURL>
+        <SegmentBase indexRange="632-1135">
+          <Initialization range="0-631"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet id="4" contentType="audio" mimeType="audio/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1">
+      <Representation id="249" codecs="opus" bandwidth="54000" audioSamplingRate="48000">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc249?sig=x</BaseURL>
+        <SegmentBase indexRange="259-882">
+          <Initialization range="0-258"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="250" codecs="opus" bandwidth="71000" audioSamplingRate="48000">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc250?sig=x</BaseURL>
+        <SegmentBase indexRange="259-882">
+          <Initialization range="0-258"/>
+        </SegmentBase>
+      </Representation>
+      <Representation id="251" codecs="opus" bandwidth="141000" audioSamplingRate="48000">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+        <BaseURL>https://oxistream.example/proxy/video/abc251?sig=x</BaseURL>
+        <SegmentBase indexRange="259-882">
+          <Initialization range="0-258"/>
+        </SegmentBase>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>
