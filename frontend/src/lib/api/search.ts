@@ -1,5 +1,6 @@
 import { createInfiniteQuery, createQuery, keepPreviousData } from '@tanstack/svelte-query';
 import { getLocale } from '#lib/paraglide/runtime.js';
+import type { SearchType } from '#lib/search-types.js';
 import type { ChannelSummary, VideoSummary } from '#lib/video.js';
 import type { ResolvedTarget } from '#lib/youtube.js';
 import { api } from './client';
@@ -56,13 +57,17 @@ export function toSearchResult(item: SearchItem): SearchResult {
 
 async function fetchSearchPage(
 	q: string,
+	type: SearchType,
 	locale: string,
 	continuation: string | undefined,
 	signal: AbortSignal
 ): Promise<SearchPage> {
 	const page = unwrap(
 		await api.GET('/api/v0/search', {
-			params: { query: { q, continuation }, header: { 'Accept-Language': locale } },
+			params: {
+				query: { q, continuation, type: type === 'all' ? undefined : type },
+				header: { 'Accept-Language': locale }
+			},
 			signal
 		})
 	);
@@ -74,14 +79,15 @@ async function fetchSearchPage(
 }
 
 /** Paged search results; the next page is requested with the previous page's continuation. */
-export function createSearchQuery(query: () => string) {
+export function createSearchQuery(query: () => string, type: () => SearchType = () => 'all') {
 	return createInfiniteQuery(() => {
 		const q = query().trim();
+		const kind = type();
 		const locale = getLocale();
 		return {
-			queryKey: ['search', locale, q] as const,
+			queryKey: ['search', locale, kind, q] as const,
 			queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-				fetchSearchPage(q, locale, pageParam, signal),
+				fetchSearchPage(q, kind, locale, pageParam, signal),
 			initialPageParam: undefined as string | undefined,
 			getNextPageParam: (last: SearchPage) => last.continuation,
 			enabled: q.length > 0,
