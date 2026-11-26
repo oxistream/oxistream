@@ -55,6 +55,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the provider sends the browser back after sign-in.
+         * @description On success, starts a session and redirects to the target given to `/auth/oidc/login`.
+         *     Unknown identities get a new account; the first account of an instance becomes an admin.
+         *     Failures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,
+         *     `oidc_disabled` or `account_disabled`.
+         */
+        get: operations["oidc_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/auth/oidc/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start single sign-on with the configured provider.
+         * @description Redirects the browser to the provider. Failures redirect to `/login?error=` with
+         *     `oidc_disabled` or `oidc_unavailable`.
+         */
+        get: operations["oidc_login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/auth/register": {
         parameters: {
             query?: never;
@@ -225,8 +269,10 @@ export interface components {
         AuthCapabilities: {
             /** @description Local accounts with username and password. */
             local_enabled: boolean;
-            /** @description Single sign-on via `OpenID` Connect. */
+            /** @description Single sign-on via `OpenID` Connect, started at `/api/v0/auth/oidc/login`. */
             oidc_enabled: boolean;
+            /** @description Label of the single sign-on button; `null` without single sign-on. */
+            oidc_name?: string | null;
             /** @description New local accounts can be created. */
             registration_enabled: boolean;
             /** @description Anonymous users cannot use the API or proxy. */
@@ -294,6 +340,13 @@ export interface components {
             name: string;
             /** @description Server version. */
             version: string;
+        };
+        LoggedOut: {
+            /**
+             * @description For sessions started via single sign-on: the provider's end-session URL to navigate
+             *     to, which signs out there, too (RP-initiated logout). `null` otherwise.
+             */
+            end_session_url?: string | null;
         };
         PlaylistSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
@@ -495,13 +548,15 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Signed out, session cookie cleared */
-            204: {
+            200: {
                 headers: {
                     /** @description Expired `oxistream_session` cookie */
                     "set-cookie"?: string;
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LoggedOut"];
+                };
             };
             /** @description Foreign origin */
             403: {
@@ -539,6 +594,60 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+        };
+    };
+    oidc_callback: {
+        parameters: {
+            query?: {
+                /** @description Authorization code. */
+                code?: string;
+                state?: string;
+                /** @description Error code if the provider did not authorize the request. */
+                error?: string;
+                error_description?: string;
+                /** @description Issuer identifier (RFC 9207), checked if present. */
+                iss?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description To the sign-in target, or to `/login?error=` */
+            302: {
+                headers: {
+                    location?: string;
+                    /** @description `oxistream_session` cookie; clears `oxistream_oidc` */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    oidc_login: {
+        parameters: {
+            query?: {
+                /** @description Same-origin path to continue to after signing in. */
+                redirect?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description To the provider's authorization endpoint, or to `/login?error=` */
+            302: {
+                headers: {
+                    location?: string;
+                    /** @description Short-lived `oxistream_oidc` cookie holding the login state */
+                    "set-cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

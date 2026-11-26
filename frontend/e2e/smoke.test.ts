@@ -50,7 +50,7 @@ test('login page renders and validates', async ({ page }) => {
 	await page.goto('/login');
 	await expect(page).toHaveTitle('Sign in · Oxistream');
 	await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Oxistream' })).toBeVisible();
-	await expect(page.getByTestId('sso-button')).toBeVisible();
+	await expect(page.getByTestId('sso-button')).toHaveCount(0);
 
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	const username = page.getByLabel('Username');

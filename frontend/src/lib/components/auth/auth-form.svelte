@@ -13,8 +13,7 @@
 		busy = false,
 		local = true,
 		onsubmit,
-		onsso,
-		ssoDisabled = false,
+		sso,
 		children,
 		footer
 	}: {
@@ -28,8 +27,8 @@
 		/** Shows the username and password form; off when only SSO is offered. */
 		local?: boolean;
 		onsubmit: (event: SubmitEvent) => void;
-		onsso?: () => void;
-		ssoDisabled?: boolean;
+		/** Single sign-on button, shown when the instance offers it. */
+		sso?: { label: string; href: string };
 		children: Snippet;
 		footer?: Snippet;
 	} = $props();
@@ -45,17 +44,17 @@
 	</div>
 
 	<div class="flex flex-col gap-5 rounded-xl border bg-background p-6 shadow-xs">
-		{#if onsso}
+		{#if sso}
+			<!-- A full page load: the API redirects to the provider. -->
 			<Button
 				variant="outline"
 				class="h-10 w-full"
-				onclick={onsso}
-				disabled={ssoDisabled}
-				title={ssoDisabled ? m.auth_sso_unavailable() : undefined}
+				href={sso.href}
+				data-sveltekit-reload
 				data-testid="sso-button"
 			>
 				<KeyRoundIcon />
-				{m.auth_sso()}
+				{sso.label}
 			</Button>
 			{#if local}
 				<div class="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
@@ -80,7 +79,7 @@
 					</p>
 				</div>
 			</form>
-		{:else}
+		{:else if status || !sso}
 			<p role="status" data-testid="form-status" class="text-sm text-pretty text-muted-foreground">
 				{status || m.auth_local_disabled()}
 			</p>

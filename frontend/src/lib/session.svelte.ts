@@ -80,8 +80,14 @@ class Session {
 		this.#client?.setQueryData(sessionKeys.me, account);
 	}
 
+	/** Ends the session; single sign-on sessions continue to the provider's logout page. */
 	async signOut() {
-		await api.POST('/api/v0/auth/logout').catch(() => undefined);
+		const result = await api.POST('/api/v0/auth/logout').catch(() => undefined);
+		const endSessionUrl = result?.data?.end_session_url;
+		if (endSessionUrl) {
+			window.location.assign(endSessionUrl);
+			return;
+		}
 		const client = this.#client;
 		if (!client) return;
 		// Drop everything that may have been loaded for the previous user.

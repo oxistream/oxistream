@@ -2,7 +2,7 @@
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { failureMessage, login } from '#lib/auth/api.js';
+	import { failureMessage, login, oidcErrorMessage, ssoButton } from '#lib/auth/api.js';
 	import { authHref, redirectTarget } from '#lib/auth/links.js';
 	import { validateLogin, type Errors, type LoginInput } from '#lib/auth/validation.js';
 	import AuthForm from '#lib/components/auth/auth-form.svelte';
@@ -15,11 +15,13 @@
 	let username = $state('');
 	let password = $state('');
 	let errors = $state<Errors<LoginInput>>({});
-	let status = $state('');
+	// A failed single sign-on lands here with `?error=`.
+	let status = $state(oidcErrorMessage(page.url.searchParams.get('error')) ?? '');
 	let busy = $state(false);
 
 	const target = $derived(redirectTarget(page.url));
 	const capabilities = $derived(session.capabilities);
+	const sso = $derived(ssoButton(capabilities, target));
 
 	$effect(() => {
 		// Signed in already, or just now: continue where the user came from.
@@ -79,8 +81,7 @@
 	{status}
 	{busy}
 	{onsubmit}
-	onsso={() => {}}
-	ssoDisabled={!capabilities?.oidc_enabled}
+	{sso}
 >
 	<FormField
 		id="username"
