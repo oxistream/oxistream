@@ -3,7 +3,7 @@ import { getLocale } from '#lib/paraglide/runtime.js';
 import type { VideoSummary } from '#lib/video.js';
 import { api } from './client';
 import { ApiError, pickImage, toVideo, uniqueBy, unwrap } from './mapping';
-import { isLocalPlaylistId, isMixId } from './playlist-order';
+import { isLikedListId, isLocalPlaylistId, isMixId } from './playlist-order';
 import type { components } from './schema';
 
 type Schemas = components['schemas'];
@@ -64,7 +64,13 @@ export function mergeYouTubePlaylist(
 
 /** Any ID that is neither ours nor a mix is looked up on YouTube. */
 export function isYouTubePlaylistId(id: string | null | undefined): id is string {
-	return typeof id === 'string' && id.length > 0 && !isLocalPlaylistId(id) && !isMixId(id);
+	return (
+		typeof id === 'string' &&
+		id.length > 0 &&
+		!isLocalPlaylistId(id) &&
+		!isLikedListId(id) &&
+		!isMixId(id)
+	);
 }
 
 export function createYouTubePlaylistQuery(id: () => string | null | undefined) {

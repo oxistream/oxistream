@@ -101,7 +101,7 @@ test('watch page renders details, player and related videos', async ({ page }) =
 
 	await expect(page.getByRole('link', { name: 'Hammer & Tongs' })).toBeVisible();
 	await expect(page.getByText('284K subscribers')).toBeVisible();
-	await expect(page.getByText('18K likes')).toBeVisible();
+	await expect(page.getByTestId('like-button')).toHaveText(/18K/);
 	await expect(page.getByTestId('subscribe-button')).toHaveAttribute(
 		'href',
 		`/login?redirect=%2Fwatch%3Fv%3D${ID}`

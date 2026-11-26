@@ -22,14 +22,19 @@
 		playlistId,
 		items,
 		editable = false,
+		reorderable = editable,
+		removeLabel = m.playlist_remove_item(),
 		onmove,
 		onremove,
 		class: className
 	}: {
 		playlistId: string;
 		items: VideoSummary[];
-		/** Shows drag handles and item menus. */
+		/** Shows item menus. */
 		editable?: boolean;
+		/** Shows drag handles and move actions; defaults to `editable`. */
+		reorderable?: boolean;
+		removeLabel?: string;
 		onmove?: (video: VideoSummary, from: number, to: number) => void;
 		onremove?: (video: VideoSummary) => void;
 		class?: string;
@@ -116,12 +121,12 @@
 		<li
 			class={cn(
 				'group/video relative flex items-center gap-2 rounded-lg py-1.5 pe-1 transition-colors duration-(--motion-in) ease-ui hover:bg-muted/60 sm:gap-3',
-				editable ? 'ps-0' : 'ps-2',
+				reorderable ? 'ps-0' : 'ps-2',
 				dragging && 'z-10 bg-muted shadow-md ring-1 ring-border'
 			)}
 			data-testid="playlist-item"
 		>
-			{#if editable}
+			{#if reorderable}
 				<button
 					type="button"
 					class="relative z-10 flex h-11 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
@@ -173,35 +178,37 @@
 						<EllipsisVerticalIcon />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-52">
-						<DropdownMenu.Item disabled={index === 0} onSelect={() => move(video, index, 0)}>
-							<ArrowUpToLineIcon />
-							{m.playlist_move_top()}
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							disabled={index === 0}
-							onSelect={() => move(video, index, index - 1)}
-						>
-							<ArrowUpIcon />
-							{m.playlist_move_up()}
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							disabled={index === items.length - 1}
-							onSelect={() => move(video, index, index + 1)}
-						>
-							<ArrowDownIcon />
-							{m.playlist_move_down()}
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							disabled={index === items.length - 1}
-							onSelect={() => move(video, index, items.length - 1)}
-						>
-							<ArrowDownToLineIcon />
-							{m.playlist_move_bottom()}
-						</DropdownMenu.Item>
-						<DropdownMenu.Separator />
+						{#if reorderable}
+							<DropdownMenu.Item disabled={index === 0} onSelect={() => move(video, index, 0)}>
+								<ArrowUpToLineIcon />
+								{m.playlist_move_top()}
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								disabled={index === 0}
+								onSelect={() => move(video, index, index - 1)}
+							>
+								<ArrowUpIcon />
+								{m.playlist_move_up()}
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								disabled={index === items.length - 1}
+								onSelect={() => move(video, index, index + 1)}
+							>
+								<ArrowDownIcon />
+								{m.playlist_move_down()}
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								disabled={index === items.length - 1}
+								onSelect={() => move(video, index, items.length - 1)}
+							>
+								<ArrowDownToLineIcon />
+								{m.playlist_move_bottom()}
+							</DropdownMenu.Item>
+							<DropdownMenu.Separator />
+						{/if}
 						<DropdownMenu.Item variant="destructive" onSelect={() => onremove?.(video)}>
 							<Trash2Icon />
-							{m.playlist_remove_item()}
+							{removeLabel}
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
@@ -209,7 +216,7 @@
 		</li>
 	{/each}
 </ol>
-{#if editable}
+{#if reorderable}
 	<p id="playlist-reorder-hint" class="sr-only">{m.playlist_reorder_hint()}</p>
 {/if}
 <p class="sr-only" aria-live="polite">{announcement}</p>

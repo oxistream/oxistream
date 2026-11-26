@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
+	import type { Component } from 'svelte';
 	import { formatNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
@@ -8,11 +9,14 @@
 	let {
 		src,
 		count,
+		icon: Icon = ListVideoIcon,
 		class: className
 	}: {
 		src?: string;
 		/** Left out when YouTube does not say how many videos there are. */
 		count?: number;
+		/** Shown without a thumbnail. */
+		icon?: Component<{ class?: string }>;
 		class?: string;
 	} = $props();
 
@@ -35,7 +39,7 @@
 			/>
 		{:else}
 			<div class="flex size-full items-center justify-center text-muted-foreground">
-				<ListVideoIcon class="size-8" />
+				<Icon class="size-8" />
 			</div>
 		{/if}
 		{#if count !== undefined}

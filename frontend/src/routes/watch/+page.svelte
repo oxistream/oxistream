@@ -4,7 +4,9 @@
 	import { page } from '$app/state';
 	import { ApiError, pickImage } from '#lib/api/mapping.js';
 	import { createProgressReporter, createVideoProgressQuery } from '#lib/api/history.js';
+	import { createLikedVideosQuery, mergeLikedVideos } from '#lib/api/likes.js';
 	import {
+		isLikedListId,
 		isLocalPlaylistId,
 		isMixId,
 		needsMoreItems,
@@ -15,7 +17,11 @@
 	import { createYouTubePlaylistQuery, mergeYouTubePlaylist } from '#lib/api/youtube-playlists.js';
 	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
 	import { playlistWatchHref } from '#lib/components/playlist/links.js';
-	import { localPlayback, youtubePlayback } from '#lib/components/playlist/playback.js';
+	import {
+		likedPlayback,
+		localPlayback,
+		youtubePlayback
+	} from '#lib/components/playlist/playback.js';
 	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
@@ -45,6 +51,7 @@
 	const video = useVideo(() => videoId);
 	const playlist = createPlaylistQuery(() => listId);
 	const youtubePlaylist = createYouTubePlaylistQuery(() => listId);
+	const likedVideos = createLikedVideosQuery(() => isLikedListId(listId));
 	const rememberLastPlayed = useLastPlayed();
 	const manifest = useManifest(() => videoId);
 
@@ -78,9 +85,16 @@
 	);
 
 	const localList = $derived(isLocalPlaylistId(listId));
+	const likedList = $derived(isLikedListId(listId));
 	const youtubeList = $derived(mergeYouTubePlaylist(youtubePlaylist.data));
+	const liked = $derived(mergeLikedVideos(likedVideos.data));
+	// Paged lists load more items as playback gets close to the end of what is loaded.
+	const pagedList = $derived(localList ? undefined : likedList ? likedVideos : youtubePlaylist);
 	const playback = $derived.by(() => {
 		if (localList) return playlist.data ? localPlayback(playlist.data) : undefined;
+		if (likedList) {
+			return liked && session.user ? likedPlayback(liked, session.user.username) : undefined;
+		}
 		return youtubeList ? youtubePlayback(youtubeList, youtubePlaylist.hasNextPage) : undefined;
 	});
 	const playlistPosition = $derived(playback ? neighbors(playback.items, videoId) : { index: -1 });
@@ -88,18 +102,19 @@
 		if (!listId) return null;
 		if (isMixId(listId)) return 'mix';
 		if (playback) return 'ready';
-		const error = localList ? playlist.error : youtubePlaylist.error;
+		if (likedList && session.ready && !session.user) return 'unavailable';
+		const error = localList ? playlist.error : pagedList?.error;
 		if (!error) return 'loading';
 		return error instanceof ApiError && error.reason === 'mix' ? 'mix' : 'unavailable';
 	});
 
-	// YouTube playlists come in pages: load until the current video and the one after it are known.
+	// Load pages until the current video and the one after it are known.
 	$effect(() => {
-		const query = youtubePlaylist;
-		if (!youtubeList || !query.hasNextPage || query.isFetching || query.isFetchNextPageError)
-			return;
+		const query = pagedList;
+		if (!query || !playback || !query.hasNextPage || query.isFetching) return;
+		if (query.isFetchNextPageError) return;
 		if ((query.data?.pages.length ?? 0) >= MAX_PLAYLIST_PAGES) return;
-		if (needsMoreItems(youtubeList.items, videoId)) void query.fetchNextPage();
+		if (needsMoreItems(playback.items, videoId)) void query.fetchNextPage();
 	});
 
 	// The owner's resume point for "Continue" on the playlist page.
@@ -243,10 +258,10 @@
 					playlist={playback}
 					currentId={videoId}
 					status={playlistStatus}
-					hasMore={!localList && youtubePlaylist.hasNextPage}
-					loadingMore={youtubePlaylist.isFetchingNextPage}
-					loadFailed={youtubePlaylist.isFetchNextPageError}
-					onloadmore={() => void youtubePlaylist.fetchNextPage()}
+					hasMore={pagedList?.hasNextPage ?? false}
+					loadingMore={pagedList?.isFetchingNextPage ?? false}
+					loadFailed={pagedList?.isFetchNextPageError ?? false}
+					onloadmore={() => void pagedList?.fetchNextPage()}
 					class="watch-playlist"
 				/>
 			{/if}

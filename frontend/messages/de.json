@@ -239,16 +239,6 @@
 			}
 		}
 	],
-	"watch_likes": [
-		{
-			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{formatted} Like",
-				"countPlural=*": "{formatted} Likes"
-			}
-		}
-	],
 	"watch_description": "Beschreibung",
 	"watch_show_more": "Mehr anzeigen",
 	"watch_show_less": "Weniger anzeigen",
@@ -461,5 +451,16 @@
 		}
 	],
 	"playlist_pending": "Wird von YouTube geladen …",
-	"playlist_follow_unavailable": "Auf YouTube nicht verfügbar"
+	"playlist_follow_unavailable": "Auf YouTube nicht verfügbar",
+	"like": "Mag ich",
+	"like_remove": "„Mag ich“ entfernen",
+	"like_hint": "Nur hier gespeichert, nie an YouTube gesendet",
+	"like_sign_in": "Melde dich an, um Videos mit „Mag ich“ zu markieren",
+	"liked_title": "Videos mit „Mag ich“",
+	"liked_empty_title": "Noch keine Videos mit „Mag ich“",
+	"liked_empty_body": "Markiere Videos und Shorts mit „Mag ich“, um sie hier zu sammeln.",
+	"liked_sign_in": "Melde dich an, um deine Videos mit „Mag ich“ zu sehen.",
+	"liked_error_load": "Videos mit „Mag ich“ konnten nicht geladen werden",
+	"liked_remove": "Aus „Mag ich“ entfernen",
+	"liked_private_hint": "Nur du siehst diese Liste. „Mag ich“ bleibt auf dieser Instanz und wird nie an YouTube gesendet."
 }

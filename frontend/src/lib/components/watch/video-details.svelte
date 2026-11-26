@@ -1,11 +1,8 @@
 <script lang="ts">
-	import ThumbsUpIcon from '@lucide/svelte/icons/thumbs-up';
 	import type { Snippet } from 'svelte';
 	import { toChannel } from '#lib/api/mapping.js';
 	import type { VideoDetails } from '#lib/api/video.js';
-	import { formatCompactNumber } from '#lib/format.js';
-	import { m } from '#lib/paraglide/messages.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
+	import LikeButton from '#lib/components/like/like-button.svelte';
 	import { cn } from '#lib/utils.js';
 	import ChannelRow from './channel-row.svelte';
 	import VideoDescription from './video-description.svelte';
@@ -22,12 +19,11 @@
 		descriptionExpanded?: boolean;
 		now?: Date;
 		onseek?: (seconds: number) => void;
-		/** Buttons beside the like count, e.g. saving to a playlist. */
+		/** Buttons beside the like button, e.g. saving to a playlist. */
 		actions?: Snippet;
 		class?: string;
 	} = $props();
 
-	const locale = getLocale();
 	const channel = $derived(toChannel(video.channel));
 </script>
 
@@ -38,17 +34,7 @@
 	<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
 		<ChannelRow {channel} />
 		<div class="flex flex-wrap items-center gap-2">
-			{#if video.like_count != null}
-				<p
-					class="inline-flex h-8 items-center gap-1.5 rounded-full bg-muted px-3 text-sm font-medium tabular"
-				>
-					<ThumbsUpIcon class="size-4 text-muted-foreground" aria-hidden="true" />
-					{m.watch_likes({
-						count: video.like_count,
-						formatted: formatCompactNumber(video.like_count, locale)
-					})}
-				</p>
-			{/if}
+			<LikeButton videoId={video.id} count={video.like_count} />
 			{@render actions?.()}
 		</div>
 	</div>

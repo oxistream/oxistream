@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
+	import LikeButton from '#lib/components/like/like-button.svelte';
 	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -66,6 +67,7 @@
 	</div>
 	<!-- Action column: more actions go above the watch page link. -->
 	<div class="flex shrink-0 flex-col items-center gap-3" data-testid="short-actions">
+		<LikeButton {videoId} variant="overlay" class="pointer-events-auto" />
 		<Button
 			href={resolve(`/watch?v=${videoId}`)}
 			variant="ghost"
