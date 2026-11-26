@@ -439,5 +439,27 @@
 	"shorts_previous": "Previous short",
 	"shorts_next": "Next short",
 	"shorts_open_watch": "Open in watch page",
-	"shorts_loading": "Loading short"
+	"shorts_loading": "Loading short",
+	"playlist_follow": "Follow",
+	"playlist_following": "Following",
+	"playlist_copy": "Save as copy",
+	"playlist_copying": "Copying…",
+	"playlist_copy_error": "The playlist could not be copied. Try again.",
+	"playlist_copy_hint": "Copies the videos into a playlist of your own that you can edit.",
+	"playlist_follow_hint": "Keeps the playlist in your library and tracks new videos.",
+	"playlist_section_own": "Your playlists",
+	"playlist_section_followed": "Followed on YouTube",
+	"playlist_own_empty": "No playlists of your own yet.",
+	"playlist_new_videos": [
+		{
+			"declarations": ["input count", "input formatted", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{formatted} new video",
+				"countPlural=*": "{formatted} new videos"
+			}
+		}
+	],
+	"playlist_pending": "Fetching from YouTube…",
+	"playlist_follow_unavailable": "Unavailable on YouTube"
 }

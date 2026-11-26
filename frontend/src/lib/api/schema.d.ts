@@ -344,6 +344,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/playlist-follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** YouTube playlists the signed-in user follows, ordered by title. */
+        get: operations["list_follows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlist-follows/{playlist_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the signed-in user follows a YouTube playlist. */
+        get: operations["follow_state"];
+        /**
+         * Follow a YouTube playlist. Idempotent; new playlists are fetched in the background and
+         *     then kept up to date by the feed worker.
+         */
+        put: operations["follow"];
+        post?: never;
+        /** Stop following a YouTube playlist. Succeeds if not followed, too. */
+        delete: operations["unfollow"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlist-follows/{playlist_id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark the videos of a followed playlist as seen, resetting `new_video_count`. */
+        put: operations["mark_seen"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/playlists": {
         parameters: {
             query?: never;
@@ -356,6 +412,27 @@ export interface paths {
         put?: never;
         /** Create a playlist. */
         post: operations["create_playlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/playlists/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a YouTube playlist into a new private playlist, which can then be edited. Copies at
+         *     most 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each
+         *     video once: a repeated video keeps its first place.
+         */
+        post: operations["import_playlist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -805,6 +882,35 @@ export interface components {
          * @enum {string}
          */
         FieldError: "required" | "format" | "length" | "too_long" | "taken";
+        FollowState: {
+            following: boolean;
+        };
+        /** @description A YouTube playlist the signed-in user follows, as last fetched by the feed worker. */
+        FollowedPlaylist: {
+            channel?: components["schemas"]["ChannelRef"] | null;
+            /** Format: date-time */
+            fetched_at?: string | null;
+            /** Format: date-time */
+            followed_at: string;
+            /** @description YouTube playlist ID, used in `/playlist?list=`. */
+            id: string;
+            /**
+             * Format: int32
+             * @description Videos added since the user last opened the playlist. Only the first 500 videos of a
+             *     playlist are tracked.
+             */
+            new_video_count: number;
+            thumbnails: components["schemas"]["Thumbnail"][];
+            /** @description `null` until the playlist was fetched once, shortly after the first follow. */
+            title?: string | null;
+            /** @description The last fetch failed, e.g. because the playlist was deleted or made private. */
+            unavailable: boolean;
+            /**
+             * Format: int64
+             * @description As reported by YouTube.
+             */
+            video_count?: number | null;
+        };
         HistoryItem: {
             progress: components["schemas"]["VideoProgress"];
             /**
@@ -830,6 +936,10 @@ export interface components {
         ImportFile: string;
         /** @enum {string} */
         ImportFormat: "youtube_takeout" | "newpipe" | "invidious" | "piped" | "opml";
+        ImportPlaylist: {
+            /** @description YouTube playlist ID; mixes cannot be imported. */
+            playlist_id: string;
+        };
         /** @description Outcome of a subscription import. */
         ImportResult: {
             /**
@@ -2137,6 +2247,265 @@ export interface operations {
             };
         };
     };
+    list_follows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedPlaylist"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    follow_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube playlist ID */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowState"];
+                };
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A mix (`reason` is `mix`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    follow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube playlist ID */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Was already followed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedPlaylist"];
+                };
+            };
+            /** @description Followed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedPlaylist"];
+                };
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Mixes cannot be followed (`reason` is `mix`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unfollow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube playlist ID */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not followed anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A mix (`reason` is `mix`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mark_seen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube playlist ID */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Marked as seen */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not followed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_playlists: {
         parameters: {
             query?: {
@@ -2227,6 +2596,95 @@ export interface operations {
             };
             /** @description Invalid title or description */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_playlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Content language */
+                "Accept-Language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportPlaylist"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playlist"];
+                };
+            };
+            /** @description Invalid playlist ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, private, or a mix (`reason` is `mix`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many playlists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description YouTube request failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited by YouTube */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

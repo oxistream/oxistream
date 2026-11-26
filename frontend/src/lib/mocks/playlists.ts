@@ -1,3 +1,4 @@
+import type { FollowedPlaylist } from '#lib/api/playlist-follows.js';
 import type { Playlist, PlaylistDetails } from '#lib/api/playlists.js';
 import { mockVideos } from './videos';
 
@@ -44,5 +45,42 @@ export const mockPlaylists: Playlist[] = [
 		itemCount: 0,
 		createdAt: '2026-11-26T08:00:00Z',
 		updatedAt: '2026-11-26T08:00:00Z'
+	}
+];
+
+export const mockFollowedPlaylists: FollowedPlaylist[] = [
+	{
+		id: 'PL4lEESSgxM_5O81EvKCmBIm_JT5Q7JeaI',
+		title: 'Coastal road trips',
+		channel: { id: 'UCnorth', name: 'Northbound' },
+		thumbnailUrl: mockVideos[1].thumbnailUrl,
+		videoCount: 240,
+		newVideoCount: 3,
+		unavailable: false,
+		followedAt: '2026-11-20T10:00:00Z'
+	},
+	{
+		id: 'PLbakeryxxxxxxxxxxxxxxxxxxxxxxxxxx',
+		title: 'Sourdough from scratch, the long version with every step',
+		channel: { id: 'UCbakery', name: 'Ovenlight' },
+		thumbnailUrl: mockVideos[3].thumbnailUrl,
+		videoCount: 18,
+		newVideoCount: 0,
+		unavailable: false,
+		followedAt: '2026-11-21T10:00:00Z'
+	},
+	{
+		id: 'PLpendingxxxxxxxxxxxxxxxxxxxxxxxxx',
+		newVideoCount: 0,
+		unavailable: false,
+		followedAt: '2026-11-26T11:59:00Z'
+	},
+	{
+		id: 'PLgonexxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+		title: 'Workshop builds',
+		videoCount: 12,
+		newVideoCount: 0,
+		unavailable: true,
+		followedAt: '2026-10-01T10:00:00Z'
 	}
 ];

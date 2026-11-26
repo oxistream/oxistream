@@ -37,9 +37,23 @@ const continuation = (index: number) => (index < PAGE_SIZES.length ? `page-${ind
 const json = (route: Route, body: unknown, status = 200) =>
 	route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-/** A three-page YouTube playlist; `requests` records every playlist call in order. */
-async function mockApi(page: Page) {
+const account = {
+	id: '0193a8e4-7f00-7000-8000-000000000001',
+	username: 'mara',
+	role: 'user',
+	created_at: '2026-11-26T10:00:00Z'
+};
+const COPY_ID = 'Cp9xQ2mKp9LsVb3N';
+let calls: string[] = [];
+
+/**
+ * A three-page YouTube playlist; `requests` records every playlist call in order, `calls` every
+ * follow and import request.
+ */
+async function mockApi(page: Page, options: { signedIn?: boolean; following?: boolean } = {}) {
 	const requests: string[] = [];
+	calls = [];
+	let following = options.following ?? false;
 	await page.route('**/proxy/**', (route) => route.fulfill({ status: 404, body: '' }));
 	await page.route('**/api/v0/**', (route) => json(route, { code: 'not_found', message: '' }, 404));
 	await page.route('**/api/v0/instance', (route) =>
@@ -56,8 +70,69 @@ async function mockApi(page: Page) {
 		})
 	);
 	await page.route('**/api/v0/auth/me', (route) =>
-		json(route, { code: 'unauthorized', message: '' }, 401)
+		options.signedIn
+			? json(route, account)
+			: json(route, { code: 'unauthorized', message: '' }, 401)
 	);
+	await page.route(/\/api\/v0\/playlist-follows\/[^/]+(\/seen)?$/, (route) => {
+		const method = route.request().method();
+		const seen = route.request().url().endsWith('/seen');
+		if (method !== 'GET') calls.push(`${method} ${seen ? 'seen' : 'follow'}`);
+		if (seen) return route.fulfill({ status: following ? 204 : 404 });
+		if (method === 'GET') return json(route, { following });
+		following = method === 'PUT';
+		if (!following) return route.fulfill({ status: 204 });
+		return json(
+			route,
+			{
+				id: LIST,
+				title: null,
+				thumbnails: [],
+				new_video_count: 0,
+				unavailable: false,
+				followed_at: '2026-11-26T10:00:00Z'
+			},
+			201
+		);
+	});
+	await page.route('**/api/v0/playlists', (route) => json(route, []));
+	await page.route('**/api/v0/playlist-follows', (route) =>
+		json(
+			route,
+			following
+				? [
+						{
+							id: LIST,
+							title: 'Coastal roads',
+							channel: { id: 'UCnorth', name: 'Northbound', avatar: [], verified: false },
+							thumbnails: [],
+							video_count: TOTAL,
+							new_video_count: 3,
+							unavailable: false,
+							followed_at: '2026-11-20T10:00:00Z'
+						}
+					]
+				: []
+		)
+	);
+	await page.route('**/api/v0/playlists/import', (route) => {
+		const body = route.request().postDataJSON() as { playlist_id: string };
+		calls.push(`import ${body.playlist_id}`);
+		return json(
+			route,
+			{
+				id: COPY_ID,
+				title: 'Coastal roads',
+				description: '',
+				visibility: 'private',
+				item_count: 230,
+				thumbnails: [],
+				created_at: '2026-11-26T10:00:00Z',
+				updated_at: '2026-11-26T10:00:00Z'
+			},
+			201
+		);
+	});
 	await page.route('**/api/v0/videos/*/manifest.mpd', (route) =>
 		route.fulfill({ status: 200, contentType: 'application/dash+xml', body: MPD })
 	);
@@ -191,4 +266,47 @@ test('mixes and unknown playlists get their own states', async ({ page }) => {
 
 	await page.goto(`/watch?v=${videoId(1)}&list=PLzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz`);
 	await expect(page.getByTestId('playlist-panel').getByText('Playlist unavailable')).toBeVisible();
+});
+
+test('anonymous users are sent to sign in to follow or copy', async ({ page }) => {
+	await mockApi(page);
+	await page.goto(`/playlist?list=${LIST}`);
+
+	const redirect = `/login?redirect=${encodeURIComponent(`/playlist?list=${LIST}`)}`;
+	await expect(page.getByRole('link', { name: 'Follow' })).toHaveAttribute('href', redirect);
+	await expect(page.getByRole('link', { name: 'Save as copy' })).toHaveAttribute('href', redirect);
+});
+
+test('a YouTube playlist can be followed and saved as a copy', async ({ page }) => {
+	await mockApi(page, { signedIn: true });
+	await page.goto(`/playlist?list=${LIST}`);
+
+	const follow = page.getByTestId('follow-button');
+	await expect(follow).toHaveText('Follow');
+	await follow.click();
+	await expect(follow).toHaveText('Following');
+	await expect(follow).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => calls).toEqual(['PUT follow']);
+	await follow.click();
+	await expect(follow).toHaveText('Follow');
+	await expect.poll(() => calls).toEqual(['PUT follow', 'DELETE follow']);
+
+	await page.getByRole('button', { name: 'Save as copy' }).click();
+	await expect(page).toHaveURL(`/playlist?list=${COPY_ID}`);
+	expect(calls).toContain(`import ${LIST}`);
+});
+
+test('followed playlists show in the library and opening one marks it seen', async ({ page }) => {
+	await mockApi(page, { signedIn: true, following: true });
+	await page.goto('/feed/playlists');
+
+	const section = page.getByRole('region', { name: 'Followed on YouTube' });
+	await expect(section.getByText('Northbound')).toBeVisible();
+	await expect(section.getByText('3 new videos', { exact: true })).toBeVisible();
+	await expect(page.getByText('No playlists of your own yet.')).toBeVisible();
+
+	await section.getByRole('link', { name: /Coastal roads/ }).click();
+	await expect(page).toHaveURL(`/playlist?list=${LIST}`);
+	await expect(page.getByTestId('follow-button')).toHaveText('Following');
+	await expect.poll(() => calls).toEqual(['PUT seen']);
 });
