@@ -27,6 +27,13 @@ const REGISTRATION_ENABLED: &str = "OXISTREAM_REGISTRATION_ENABLED";
 const REQUIRE_LOGIN: &str = "OXISTREAM_REQUIRE_LOGIN";
 const SESSION_TTL_DAYS: &str = "OXISTREAM_SESSION_TTL_DAYS";
 const COOKIE_SECURE: &str = "OXISTREAM_COOKIE_SECURE";
+const OIDC_ISSUER: &str = "OXISTREAM_OIDC_ISSUER";
+const OIDC_CLIENT_ID: &str = "OXISTREAM_OIDC_CLIENT_ID";
+const OIDC_CLIENT_SECRET: &str = "OXISTREAM_OIDC_CLIENT_SECRET";
+const OIDC_SCOPES: &str = "OXISTREAM_OIDC_SCOPES";
+const OIDC_NAME: &str = "OXISTREAM_OIDC_NAME";
+const OIDC_ADMIN_GROUP: &str = "OXISTREAM_OIDC_ADMIN_GROUP";
+const OIDC_GROUPS_CLAIM: &str = "OXISTREAM_OIDC_GROUPS_CLAIM";
 
 pub const MIN_PROXY_SECRET_LEN: usize = 32;
 
@@ -34,6 +41,11 @@ pub const MIN_PROXY_SECRET_LEN: usize = 32;
 pub enum ConfigError {
     #[error("{0} is required but not set")]
     Missing(&'static str),
+    #[error("{var} is required when {because} is set")]
+    MissingFor {
+        var: &'static str,
+        because: &'static str,
+    },
     #[error("{var} has invalid value {value:?}: {reason}")]
     Invalid {
         var: &'static str,
@@ -88,6 +100,86 @@ pub struct AuthConfig {
     /// Origin (`scheme://host[:port]`) browsers use to reach this instance. When unset,
     /// state-changing requests must come from the origin named by the `Host` header.
     pub public_origin: Option<String>,
+    /// `None` disables single sign-on.
+    pub oidc: Option<OidcConfig>,
+}
+
+/// The single `OpenID` Connect provider.
+#[derive(Clone, PartialEq, Eq)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    /// `None` for public clients.
+    pub client_secret: Option<String>,
+    pub scopes: Vec<String>,
+    /// Label of the sign-in button.
+    pub name: String,
+    /// Members of this group are admins; when unset, roles are not synced.
+    pub admin_group: Option<String>,
+    pub groups_claim: String,
+    /// `{public origin}/api/v0/auth/oidc/callback`.
+    pub redirect_url: String,
+    /// Where the provider sends the browser after RP-initiated logout.
+    pub post_logout_redirect_url: String,
+    /// HMAC key for the pending-login cookie; shared by all replicas.
+    pub state_secret: String,
+}
+
+impl OidcConfig {
+    pub const DEFAULT_SCOPES: &str = "openid profile email";
+    pub const DEFAULT_NAME: &str = "SSO";
+    pub const DEFAULT_GROUPS_CLAIM: &str = "groups";
+    pub const CALLBACK_PATH: &str = "/api/v0/auth/oidc/callback";
+
+    /// A configuration with defaults for everything that is not given.
+    pub fn new(
+        issuer: impl Into<String>,
+        client_id: impl Into<String>,
+        public_origin: &str,
+        state_secret: impl Into<String>,
+    ) -> Self {
+        Self {
+            issuer: issuer.into(),
+            client_id: client_id.into(),
+            client_secret: None,
+            scopes: parse_scopes(Self::DEFAULT_SCOPES),
+            name: Self::DEFAULT_NAME.to_owned(),
+            admin_group: None,
+            groups_claim: Self::DEFAULT_GROUPS_CLAIM.to_owned(),
+            redirect_url: format!("{public_origin}{}", Self::CALLBACK_PATH),
+            post_logout_redirect_url: format!("{public_origin}/"),
+            state_secret: state_secret.into(),
+        }
+    }
+}
+
+impl fmt::Debug for OidcConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OidcConfig")
+            .field("issuer", &self.issuer)
+            .field("client_id", &self.client_id)
+            .field(
+                "client_secret",
+                &self.client_secret.as_ref().map(|_| "<redacted>"),
+            )
+            .field("scopes", &self.scopes)
+            .field("name", &self.name)
+            .field("admin_group", &self.admin_group)
+            .field("groups_claim", &self.groups_claim)
+            .field("redirect_url", &self.redirect_url)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Space-separated and deduplicated; always includes `openid`.
+fn parse_scopes(value: &str) -> Vec<String> {
+    let mut scopes = vec!["openid".to_owned()];
+    for scope in value.split_whitespace() {
+        if !scopes.iter().any(|s| s == scope) {
+            scopes.push(scope.to_owned());
+        }
+    }
+    scopes
 }
 
 impl AuthConfig {
@@ -103,6 +195,7 @@ impl Default for AuthConfig {
             session_ttl: Self::DEFAULT_SESSION_TTL,
             cookie_secure: true,
             public_origin: None,
+            oidc: None,
         }
     }
 }
@@ -207,6 +300,7 @@ impl Config {
             None
         };
 
+        let secret = proxy_secret(get(PROXY_SECRET))?;
         Ok(Self {
             bind: parse_or(get(BIND), BIND, SocketAddr::from(([0, 0, 0, 0], 8080)))?,
             database_url: get(DATABASE_URL).ok_or(ConfigError::Missing(DATABASE_URL))?,
@@ -222,7 +316,7 @@ impl Config {
                 cache_dir: get(YOUTUBE_CACHE_DIR).map(PathBuf::from),
             },
             proxy: ProxyConfig {
-                secret: proxy_secret(get(PROXY_SECRET))?,
+                secret: secret.clone(),
                 stream_ttl: seconds_or(
                     get(PROXY_STREAM_TTL),
                     PROXY_STREAM_TTL,
@@ -235,13 +329,19 @@ impl Config {
                 )?,
             },
             rate_limit,
-            auth: auth_config(&get)?,
+            auth: auth_config(&get, &secret)?,
         })
     }
 }
 
-fn auth_config(get: &impl Fn(&str) -> Option<String>) -> Result<AuthConfig, ConfigError> {
+fn auth_config(
+    get: &impl Fn(&str) -> Option<String>,
+    state_secret: &str,
+) -> Result<AuthConfig, ConfigError> {
     let defaults = AuthConfig::default();
+    let public_origin = get(PUBLIC_URL)
+        .map(|value| public_origin(&value))
+        .transpose()?;
     let ttl_days: NonZeroU32 = parse_or(
         get(SESSION_TTL_DAYS),
         SESSION_TTL_DAYS,
@@ -263,10 +363,59 @@ fn auth_config(get: &impl Fn(&str) -> Option<String>) -> Result<AuthConfig, Conf
         .0,
         session_ttl: Duration::from_hours(u64::from(ttl_days.get()) * 24),
         cookie_secure: parse_or(get(COOKIE_SECURE), COOKIE_SECURE, Toggle(true))?.0,
-        public_origin: get(PUBLIC_URL)
-            .map(|value| public_origin(&value))
-            .transpose()?,
+        oidc: oidc_config(get, public_origin.as_deref(), state_secret)?,
+        public_origin,
     })
+}
+
+fn oidc_config(
+    get: &impl Fn(&str) -> Option<String>,
+    public_origin: Option<&str>,
+    state_secret: &str,
+) -> Result<Option<OidcConfig>, ConfigError> {
+    let (issuer, client_id) = match (get(OIDC_ISSUER), get(OIDC_CLIENT_ID)) {
+        (None, None) => return Ok(None),
+        (Some(_), None) => {
+            return Err(ConfigError::MissingFor {
+                var: OIDC_CLIENT_ID,
+                because: OIDC_ISSUER,
+            });
+        }
+        (None, Some(_)) => {
+            return Err(ConfigError::MissingFor {
+                var: OIDC_ISSUER,
+                because: OIDC_CLIENT_ID,
+            });
+        }
+        (Some(issuer), Some(client_id)) => (issuer.trim().to_owned(), client_id.trim().to_owned()),
+    };
+    match reqwest::Url::parse(&issuer) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") && url.host_str().is_some() => {}
+        _ => {
+            return Err(ConfigError::Invalid {
+                var: OIDC_ISSUER,
+                value: issuer,
+                reason: "expected an http or https URL".into(),
+            });
+        }
+    }
+    let public_origin = public_origin.ok_or(ConfigError::MissingFor {
+        var: PUBLIC_URL,
+        because: OIDC_ISSUER,
+    })?;
+    let mut config = OidcConfig::new(issuer, client_id, public_origin, state_secret);
+    config.client_secret = get(OIDC_CLIENT_SECRET);
+    if let Some(scopes) = get(OIDC_SCOPES) {
+        config.scopes = parse_scopes(&scopes);
+    }
+    if let Some(name) = get(OIDC_NAME) {
+        name.trim().clone_into(&mut config.name);
+    }
+    config.admin_group = get(OIDC_ADMIN_GROUP).map(|group| group.trim().to_owned());
+    if let Some(claim) = get(OIDC_GROUPS_CLAIM) {
+        claim.trim().clone_into(&mut config.groups_claim);
+    }
+    Ok(Some(config))
 }
 
 fn public_origin(value: &str) -> Result<String, ConfigError> {
@@ -412,6 +561,7 @@ mod tests {
                 session_ttl: Duration::from_hours(7 * 24),
                 cookie_secure: false,
                 public_origin: Some("https://tube.example.com".into()),
+                oidc: None,
             }
         );
         let config = with(&[(PUBLIC_URL, "http://localhost:5173")]).unwrap();
@@ -533,9 +683,114 @@ mod tests {
 
     #[test]
     fn debug_redacts_secrets() {
-        let config = with(&[(DATABASE_URL, "postgres://user:secret@db/x")]).unwrap();
+        let config = with(&[
+            (DATABASE_URL, "postgres://user:secret@db/x"),
+            (OIDC_ISSUER, "https://id.example.com/realms/home"),
+            (OIDC_CLIENT_ID, "oxistream"),
+            (OIDC_CLIENT_SECRET, "client-secret-value"),
+            (PUBLIC_URL, "https://tube.example.com"),
+        ])
+        .unwrap();
         let debug = format!("{config:?}");
         assert!(!debug.contains("secret@"));
         assert!(!debug.contains(SECRET));
+        assert!(!debug.contains("client-secret-value"));
+    }
+
+    #[test]
+    fn oidc_is_enabled_by_issuer_and_client_id() {
+        assert_eq!(with(&[]).unwrap().auth.oidc, None);
+        let config = with(&[
+            (OIDC_ISSUER, "https://id.example.com/realms/home"),
+            (OIDC_CLIENT_ID, "oxistream"),
+            (PUBLIC_URL, "https://tube.example.com/ignored"),
+        ])
+        .unwrap();
+        let oidc = config.auth.oidc.unwrap();
+        assert_eq!(
+            oidc,
+            OidcConfig::new(
+                "https://id.example.com/realms/home",
+                "oxistream",
+                "https://tube.example.com",
+                SECRET
+            )
+        );
+        assert_eq!(oidc.scopes, ["openid", "profile", "email"]);
+        assert_eq!(oidc.name, "SSO");
+        assert_eq!(oidc.groups_claim, "groups");
+        assert_eq!(oidc.admin_group, None);
+        assert_eq!(oidc.client_secret, None);
+        assert_eq!(
+            oidc.redirect_url,
+            "https://tube.example.com/api/v0/auth/oidc/callback"
+        );
+        assert_eq!(oidc.post_logout_redirect_url, "https://tube.example.com/");
+    }
+
+    #[test]
+    fn oidc_overrides() {
+        let oidc = with(&[
+            (OIDC_ISSUER, "http://localhost:8180/realms/dev"),
+            (OIDC_CLIENT_ID, "tube"),
+            (OIDC_CLIENT_SECRET, "s3cret"),
+            (OIDC_SCOPES, "profile groups  profile"),
+            (OIDC_NAME, " Authentik "),
+            (OIDC_ADMIN_GROUP, "/admins"),
+            (OIDC_GROUPS_CLAIM, "roles"),
+            (PUBLIC_URL, "http://localhost:5173"),
+        ])
+        .unwrap()
+        .auth
+        .oidc
+        .unwrap();
+        assert_eq!(oidc.client_secret.as_deref(), Some("s3cret"));
+        assert_eq!(oidc.scopes, ["openid", "profile", "groups"]);
+        assert_eq!(oidc.name, "Authentik");
+        assert_eq!(oidc.admin_group.as_deref(), Some("/admins"));
+        assert_eq!(oidc.groups_claim, "roles");
+    }
+
+    #[test]
+    fn oidc_needs_complete_configuration() {
+        assert_eq!(
+            with(&[(OIDC_ISSUER, "https://id.example.com")]).unwrap_err(),
+            ConfigError::MissingFor {
+                var: OIDC_CLIENT_ID,
+                because: OIDC_ISSUER
+            }
+        );
+        assert_eq!(
+            with(&[(OIDC_CLIENT_ID, "oxistream")]).unwrap_err(),
+            ConfigError::MissingFor {
+                var: OIDC_ISSUER,
+                because: OIDC_CLIENT_ID
+            }
+        );
+        let err = with(&[
+            (OIDC_ISSUER, "https://id.example.com"),
+            (OIDC_CLIENT_ID, "oxistream"),
+        ])
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "OXISTREAM_PUBLIC_URL is required when OXISTREAM_OIDC_ISSUER is set"
+        );
+        let err = with(&[
+            (OIDC_ISSUER, "id.example.com"),
+            (OIDC_CLIENT_ID, "oxistream"),
+            (PUBLIC_URL, "https://tube.example.com"),
+        ])
+        .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ConfigError::Invalid {
+                    var: OIDC_ISSUER,
+                    ..
+                }
+            ),
+            "{err}"
+        );
     }
 }

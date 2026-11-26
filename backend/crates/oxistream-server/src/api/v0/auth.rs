@@ -224,24 +224,43 @@ async fn login(
     Ok(signed_in(StatusCode::OK, cookie, user))
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LoggedOut {
+    /// For sessions started via single sign-on: the provider's end-session URL to navigate
+    /// to, which signs out there, too (RP-initiated logout). `null` otherwise.
+    pub end_session_url: Option<String>,
+}
+
 /// End the current session. Succeeds without a session, too.
 #[utoipa::path(
     post,
     path = "/auth/logout",
     tag = "auth",
     responses(
-        (status = NO_CONTENT, description = "Signed out, session cookie cleared",
+        (status = OK, description = "Signed out, session cookie cleared", body = LoggedOut,
             headers(("set-cookie" = String, description = "Expired `oxistream_session` cookie"))),
         (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
     )
 )]
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+    let mut id_token = None;
     if let Some(hash) = cookie::session_token(&headers).and_then(cookie::hash_token) {
-        state.auth.sessions().delete(&hash).await?;
+        id_token = state
+            .auth
+            .sessions()
+            .delete_returning_id_token(&hash)
+            .await?;
     }
+    let end_session_url = id_token.and_then(|id_token| {
+        state
+            .auth
+            .oidc()
+            .and_then(|oidc| oidc.end_session_url(&id_token))
+    });
     Ok((
-        StatusCode::NO_CONTENT,
+        StatusCode::OK,
         [(header::SET_COOKIE, state.auth.clear_cookie())],
+        Json(LoggedOut { end_session_url }),
     )
         .into_response())
 }

@@ -65,12 +65,39 @@ pub struct NewUser {
     pub password_hash: Option<String>,
 }
 
+/// An account at the `OpenID` Connect provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Identity {
+    pub issuer: String,
+    pub subject: String,
+}
+
+/// Username candidates for a new account: attempt `0` is the preferred name, later attempts
+/// add a suffix.
+pub type UsernameCandidates<'a> = dyn Fn(u32) -> String + Send + Sync + 'a;
+
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
     /// Creates a user. The first user of the instance becomes an admin.
     ///
     /// Fails with [`Error::UsernameTaken`] if the username exists, ignoring case.
     async fn create(&self, user: &NewUser) -> Result<User, Error>;
+
+    async fn find_by_identity(&self, identity: &Identity) -> Result<Option<User>, Error>;
+
+    /// Creates a user without password linked to `identity`, using the first free username
+    /// from `usernames`. The user becomes an admin if `admin` is set or it is the first user of
+    /// the instance. Returns the already linked user if another request provisioned it first.
+    async fn provision(
+        &self,
+        identity: &Identity,
+        usernames: &UsernameCandidates<'_>,
+        admin: bool,
+    ) -> Result<User, Error>;
+
+    /// Sets the role, except that the last admin is never demoted. Returns the updated user,
+    /// or `None` if it does not exist.
+    async fn sync_role(&self, id: Uuid, role: Role) -> Result<Option<User>, Error>;
 
     /// Looks up a user by username, ignoring case.
     async fn find_by_username(&self, username: &str) -> Result<Option<UserCredentials>, Error>;
@@ -115,15 +142,40 @@ pub(crate) fn user_from_row(row: &PgRow) -> Result<User, sqlx::Error> {
     })
 }
 
+/// Serializes sign-ups and role changes so exactly one of several concurrent first users
+/// becomes admin and the last admin cannot be demoted concurrently. Reads are not blocked by
+/// this lock mode.
+async fn lock_users(tx: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
+    sqlx::query("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
+        .execute(tx)
+        .await?;
+    Ok(())
+}
+
+const MAX_USERNAME_ATTEMPTS: u32 = 1000;
+
+async fn user_by_identity<'e>(
+    executor: impl sqlx::PgExecutor<'e>,
+    identity: &Identity,
+) -> Result<Option<User>, sqlx::Error> {
+    let row = sqlx::query(concat!(
+        "SELECT ",
+        user_columns!(),
+        " FROM users WHERE id = \
+         (SELECT user_id FROM user_identities WHERE issuer = $1 AND subject = $2)"
+    ))
+    .bind(&identity.issuer)
+    .bind(&identity.subject)
+    .fetch_optional(executor)
+    .await?;
+    row.as_ref().map(user_from_row).transpose()
+}
+
 #[async_trait::async_trait]
 impl UserRepository for PgUserRepository {
     async fn create(&self, user: &NewUser) -> Result<User, Error> {
         let mut tx = self.pool.begin().await?;
-        // Serializes sign-ups so exactly one of several concurrent first users becomes admin.
-        // Reads are not blocked by this lock mode.
-        sqlx::query("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
-            .execute(&mut *tx)
-            .await?;
+        lock_users(&mut tx).await?;
         let row = sqlx::query(concat!(
             "INSERT INTO users (username, password_hash, role) \
              VALUES ($1, $2, CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'user' ELSE 'admin' END) \
@@ -141,6 +193,91 @@ impl UserRepository for PgUserRepository {
             _ => Error::Sqlx(err),
         })?;
         let user = user_from_row(&row)?;
+        tx.commit().await?;
+        Ok(user)
+    }
+
+    async fn find_by_identity(&self, identity: &Identity) -> Result<Option<User>, Error> {
+        Ok(user_by_identity(&self.pool, identity).await?)
+    }
+
+    async fn provision(
+        &self,
+        identity: &Identity,
+        usernames: &UsernameCandidates<'_>,
+        admin: bool,
+    ) -> Result<User, Error> {
+        let mut tx = self.pool.begin().await?;
+        lock_users(&mut tx).await?;
+        // Provisioning holds the lock, so a concurrent callback for the same identity has
+        // either committed by now or waits for this transaction.
+        if let Some(user) = user_by_identity(&mut *tx, identity).await? {
+            return Ok(user);
+        }
+        let mut username = None;
+        for attempt in 0..MAX_USERNAME_ATTEMPTS {
+            let candidate = usernames(attempt);
+            let taken: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM users WHERE lower(username) = lower($1))",
+            )
+            .bind(&candidate)
+            .fetch_one(&mut *tx)
+            .await?;
+            if !taken {
+                username = Some(candidate);
+                break;
+            }
+        }
+        let username = username.ok_or(Error::UsernameTaken)?;
+        let row = sqlx::query(concat!(
+            "INSERT INTO users (username, role) VALUES ($1, \
+             CASE WHEN $2 OR NOT EXISTS (SELECT 1 FROM users) THEN 'admin' ELSE 'user' END) \
+             RETURNING ",
+            user_columns!()
+        ))
+        .bind(&username)
+        .bind(admin)
+        .fetch_one(&mut *tx)
+        .await?;
+        let user = user_from_row(&row)?;
+        sqlx::query("INSERT INTO user_identities (issuer, subject, user_id) VALUES ($1, $2, $3)")
+            .bind(&identity.issuer)
+            .bind(&identity.subject)
+            .bind(user.id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(user)
+    }
+
+    async fn sync_role(&self, id: Uuid, role: Role) -> Result<Option<User>, Error> {
+        let mut tx = self.pool.begin().await?;
+        lock_users(&mut tx).await?;
+        let row = sqlx::query(concat!(
+            "UPDATE users SET role = $2, updated_at = now() \
+             WHERE id = $1 AND role <> $2 AND ($2 = 'admin' OR EXISTS \
+                (SELECT 1 FROM users WHERE role = 'admin' AND id <> $1)) \
+             RETURNING ",
+            user_columns!()
+        ))
+        .bind(id)
+        .bind(role.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let user = match row {
+            Some(row) => Some(user_from_row(&row)?),
+            None => sqlx::query(concat!(
+                "SELECT ",
+                user_columns!(),
+                " FROM users WHERE id = $1"
+            ))
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .as_ref()
+            .map(user_from_row)
+            .transpose()?,
+        };
         tx.commit().await?;
         Ok(user)
     }

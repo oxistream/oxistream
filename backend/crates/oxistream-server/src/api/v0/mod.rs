@@ -9,12 +9,14 @@ use crate::AppState;
 
 mod auth;
 mod manifest;
+mod oidc;
 mod youtube;
 
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(instance))
         .merge(auth::router())
+        .merge(oidc::router())
         .merge(youtube::router())
         .merge(manifest::router())
 }
@@ -38,8 +40,10 @@ pub struct AuthCapabilities {
     pub registration_enabled: bool,
     /// Anonymous users cannot use the API or proxy.
     pub require_login: bool,
-    /// Single sign-on via `OpenID` Connect.
+    /// Single sign-on via `OpenID` Connect, started at `/api/v0/auth/oidc/login`.
     pub oidc_enabled: bool,
+    /// Label of the single sign-on button; `null` without single sign-on.
+    pub oidc_name: Option<String>,
 }
 
 /// Basic information about this instance.
@@ -58,7 +62,8 @@ async fn instance(State(state): State<AppState>) -> Json<InstanceInfo> {
             local_enabled: config.local_enabled,
             registration_enabled: config.local_enabled && config.registration_enabled,
             require_login: config.require_login,
-            oidc_enabled: false,
+            oidc_enabled: config.oidc.is_some(),
+            oidc_name: config.oidc.as_ref().map(|oidc| oidc.name.clone()),
         },
     })
 }
