@@ -134,6 +134,47 @@ test('an unknown type falls back to all results', async ({ page }) => {
 	expect(requests[0]).toBe('all:');
 });
 
+test('results without a known channel render without channel links', async ({ page }) => {
+	const noName = { id: '', name: '', avatar: [], verified: false, subscriber_count: null };
+	const errors: Error[] = [];
+	page.on('pageerror', (error) => errors.push(error));
+	await page.route('**/proxy/image/**', (route) =>
+		route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL })
+	);
+	await page.route('**/api/v0/search?*', (route) => {
+		const type = new URL(route.request().url()).searchParams.get('type');
+		const items =
+			type === 'shorts'
+				? [short(21), video(22, { title: 'Forge short 22', is_short: true, channel: noName })]
+				: [
+						video(1),
+						video(2, { channel: null }),
+						video(3, { channel: noName }),
+						{
+							type: 'playlist',
+							id: 'PLnochannel',
+							title: 'No channel',
+							thumbnails: [],
+							channel: noName
+						}
+					];
+		return json(route, { items, continuation: null });
+	});
+
+	await page.goto('/results?search_query=forge&type=videos');
+	const results = page.getByRole('list', { name: 'Search results' });
+	await expect(results.getByRole('link', { name: /Forge video 3/ })).toBeVisible();
+	await expect(results.getByRole('link', { name: /No channel/ })).toBeVisible();
+	await expect(results.locator('a[href^="/channel/"]')).toHaveCount(1);
+
+	await page.getByRole('link', { name: 'Shorts' }).click();
+	await expect(results.getByRole('link', { name: 'Forge short 22' })).toHaveAttribute(
+		'href',
+		'/shorts/vid0000022A'
+	);
+	expect(errors).toEqual([]);
+});
+
 test('playlist results link to the playlist page', async ({ page }) => {
 	await page.route('**/proxy/image/**', (route) =>
 		route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL })
