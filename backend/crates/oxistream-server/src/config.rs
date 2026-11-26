@@ -21,6 +21,12 @@ const RATE_LIMIT: &str = "OXISTREAM_RATE_LIMIT";
 const RATE_LIMIT_PER_SECOND: &str = "OXISTREAM_RATE_LIMIT_PER_SECOND";
 const RATE_LIMIT_BURST: &str = "OXISTREAM_RATE_LIMIT_BURST";
 const TRUSTED_PROXY_HEADER: &str = "OXISTREAM_TRUSTED_PROXY_HEADER";
+const PUBLIC_URL: &str = "OXISTREAM_PUBLIC_URL";
+const AUTH_LOCAL_ENABLED: &str = "OXISTREAM_AUTH_LOCAL_ENABLED";
+const REGISTRATION_ENABLED: &str = "OXISTREAM_REGISTRATION_ENABLED";
+const REQUIRE_LOGIN: &str = "OXISTREAM_REQUIRE_LOGIN";
+const SESSION_TTL_DAYS: &str = "OXISTREAM_SESSION_TTL_DAYS";
+const COOKIE_SECURE: &str = "OXISTREAM_COOKIE_SECURE";
 
 pub const MIN_PROXY_SECRET_LEN: usize = 32;
 
@@ -66,6 +72,39 @@ pub struct Config {
     pub proxy: ProxyConfig,
     /// `None` disables rate limiting.
     pub rate_limit: Option<RateLimitConfig>,
+    pub auth: AuthConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct AuthConfig {
+    pub local_enabled: bool,
+    pub registration_enabled: bool,
+    /// Rejects anonymous API and proxy requests.
+    pub require_login: bool,
+    /// Sliding lifetime of a session since its last use.
+    pub session_ttl: Duration,
+    pub cookie_secure: bool,
+    /// Origin (`scheme://host[:port]`) browsers use to reach this instance. When unset,
+    /// state-changing requests must come from the origin named by the `Host` header.
+    pub public_origin: Option<String>,
+}
+
+impl AuthConfig {
+    pub const DEFAULT_SESSION_TTL: Duration = Duration::from_hours(30 * 24);
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            local_enabled: true,
+            registration_enabled: true,
+            require_login: false,
+            session_ttl: Self::DEFAULT_SESSION_TTL,
+            cookie_secure: true,
+            public_origin: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -139,6 +178,7 @@ impl fmt::Debug for Config {
             .field("youtube", &self.youtube)
             .field("proxy", &self.proxy)
             .field("rate_limit", &self.rate_limit)
+            .field("auth", &self.auth)
             .finish()
     }
 }
@@ -195,8 +235,51 @@ impl Config {
                 )?,
             },
             rate_limit,
+            auth: auth_config(&get)?,
         })
     }
+}
+
+fn auth_config(get: &impl Fn(&str) -> Option<String>) -> Result<AuthConfig, ConfigError> {
+    let defaults = AuthConfig::default();
+    let ttl_days: NonZeroU32 = parse_or(
+        get(SESSION_TTL_DAYS),
+        SESSION_TTL_DAYS,
+        NonZeroU32::new(30).unwrap(),
+    )?;
+    Ok(AuthConfig {
+        local_enabled: parse_or(get(AUTH_LOCAL_ENABLED), AUTH_LOCAL_ENABLED, Toggle(true))?.0,
+        registration_enabled: parse_or(
+            get(REGISTRATION_ENABLED),
+            REGISTRATION_ENABLED,
+            Toggle(defaults.registration_enabled),
+        )?
+        .0,
+        require_login: parse_or(
+            get(REQUIRE_LOGIN),
+            REQUIRE_LOGIN,
+            Toggle(defaults.require_login),
+        )?
+        .0,
+        session_ttl: Duration::from_hours(u64::from(ttl_days.get()) * 24),
+        cookie_secure: parse_or(get(COOKIE_SECURE), COOKIE_SECURE, Toggle(true))?.0,
+        public_origin: get(PUBLIC_URL)
+            .map(|value| public_origin(&value))
+            .transpose()?,
+    })
+}
+
+fn public_origin(value: &str) -> Result<String, ConfigError> {
+    let invalid = |reason: &str| ConfigError::Invalid {
+        var: PUBLIC_URL,
+        value: value.to_owned(),
+        reason: reason.to_owned(),
+    };
+    let url = reqwest::Url::parse(value.trim()).map_err(|err| invalid(&err.to_string()))?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err(invalid("expected an http or https URL"));
+    }
+    Ok(url.origin().ascii_serialization())
 }
 
 fn proxy_secret(value: Option<String>) -> Result<String, ConfigError> {
@@ -305,6 +388,37 @@ mod tests {
         assert_eq!(config.youtube, YouTubeConfig::default());
         assert_eq!(config.proxy, ProxyConfig::new(SECRET));
         assert_eq!(config.rate_limit, Some(RateLimitConfig::default()));
+        assert_eq!(config.auth, AuthConfig::default());
+        assert_eq!(config.auth.session_ttl, Duration::from_hours(720));
+    }
+
+    #[test]
+    fn auth_overrides() {
+        let config = with(&[
+            (AUTH_LOCAL_ENABLED, "false"),
+            (REGISTRATION_ENABLED, "off"),
+            (REQUIRE_LOGIN, "yes"),
+            (SESSION_TTL_DAYS, "7"),
+            (COOKIE_SECURE, "0"),
+            (PUBLIC_URL, "https://Tube.Example.com:443/some/path"),
+        ])
+        .unwrap();
+        assert_eq!(
+            config.auth,
+            AuthConfig {
+                local_enabled: false,
+                registration_enabled: false,
+                require_login: true,
+                session_ttl: Duration::from_hours(7 * 24),
+                cookie_secure: false,
+                public_origin: Some("https://tube.example.com".into()),
+            }
+        );
+        let config = with(&[(PUBLIC_URL, "http://localhost:5173")]).unwrap();
+        assert_eq!(
+            config.auth.public_origin.as_deref(),
+            Some("http://localhost:5173")
+        );
     }
 
     #[test]
@@ -404,6 +518,10 @@ mod tests {
             (RATE_LIMIT, "maybe"),
             (RATE_LIMIT_BURST, "0"),
             (TRUSTED_PROXY_HEADER, "not a header"),
+            (SESSION_TTL_DAYS, "0"),
+            (REQUIRE_LOGIN, "maybe"),
+            (PUBLIC_URL, "tube.example.com"),
+            (PUBLIC_URL, "ftp://tube.example.com"),
         ] {
             let err = with(&[(var, value)]).unwrap_err();
             assert!(

@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
+
 use axum::Json;
+use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
@@ -18,6 +21,34 @@ pub enum ErrorCode {
     /// Proof-of-origin token generation via `rustypipe-botguard` failed.
     BotguardFailed,
     UpstreamError,
+    /// No valid session.
+    Unauthorized,
+    /// A state-changing request did not come from this instance's origin.
+    OriginRejected,
+    /// Unknown username or wrong password.
+    InvalidCredentials,
+    AccountDisabled,
+    /// Some fields are invalid; see `fields`.
+    ValidationFailed,
+    LocalAuthDisabled,
+    RegistrationDisabled,
+    TooManyRequests,
+    Internal,
+}
+
+/// Why a request field was rejected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldError {
+    Required,
+    /// Wrong characters or length, e.g. for usernames.
+    Format,
+    /// Shorter than the minimum length.
+    Length,
+    /// Longer than the maximum length.
+    TooLong,
+    /// Already in use.
+    Taken,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -27,6 +58,9 @@ pub struct ErrorBody {
     /// Machine-readable detail, e.g. the unavailability reason.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// Per-field errors for `validation_failed`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fields: Option<BTreeMap<String, FieldError>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,12 +77,71 @@ impl ApiError {
                 code,
                 message: message.into(),
                 reason: None,
+                fields: None,
             },
         }
     }
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, ErrorCode::BadRequest, message)
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            ErrorCode::Unauthorized,
+            "sign in required",
+        )
+    }
+
+    pub fn origin_rejected() -> Self {
+        Self::new(
+            StatusCode::FORBIDDEN,
+            ErrorCode::OriginRejected,
+            "request origin is not allowed",
+        )
+    }
+
+    pub fn too_many_requests() -> Self {
+        Self::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            ErrorCode::TooManyRequests,
+            "too many attempts, try again later",
+        )
+    }
+
+    pub fn internal() -> Self {
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorCode::Internal,
+            "internal server error",
+        )
+    }
+
+    pub fn validation(status: StatusCode, fields: BTreeMap<String, FieldError>) -> Self {
+        let mut err = Self::new(status, ErrorCode::ValidationFailed, "invalid input");
+        err.body.fields = Some(fields);
+        err
+    }
+}
+
+impl From<oxistream_db::Error> for ApiError {
+    fn from(err: oxistream_db::Error) -> Self {
+        tracing::error!(error = ?err, "database error");
+        Self::internal()
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        tracing::error!(error = ?err, "internal error");
+        Self::internal()
+    }
+}
+
+impl From<JsonRejection> for ApiError {
+    fn from(err: JsonRejection) -> Self {
+        Self::new(err.status(), ErrorCode::BadRequest, err.body_text())
     }
 }
 

@@ -8,8 +8,9 @@ use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use std::sync::Arc;
 
-use oxistream_db::{PgPool, PgVideoRepository, PoolOptions};
-use oxistream_server::config::{ProxyConfig, YouTubeConfig};
+use oxistream_db::{PgPool, PgSessionRepository, PgUserRepository, PgVideoRepository, PoolOptions};
+use oxistream_server::auth::Auth;
+use oxistream_server::config::{AuthConfig, ProxyConfig, YouTubeConfig};
 use oxistream_server::proxy::Proxy;
 use oxistream_server::youtube::YouTube;
 use oxistream_server::{AppState, telemetry};
@@ -30,7 +31,40 @@ pub struct TestDb {
 
 /// Uses `OXISTREAM_TEST_DATABASE_URL` when set, else starts a Postgres 18 container.
 pub async fn test_pool() -> TestDb {
-    let (url, container) = if let Ok(url) = std::env::var(TEST_DATABASE_URL_ENV) {
+    let (url, container) = database_url().await;
+    migrated(&url, container).await
+}
+
+/// Like [`test_pool`], but in a fresh schema, for tests that need empty tables.
+pub async fn isolated_test_pool() -> TestDb {
+    let (url, container) = database_url().await;
+    let schema = format!("test_{}", unique_suffix());
+    let admin = oxistream_db::connect(&url, &PoolOptions::default())
+        .await
+        .expect("connect to test database");
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
+        .execute(&admin)
+        .await
+        .expect("create test schema");
+    admin.close().await;
+    let separator = if url.contains('?') { '&' } else { '?' };
+    let url = format!("{url}{separator}options=-c%20search_path%3D{schema}");
+    migrated(&url, container).await
+}
+
+/// Unique per call and per test run, for usernames and schema names.
+pub fn unique_suffix() -> String {
+    static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("{:x}{count:x}", nanos & 0xffff_ffff_ffff)
+}
+
+async fn database_url() -> (String, Option<ContainerAsync<Postgres>>) {
+    if let Ok(url) = std::env::var(TEST_DATABASE_URL_ENV) {
         (url, None)
     } else {
         let container = Postgres::default()
@@ -42,9 +76,11 @@ pub async fn test_pool() -> TestDb {
         let port = container.get_host_port_ipv4(5432).await.unwrap();
         let url = format!("postgres://postgres:postgres@{host}:{port}/postgres");
         (url, Some(container))
-    };
+    }
+}
 
-    let pool = oxistream_db::connect(&url, &PoolOptions::default())
+async fn migrated(url: &str, container: Option<ContainerAsync<Postgres>>) -> TestDb {
+    let pool = oxistream_db::connect(url, &PoolOptions::default())
         .await
         .expect("connect to test database");
     oxistream_db::migrate(&pool)
@@ -57,7 +93,17 @@ pub async fn test_pool() -> TestDb {
 }
 
 pub fn state_with_pool(db: PgPool) -> AppState {
+    state_with_auth(db, AuthConfig::default())
+}
+
+pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
     AppState {
+        auth: Auth::new(
+            auth,
+            Arc::new(PgUserRepository::new(db.clone())),
+            Arc::new(PgSessionRepository::new(db.clone())),
+            None,
+        ),
         videos: Arc::new(PgVideoRepository::new(db.clone())),
         db,
         metrics: telemetry::detached_metrics_handle(),

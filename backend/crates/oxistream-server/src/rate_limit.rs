@@ -4,10 +4,15 @@ use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
+use std::num::NonZeroU32;
+
 use axum::body::Body;
 use axum::extract::ConnectInfo;
-use axum::http::{HeaderName, HeaderValue, Request, Response, StatusCode, header};
+use axum::http::{
+    Extensions, HeaderMap, HeaderName, HeaderValue, Request, Response, StatusCode, header,
+};
 use governor::middleware::NoOpMiddleware;
+use governor::{DefaultKeyedRateLimiter, Quota};
 use tower_governor::GovernorError;
 use tower_governor::governor::{GovernorConfig, GovernorConfigBuilder};
 use tower_governor::key_extractor::KeyExtractor;
@@ -83,23 +88,69 @@ pub struct ClientIp {
     trusted_header: Option<HeaderName>,
 }
 
+impl ClientIp {
+    pub fn new(trusted_header: Option<HeaderName>) -> Self {
+        Self { trusted_header }
+    }
+
+    /// The client IP as seen by this instance, without prefix grouping.
+    pub fn of(&self, headers: &HeaderMap, extensions: &Extensions) -> Option<IpAddr> {
+        let forwarded = self.trusted_header.as_ref().and_then(|name| {
+            let value = headers.get_all(name).iter().next_back()?;
+            value.to_str().ok()?.rsplit(',').next()?.trim().parse().ok()
+        });
+        forwarded.or_else(|| {
+            extensions
+                .get::<ConnectInfo<SocketAddr>>()
+                .map(|ConnectInfo(addr)| addr.ip())
+        })
+    }
+}
+
 impl KeyExtractor for ClientIp {
     type Key = IpAddr;
 
     fn extract<T>(&self, req: &Request<T>) -> Result<Self::Key, GovernorError> {
-        let forwarded = self.trusted_header.as_ref().and_then(|name| {
-            let value = req.headers().get_all(name).iter().next_back()?;
-            value.to_str().ok()?.rsplit(',').next()?.trim().parse().ok()
-        });
-        let peer = || {
-            req.extensions()
-                .get::<ConnectInfo<SocketAddr>>()
-                .map(|ConnectInfo(addr)| addr.ip())
-        };
-        forwarded
-            .or_else(peer)
+        self.of(req.headers(), req.extensions())
             .map(normalize)
             .ok_or(GovernorError::UnableToExtractKey)
+    }
+}
+
+/// Stricter limits for login and registration attempts, per client IP and per username.
+pub struct LoginLimiter {
+    per_ip: DefaultKeyedRateLimiter<IpAddr>,
+    per_username: DefaultKeyedRateLimiter<String>,
+}
+
+impl Default for LoginLimiter {
+    fn default() -> Self {
+        let quota = |burst: u32, period: Duration| {
+            Quota::with_period(period)
+                .expect("non-zero period")
+                .allow_burst(NonZeroU32::new(burst).expect("non-zero burst"))
+        };
+        Self {
+            per_ip: DefaultKeyedRateLimiter::keyed(quota(10, Duration::from_secs(6))),
+            per_username: DefaultKeyedRateLimiter::keyed(quota(5, Duration::from_secs(30))),
+        }
+    }
+}
+
+impl LoginLimiter {
+    /// Records an attempt; `false` if the client or the username is over its limit.
+    pub fn check(&self, ip: Option<IpAddr>, username: Option<&str>) -> bool {
+        let ip_ok = ip.is_none_or(|ip| self.per_ip.check_key(&normalize(ip)).is_ok());
+        let username_ok =
+            username.is_none_or(|name| self.per_username.check_key(&name.to_lowercase()).is_ok());
+        ip_ok && username_ok
+    }
+
+    pub fn retain_recent(&self) {
+        self.per_ip.retain_recent();
+        self.per_ip.shrink_to_fit();
+        self.per_username.retain_recent();
+        self.per_username.shrink_to_fit();
     }
 }
 
@@ -168,6 +219,23 @@ mod tests {
             extract(Some("x-forwarded-for"), &[], Some("192.0.2.1:5000")),
             Some(ip("192.0.2.1"))
         );
+    }
+
+    #[test]
+    fn login_limiter_limits_per_ip_and_username() {
+        let limiter = LoginLimiter::default();
+        let a = Some(ip("192.0.2.1"));
+        let b = Some(ip("192.0.2.2"));
+        for _ in 0..5 {
+            assert!(limiter.check(a, Some("Mara")));
+        }
+        assert!(!limiter.check(b, Some("mara")), "usernames ignore case");
+        assert!(limiter.check(b, Some("other")));
+        for _ in 0..5 {
+            assert!(limiter.check(a, None));
+        }
+        assert!(!limiter.check(a, None), "per-IP burst exhausted");
+        assert!(limiter.check(None, None));
     }
 
     #[test]
