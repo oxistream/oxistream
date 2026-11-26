@@ -189,6 +189,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Watched videos, most recently watched first. */
+        get: operations["history"];
+        put?: never;
+        post?: never;
+        /** Clear the whole watch history, including resume points. */
+        delete: operations["clear_history"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/history/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Started but unfinished videos, most recently watched first. */
+        get: operations["continue_watching"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/history/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the watch history is paused. */
+        get: operations["history_settings"];
+        /** Pause or resume the watch history. */
+        put: operations["update_history_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/history/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one video from the watch history. Succeeds if it is not in there, too. */
+        delete: operations["delete_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/instance": {
         parameters: {
             query?: never;
@@ -198,6 +268,47 @@ export interface paths {
         };
         /** Basic information about this instance. */
         get: operations["instance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Progress of several videos, e.g. for the progress bars of a list. Videos never watched
+         *     are left out.
+         */
+        get: operations["batch_progress"];
+        put?: never;
+        /**
+         * Record how far the signed-in user got into a video. Ignored while history is paused.
+         * @description The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
+         */
+        post: operations["report_progress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/progress/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Progress of one video, to resume where the signed-in user left off. */
+        get: operations["video_progress"];
         put?: never;
         post?: never;
         delete?: never;
@@ -472,6 +583,24 @@ export interface components {
          * @enum {string}
          */
         FieldError: "required" | "format" | "length" | "too_long" | "taken";
+        HistoryItem: {
+            progress: components["schemas"]["VideoProgress"];
+            /**
+             * @description From the metadata cache; `title` is the video ID and `channel` is absent while the
+             *     metadata is unknown.
+             */
+            video: components["schemas"]["VideoSummary"];
+        };
+        HistoryPage: {
+            /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
+            continuation?: string | null;
+            /** @description Most recently watched first. */
+            items: components["schemas"]["HistoryItem"][];
+        };
+        HistorySettings: {
+            /** @description Progress reports are ignored while paused; existing history stays. */
+            paused: boolean;
+        };
         /**
          * Format: binary
          * @description A subscription file as exported by another app.
@@ -536,6 +665,22 @@ export interface components {
             title: string;
             /** Format: int64 */
             video_count?: number | null;
+        };
+        /** @description A progress report from the player. */
+        ProgressReport: {
+            /** Format: double */
+            duration_seconds: number;
+            /** @description Watched to (nearly) the end. */
+            finished?: boolean;
+            /**
+             * Format: double
+             * @description Seconds into the video.
+             */
+            position_seconds: number;
+            video_id: string;
+        };
+        ProgressState: {
+            progress?: components["schemas"]["VideoProgress"] | null;
         };
         Resolved: {
             id: string;
@@ -643,6 +788,20 @@ export interface components {
         VideoPage: {
             continuation?: string | null;
             items: components["schemas"]["VideoSummary"][];
+        };
+        /** @description How far the signed-in user got into a video. */
+        VideoProgress: {
+            /** Format: double */
+            duration_seconds: number;
+            finished: boolean;
+            /** Format: double */
+            position_seconds: number;
+            /**
+             * Format: date-time
+             * @description When the video was last watched.
+             */
+            updated_at: string;
+            video_id: string;
         };
         VideoSummary: {
             channel?: components["schemas"]["ChannelRef"] | null;
@@ -1131,6 +1290,250 @@ export interface operations {
             };
         };
     };
+    history: {
+        parameters: {
+            query?: {
+                /** @description Token from a previous page. */
+                continuation?: string;
+                /** @description Page size, 1 to 100; default 30. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            /** @description Invalid continuation or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description History cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    continue_watching: {
+        parameters: {
+            query?: {
+                /** @description 1 to 50; default 12. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryItem"][];
+                };
+            };
+            /** @description Invalid limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    history_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySettings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_history_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistorySettings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySettings"];
+                };
+            };
+            /** @description Invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not in the history anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     instance: {
         parameters: {
             query?: never;
@@ -1147,6 +1550,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceInfo"];
+                };
+            };
+        };
+    };
+    batch_progress: {
+        parameters: {
+            query: {
+                /** @description Comma-separated video IDs, at most 100. */
+                ids: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoProgress"][];
+                };
+            };
+            /** @description Invalid or too many IDs */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    report_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressReport"];
+            };
+        };
+        responses: {
+            /** @description Recorded, or ignored while history is paused */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid report */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    video_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressState"];
+                };
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

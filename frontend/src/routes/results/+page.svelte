@@ -2,6 +2,7 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import { page } from '$app/state';
+	import { createProgressLookup } from '#lib/api/history.js';
 	import { uniqueBy } from '#lib/api/mapping.js';
 	import { createSearchQuery } from '#lib/api/search.js';
 	import PageHeader from '#lib/components/page-header.svelte';
@@ -15,8 +16,19 @@
 	const query = $derived((page.url.searchParams.get('search_query') ?? '').trim());
 	const search = createSearchQuery(() => query);
 
-	const unique = $derived(
+	const found = $derived(
 		uniqueBy(search.data?.pages.flatMap((p) => p.items) ?? [], (result) => result.key)
+	);
+	const progress = createProgressLookup(() =>
+		found.flatMap((r) => (r.type === 'video' ? [r.video.id] : []))
+	);
+	const unique = $derived(
+		found.map((r) => {
+			const watched = r.type === 'video' ? progress.get(r.video.id) : undefined;
+			return watched === undefined || r.type !== 'video'
+				? r
+				: { ...r, video: { ...r.video, progress: watched } };
+		})
 	);
 	const corrected = $derived(search.data?.pages[0]?.correctedQuery);
 	const title = $derived(query ? m.search_results_title({ query }) : m.search_placeholder());

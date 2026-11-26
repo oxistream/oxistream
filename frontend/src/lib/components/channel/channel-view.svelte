@@ -3,6 +3,8 @@
 	import UserXIcon from '@lucide/svelte/icons/user-x';
 	import { resolve } from '$app/paths';
 	import { createChannelQuery, createChannelVideosQuery } from '#lib/api/channel.js';
+	import { createProgressLookup } from '#lib/api/history.js';
+	import { withProgress } from '#lib/api/history-list.js';
 	import { isNotFound, uniqueBy } from '#lib/api/mapping.js';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import ErrorState from '#lib/components/state/error-state.svelte';
@@ -31,9 +33,11 @@
 	const channel = createChannelQuery(() => id);
 	const videos = createChannelVideosQuery(() => (channel.data ? id : undefined));
 
-	const items = $derived(
+	const listed = $derived(
 		uniqueBy(videos.data?.pages.flatMap((p) => p.items) ?? [], (video) => video.id)
 	);
+	const progress = createProgressLookup(() => listed.map((v) => v.id));
+	const items = $derived(withProgress(listed, progress.get));
 	const error = $derived(resolveError ?? (channel.data ? undefined : channel.error));
 	const loading = $derived(!error && (resolving || channel.isPending));
 </script>

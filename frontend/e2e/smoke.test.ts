@@ -9,7 +9,7 @@ test('app shell loads and the language can be switched', async ({ page }) => {
 	await expect(sidebar).toBeVisible();
 	await expect(sidebar.getByRole('link', { name: 'Subscriptions' })).toBeVisible();
 	await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeAttached();
-	await expect(page.getByRole('heading', { level: 2, name: 'Continue watching' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 2, name: 'Recent videos' })).toBeVisible();
 	await expect(page).toHaveTitle('Oxistream');
 
 	await page.getByTestId('language-switch').click();

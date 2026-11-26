@@ -4,7 +4,7 @@
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
 	import VideoMeta from '#lib/components/video/video-meta.svelte';
 	import VideoThumbnail from '#lib/components/video/video-thumbnail.svelte';
-	import { formatDurationLong } from '#lib/format.js';
+	import { formatDurationLong, formatPercent } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
@@ -34,6 +34,7 @@
 	<VideoThumbnail
 		src={video.thumbnailUrl}
 		durationSeconds={video.durationSeconds}
+		progress={video.progress}
 		badge={video.isLive ? m.search_live() : undefined}
 	/>
 	<div class="flex min-w-0 flex-col gap-1 @xl:pt-0.5">
@@ -48,6 +49,8 @@
 			>
 				{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
 						, {m.video_duration({ duration: formatDurationLong(video.durationSeconds, locale) })}
+					</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
+						, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
 					</span>{/if}
 			</a>
 		</h3>
