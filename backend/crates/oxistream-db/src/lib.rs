@@ -6,6 +6,10 @@ pub use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 
+mod videos;
+
+pub use videos::{PgVideoRepository, Video, VideoRepository, VideoUpsert};
+
 pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
 #[derive(Debug, thiserror::Error)]
