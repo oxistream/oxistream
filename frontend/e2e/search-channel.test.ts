@@ -241,11 +241,10 @@ test('channel page renders its header and pages through videos', async ({ page }
 	await expect(page.getByText('284K subscribers')).toBeVisible();
 	await expect(page.getByRole('img', { name: 'Verified' }).first()).toBeVisible();
 
-	const subscribe = page.getByTestId('subscribe-button');
-	await expect(subscribe).toHaveAttribute('aria-disabled', 'true');
-	await subscribe.hover();
-	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
-		'Subscriptions arrive in a later release.'
+	// Anonymous users are sent to sign-in and come back here afterwards.
+	await expect(page.getByTestId('subscribe-button')).toHaveAttribute(
+		'href',
+		`/login?redirect=%2Fchannel%2F${forge.id}`
 	);
 
 	const videos = page.getByRole('list', { name: 'Videos' });

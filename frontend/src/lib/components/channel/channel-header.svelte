@@ -5,9 +5,7 @@
 </script>
 
 <script lang="ts">
-	import BellPlusIcon from '@lucide/svelte/icons/bell-plus';
-	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
@@ -113,27 +111,6 @@
 				{/if}
 			</div>
 		</div>
-		<Tooltip.Provider delayDuration={150}>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<!-- aria-disabled instead of disabled keeps the button focusable, so the tooltip is reachable. -->
-						<Button
-							{...props}
-							aria-disabled="true"
-							aria-describedby={`${descriptionId}-soon`}
-							class="w-full cursor-not-allowed opacity-60 hover:bg-primary @xl:w-auto"
-							data-testid="subscribe-button"
-							onclick={(event: MouseEvent) => event.preventDefault()}
-						>
-							<BellPlusIcon />
-							{m.channel_subscribe()}
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>{m.channel_subscribe_soon()}</Tooltip.Content>
-			</Tooltip.Root>
-		</Tooltip.Provider>
-		<span id={`${descriptionId}-soon`} class="sr-only">{m.channel_subscribe_soon()}</span>
+		<SubscribeButton channelId={channel.id} class="w-full @xl:w-auto" />
 	</div>
 </header>

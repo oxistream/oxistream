@@ -7,6 +7,7 @@
 	import type { ComponentProps } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import type { SubscribedChannel } from '#lib/api/subscription-list.js';
 	import LogoMark from '#lib/components/brand/logo-mark.svelte';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '#lib/components/ui/sidebar/index.js';
@@ -14,14 +15,18 @@
 	import type { User } from '#lib/video.js';
 	import NavMain, { type NavItem } from './nav-main.svelte';
 	import NavUser from './nav-user.svelte';
+	import NavSubscriptions from './subscription/nav-subscriptions.svelte';
 
 	let {
 		ref = $bindable(null),
 		user = null,
+		channels = [],
 		onsignout,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user?: User | null;
+		/** The signed-in user's subscriptions, listed compactly below the library. */
+		channels?: SubscribedChannel[];
 		onsignout?: () => void;
 	} = $props();
 
@@ -66,6 +71,7 @@
 		<nav aria-label={m.nav_label()} class="contents">
 			<NavMain items={primary} />
 			<NavMain items={library} label={m.nav_library()} />
+			{#if user}<NavSubscriptions {channels} />{/if}
 			<NavMain items={secondary} class="mt-auto" />
 		</nav>
 	</Sidebar.Content>

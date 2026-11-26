@@ -59,7 +59,7 @@
 	"video_duration": "Duration {duration}",
 	"video_loading": "Loading videos",
 	"empty_subscriptions_title": "No subscriptions yet",
-	"empty_subscriptions_body": "Follow channels and their new videos show up here, newest first.",
+	"empty_subscriptions_body": "Subscribe on a channel page, or import your subscriptions from YouTube, NewPipe, Invidious or Piped.",
 	"empty_playlists_title": "No playlists yet",
 	"empty_playlists_body": "Save videos to a playlist to watch later, or share it by link.",
 	"empty_history_title": "Your history is empty",
@@ -152,8 +152,6 @@
 			}
 		}
 	],
-	"channel_subscribe": "Subscribe",
-	"channel_subscribe_soon": "Subscriptions arrive in a later release.",
 	"channel_videos": "Videos",
 	"channel_loading": "Loading channel",
 	"channel_more": "More",
@@ -198,8 +196,6 @@
 			}
 		}
 	],
-	"watch_subscribe": "Subscribe",
-	"watch_subscribe_soon": "Subscriptions are coming soon",
 	"watch_description": "Description",
 	"watch_show_more": "Show more",
 	"watch_show_less": "Show less",
@@ -245,5 +241,34 @@
 	"auth_oidc_error_disabled": "Single sign-on is not set up on this instance.",
 	"auth_oidc_error_unavailable": "The sign-in provider cannot be reached right now. Try again in a moment.",
 	"auth_oidc_error_denied": "Sign-in was cancelled at the provider.",
-	"auth_oidc_error_failed": "Single sign-on did not complete. Start again from this page."
+	"auth_oidc_error_failed": "Single sign-on did not complete. Start again from this page.",
+	"nav_channels": "Channels",
+	"nav_channels_all": "All {count} channels",
+	"nav_channels_manage": "Manage channels",
+	"subscription_subscribe": "Subscribe",
+	"subscription_subscribed": "Subscribed",
+	"subscriptions_title": "Subscribed channels",
+	"subscriptions_count": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} channel",
+				"countPlural=*": "{count} channels"
+			}
+		}
+	],
+	"subscriptions_loading": "Loading channels",
+	"subscriptions_unsubscribe": "Unsubscribe",
+	"subscriptions_unsubscribe_from": "Unsubscribe from {name}",
+	"subscriptions_resubscribe_to": "Subscribe to {name} again",
+	"subscriptions_channel_pending": "Fetching channel…",
+	"subscriptions_import_export": "Import / export",
+	"feed_manage": "Manage",
+	"feed_fetching_title": "Fetching your new channels",
+	"feed_fetching_body": "Their latest videos show up here in a moment.",
+	"feed_fetching_inline": "Fetching videos of new channels…",
+	"feed_no_videos_title": "No videos yet",
+	"feed_no_videos_body": "None of your channels has published a video so far.",
+	"feed_end": "You're all caught up"
 }
