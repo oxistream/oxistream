@@ -1,6 +1,8 @@
 use axum::Json;
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::body::Bytes;
+use axum::extract::rejection::{BytesRejection, QueryRejection};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use oxistream_db::{FeedCursor, FeedVideo, Image, Subscription};
 use rustypipe::validate;
@@ -12,14 +14,23 @@ use utoipa_axum::routes;
 
 use crate::AppState;
 use crate::api::dto::{ChannelRef, Thumbnail, VideoSummary};
-use crate::api::error::{ApiError, ErrorBody};
+use crate::api::error::{ApiError, ErrorBody, ErrorCode};
 use crate::auth::CurrentUser;
+use crate::subscription_io::{self, ExportedChannel, ImportFormat};
 
 const FEED_DEFAULT_LIMIT: u32 = 30;
 const FEED_MAX_LIMIT: u32 = 100;
+const IMPORT_MAX_BYTES: usize = 5 * 1024 * 1024;
+const IMPORT_MAX_CHANNELS: usize = 10_000;
+const IMPORT_MAX_SKIPPED_ENTRIES: usize = 100;
 
 pub fn router() -> OpenApiRouter<AppState> {
+    let import = OpenApiRouter::new()
+        .routes(routes!(import_subscriptions))
+        .layer(DefaultBodyLimit::max(IMPORT_MAX_BYTES));
     OpenApiRouter::new()
+        .merge(import)
+        .routes(routes!(export_subscriptions))
         .routes(routes!(list_subscriptions))
         .routes(routes!(subscription_state, subscribe, unsubscribe))
         .routes(routes!(feed))
@@ -29,7 +40,8 @@ pub fn router() -> OpenApiRouter<AppState> {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SubscribedChannel {
     pub id: String,
-    /// `null` until the channel was fetched once, shortly after the first subscription.
+    /// `null` until the channel was fetched once, shortly after the first subscription,
+    /// unless an import provided it.
     pub name: Option<String>,
     pub handle: Option<String>,
     pub avatar: Vec<Thumbnail>,
@@ -234,6 +246,170 @@ async fn unsubscribe(
         .unsubscribe(user.id, &channel_id)
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Outcome of a subscription import.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ImportResult {
+    /// Detected file format.
+    pub format: ImportFormat,
+    /// New subscriptions.
+    pub imported: u64,
+    /// Channels in the file the user was already subscribed to.
+    pub already_subscribed: u64,
+    /// Entries that cannot be imported, such as handles, custom URLs or other services.
+    pub skipped: u64,
+    /// Entries that are not channels.
+    pub invalid: u64,
+    /// The first skipped entries, as given in the file.
+    pub skipped_entries: Vec<String>,
+}
+
+/// A subscription file as exported by another app.
+#[derive(ToSchema)]
+#[schema(value_type = String, format = Binary)]
+#[allow(dead_code)] // Only describes the request body.
+pub struct ImportFile(Vec<u8>);
+
+/// Import subscriptions from a file.
+///
+/// Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON
+/// export, or an OPML file; the format is detected from the content. Idempotent. Only
+/// channels given by ID or `/channel/UC…` URL can be imported. New channels are fetched
+/// by the feed worker over the following minutes.
+#[utoipa::path(
+    post,
+    path = "/subscriptions/import",
+    tag = "subscriptions",
+    security(("session" = [])),
+    request_body(
+        description = "The exported file as is, at most 5 MiB",
+        content = ImportFile,
+        content_type = "application/octet-stream",
+    ),
+    responses(
+        (status = OK, body = ImportResult),
+        (status = BAD_REQUEST, description = "Unrecognized or malformed file", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+        (status = PAYLOAD_TOO_LARGE, description = "File too large", body = ErrorBody),
+    )
+)]
+async fn import_subscriptions(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    body: Result<Bytes, BytesRejection>,
+) -> Result<Json<ImportResult>, ApiError> {
+    let body = body.map_err(|rejection| {
+        if rejection.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            ApiError::new(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                ErrorCode::BadRequest,
+                "file must not exceed 5 MiB",
+            )
+        } else {
+            ApiError::bad_request(rejection.body_text())
+        }
+    })?;
+    let file =
+        subscription_io::parse(&body).map_err(|err| ApiError::bad_request(err.to_string()))?;
+    if file.channels.len() > IMPORT_MAX_CHANNELS {
+        return Err(ApiError::bad_request(format!(
+            "at most {IMPORT_MAX_CHANNELS} channels can be imported at once"
+        )));
+    }
+    // The feed worker picks up never-checked channels on its next tick, one at a time.
+    let imported = if file.channels.is_empty() {
+        0
+    } else {
+        state.subscriptions.import(user.id, &file.channels).await?
+    };
+    tracing::info!(
+        user_id = %user.id,
+        format = ?file.format,
+        channels = file.channels.len(),
+        imported,
+        "imported subscriptions"
+    );
+    Ok(Json(ImportResult {
+        format: file.format,
+        imported,
+        already_subscribed: file.channels.len() as u64 - imported,
+        skipped: file.skipped.len() as u64,
+        invalid: file.invalid as u64,
+        skipped_entries: file
+            .skipped
+            .into_iter()
+            .take(IMPORT_MAX_SKIPPED_ENTRIES)
+            .collect(),
+    }))
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportFormat {
+    /// NewPipe JSON, also understood by Piped, LibreTube and Invidious.
+    NewPipe,
+    /// Invidious JSON.
+    Invidious,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ExportParams {
+    #[param(inline)]
+    format: ExportFormat,
+}
+
+/// Download the signed-in user's subscriptions as a file.
+#[utoipa::path(
+    get,
+    path = "/subscriptions/export",
+    tag = "subscriptions",
+    security(("session" = [])),
+    params(ExportParams),
+    responses(
+        (status = OK, description = "The export, as an attachment", content_type = "application/json", body = Object),
+        (status = BAD_REQUEST, description = "Unknown format", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+    )
+)]
+async fn export_subscriptions(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    params: Result<Query<ExportParams>, QueryRejection>,
+) -> Result<Response, ApiError> {
+    let Query(params) =
+        params.map_err(|_| ApiError::bad_request("`format` must be `newpipe` or `invidious`"))?;
+    let channels: Vec<ExportedChannel> = state
+        .subscriptions
+        .list(user.id)
+        .await?
+        .into_iter()
+        .map(|s| ExportedChannel {
+            id: s.channel.id,
+            name: s.channel.name,
+        })
+        .collect();
+    let (prefix, body) = match params.format {
+        ExportFormat::NewPipe => ("newpipe", subscription_io::to_newpipe(&channels)),
+        ExportFormat::Invidious => ("invidious", subscription_io::to_invidious(&channels)),
+    };
+    let stamp = OffsetDateTime::now_utc()
+        .format(time::macros::format_description!(
+            "[year][month][day][hour][minute]"
+        ))
+        .map_err(|_| ApiError::internal())?;
+    let disposition = format!("attachment; filename=\"{prefix}_subscriptions_{stamp}.json\"");
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/json".to_owned()),
+            (header::CONTENT_DISPOSITION, disposition),
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+        ],
+        body,
+    )
+        .into_response())
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

@@ -459,6 +459,35 @@ impl Api {
     }
 
     async fn send(&self, method: Method, uri: &str, signed_in: bool) -> (StatusCode, Value) {
+        let (status, _, bytes) = self.request(method, uri, signed_in, Body::empty()).await;
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    async fn import(&self, body: impl Into<Body>) -> (StatusCode, Value) {
+        let (status, _, bytes) = self
+            .request(
+                Method::POST,
+                "/api/v0/subscriptions/import",
+                true,
+                body.into(),
+            )
+            .await;
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    async fn request(
+        &self,
+        method: Method,
+        uri: &str,
+        signed_in: bool,
+        body: Body,
+    ) -> (StatusCode, header::HeaderMap, Vec<u8>) {
         let mut req = Request::builder()
             .method(method)
             .uri(uri)
@@ -470,16 +499,22 @@ impl Api {
         let response = self
             .app
             .clone()
-            .oneshot(req.body(Body::empty()).unwrap())
+            .oneshot(req.body(body).unwrap())
             .await
             .unwrap();
         let status = response.status();
+        let headers = response.headers().clone();
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        (
-            status,
-            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
-        )
+        (status, headers, bytes.to_vec())
     }
+}
+
+fn fixture(name: &str) -> Vec<u8> {
+    let path = format!(
+        "{}/tests/fixtures/subscriptions/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read(&path).unwrap_or_else(|err| panic!("{path}: {err}"))
 }
 
 #[tokio::test]
@@ -495,6 +530,8 @@ async fn api_requires_login() {
         (Method::PUT, path.as_str()),
         (Method::DELETE, path.as_str()),
         (Method::GET, "/api/v0/feed"),
+        (Method::POST, "/api/v0/subscriptions/import"),
+        (Method::GET, "/api/v0/subscriptions/export?format=newpipe"),
     ] {
         let (status, json) = api.send(method.clone(), uri, false).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
@@ -602,4 +639,182 @@ async fn api_rejects_bad_input() {
         let (status, json) = api.send(method.clone(), uri, true).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{method} {uri}: {json}");
     }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_imports_each_format_idempotently() {
+    let db = isolated_test_pool().await;
+    let channels = Arc::new(PgChannelRepository::new(db.pool.clone()));
+    let (feed, mut requests) = Feed::new(channels.clone());
+    let api = Api::new(&db.pool, feed).await;
+    // Fetched before, so the file's name must not replace YouTube's.
+    channels
+        .store_fetch(&channel("UCsXVk37bltHxD1rDPwtNM8Q", "Kurzgesagt"), &[])
+        .await
+        .unwrap();
+
+    let (status, json) = api.import(fixture("takeout_en.csv")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["format"], "youtube_takeout");
+    let counts = |json: &Value| {
+        ["imported", "already_subscribed", "skipped", "invalid"].map(|k| json[k].as_u64().unwrap())
+    };
+    assert_eq!(counts(&json), [4, 0, 0, 0]);
+    assert_eq!(
+        requests.try_recv(),
+        None,
+        "the scheduled worker fetches imports"
+    );
+
+    let (_, json) = api.import(fixture("takeout_en.csv")).await;
+    assert_eq!(counts(&json), [0, 4, 0, 0]);
+
+    let (_, json) = api.import(fixture("newpipe.json")).await;
+    assert_eq!(json["format"], "newpipe");
+    assert_eq!(counts(&json), [0, 3, 3, 1]);
+    assert_eq!(
+        json["skipped_entries"][0],
+        "https://www.youtube.com/@veritasium"
+    );
+
+    for (name, format) in [
+        ("invidious.json", "invidious"),
+        ("invidious.opml", "opml"),
+        ("piped.json", "piped"),
+        ("takeout_de.csv", "youtube_takeout"),
+    ] {
+        let (status, json) = api.import(fixture(name)).await;
+        assert_eq!(status, StatusCode::OK, "{name}: {json}");
+        assert_eq!(json["format"], format, "{name}");
+        assert_eq!(json["imported"], 0, "{name}");
+    }
+
+    let (_, list) = api.send(Method::GET, "/api/v0/subscriptions", true).await;
+    let names: Vec<_> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "Kurzgesagt",
+            "Tom Scott, \"quoted\"",
+            "Veritasium",
+            "Vsauce"
+        ]
+    );
+    let status = channels.status().await.unwrap();
+    assert_eq!(
+        (status.channels, status.pending),
+        (4, 3),
+        "names do not count as fetched"
+    );
+    let due = channels
+        .due(OffsetDateTime::now_utc() - INTERVAL, 10)
+        .await
+        .unwrap();
+    assert_eq!(due.len(), 3, "imported channels are due right away");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_rejects_bad_imports() {
+    let db = isolated_test_pool().await;
+    let channels = Arc::new(PgChannelRepository::new(db.pool.clone()));
+    let api = Api::new(&db.pool, Feed::new(channels).0).await;
+    for body in [&b""[..], b"hello", b"{\"foo\":1}", b"<rss/>", b"\xff\xfe"] {
+        let (status, json) = api.import(body.to_vec()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+        assert_eq!(json["code"], "bad_request");
+    }
+    let (status, json) = api.import(vec![b' '; 5 * 1024 * 1024 + 1]).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{json}");
+
+    for uri in [
+        "/api/v0/subscriptions/export?format=opml",
+        "/api/v0/subscriptions/export",
+    ] {
+        let (status, json) = api.send(Method::GET, uri, true).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {json}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_exports_newpipe_and_invidious() {
+    let db = isolated_test_pool().await;
+    let channels = Arc::new(PgChannelRepository::new(db.pool.clone()));
+    let api = Api::new(&db.pool, Feed::new(channels.clone()).0).await;
+    for id in [CHANNEL_B, CHANNEL_A] {
+        let (status, _) = api
+            .send(Method::PUT, &format!("/api/v0/subscriptions/{id}"), true)
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    channels
+        .store_fetch(&channel(CHANNEL_A, "Alpha"), &[])
+        .await
+        .unwrap();
+
+    let (status, headers, body) = api
+        .request(
+            Method::GET,
+            "/api/v0/subscriptions/export?format=newpipe",
+            true,
+            Body::empty(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+    let disposition = headers[header::CONTENT_DISPOSITION].to_str().unwrap();
+    assert!(
+        disposition.starts_with("attachment; filename=\"newpipe_subscriptions_")
+            && disposition.ends_with(".json\""),
+        "{disposition}"
+    );
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    assert!(json["app_version"].is_string());
+    assert_eq!(
+        json["subscriptions"],
+        serde_json::json!([
+            {
+                "service_id": 0,
+                "url": format!("https://www.youtube.com/channel/{CHANNEL_A}"),
+                "name": "Alpha",
+            },
+            {
+                "service_id": 0,
+                "url": format!("https://www.youtube.com/channel/{CHANNEL_B}"),
+                "name": CHANNEL_B,
+            },
+        ])
+    );
+
+    let (status, _, body) = api
+        .request(
+            Method::GET,
+            "/api/v0/subscriptions/export?format=invidious",
+            true,
+            Body::empty(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        json["subscriptions"],
+        serde_json::json!([CHANNEL_A, CHANNEL_B])
+    );
+
+    let (_, json) = api.import(body).await;
+    assert_eq!(
+        (
+            json["imported"].as_u64(),
+            json["already_subscribed"].as_u64()
+        ),
+        (Some(0), Some(2)),
+        "an export imports back unchanged"
+    );
 }

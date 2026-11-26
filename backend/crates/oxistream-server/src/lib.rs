@@ -23,6 +23,7 @@ mod ops;
 pub mod proxy;
 pub mod rate_limit;
 mod spa;
+pub mod subscription_io;
 pub mod telemetry;
 pub mod youtube;
 

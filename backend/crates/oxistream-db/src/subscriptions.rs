@@ -80,6 +80,14 @@ pub struct FeedCursor {
     pub video_id: String,
 }
 
+/// A channel from an imported subscription list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedChannel {
+    pub id: String,
+    /// Name from the file; stored only while the channel has none.
+    pub name: Option<String>,
+}
+
 #[async_trait::async_trait]
 pub trait SubscriptionRepository: Send + Sync {
     /// Subscribes `user_id` to `channel_id`, creating the channel if unknown.
@@ -91,6 +99,10 @@ pub trait SubscriptionRepository: Send + Sync {
     ) -> Result<(Subscription, bool), Error>;
 
     /// Returns whether a subscription existed.
+    /// Subscribes `user_id` to all `channels` in one transaction. IDs must be unique.
+    /// Returns how many subscriptions are new.
+    async fn import(&self, user_id: Uuid, channels: &[ImportedChannel]) -> Result<u64, Error>;
+
     async fn unsubscribe(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error>;
 
     async fn is_subscribed(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error>;
@@ -218,6 +230,33 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .await?;
         tx.commit().await?;
         Ok((subscription, created))
+    }
+
+    async fn import(&self, user_id: Uuid, channels: &[ImportedChannel]) -> Result<u64, Error> {
+        let ids: Vec<&str> = channels.iter().map(|c| c.id.as_str()).collect();
+        let names: Vec<Option<&str>> = channels.iter().map(|c| c.name.as_deref()).collect();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO channels (id, name) SELECT * FROM UNNEST($1::text[], $2::text[]) \
+             ON CONFLICT (id) DO UPDATE SET name = COALESCE(channels.name, EXCLUDED.name) \
+             WHERE channels.name IS NULL AND EXCLUDED.name IS NOT NULL",
+        )
+        .bind(&ids)
+        .bind(&names)
+        .execute(&mut *tx)
+        .await?;
+        let created = sqlx::query(
+            "INSERT INTO subscriptions (user_id, channel_id) \
+             SELECT $1, id FROM UNNEST($2::text[]) AS t (id) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(&ids)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        tx.commit().await?;
+        Ok(created)
     }
 
     async fn unsubscribe(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error> {

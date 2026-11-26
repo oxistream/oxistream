@@ -929,6 +929,143 @@
         ]
       }
     },
+    "/api/v0/subscriptions/export": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Download the signed-in user's subscriptions as a file.",
+        "operationId": "export_subscriptions",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newpipe",
+                "invidious"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export, as an attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/subscriptions/import": {
+      "post": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Import subscriptions from a file.",
+        "description": "Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON\nexport, or an OPML file; the format is detected from the content. Idempotent. Only\nchannels given by ID or `/channel/UC…` URL can be imported. New channels are fetched\nby the feed worker over the following minutes.",
+        "operationId": "import_subscriptions",
+        "requestBody": {
+          "description": "The exported file as is, at most 5 MiB",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unrecognized or malformed file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/subscriptions/{channel_id}": {
       "get": {
         "tags": [
@@ -1662,6 +1799,70 @@
           "taken"
         ]
       },
+      "ImportFile": {
+        "type": "string",
+        "format": "binary",
+        "description": "A subscription file as exported by another app."
+      },
+      "ImportFormat": {
+        "type": "string",
+        "enum": [
+          "youtube_takeout",
+          "newpipe",
+          "invidious",
+          "piped",
+          "opml"
+        ]
+      },
+      "ImportResult": {
+        "type": "object",
+        "description": "Outcome of a subscription import.",
+        "required": [
+          "format",
+          "imported",
+          "already_subscribed",
+          "skipped",
+          "invalid",
+          "skipped_entries"
+        ],
+        "properties": {
+          "already_subscribed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channels in the file the user was already subscribed to.",
+            "minimum": 0
+          },
+          "format": {
+            "$ref": "#/components/schemas/ImportFormat",
+            "description": "Detected file format."
+          },
+          "imported": {
+            "type": "integer",
+            "format": "int64",
+            "description": "New subscriptions.",
+            "minimum": 0
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries that are not channels.",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries that cannot be imported, such as handles, custom URLs or other services.",
+            "minimum": 0
+          },
+          "skipped_entries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The first skipped entries, as given in the file."
+          }
+        }
+      },
       "InstanceInfo": {
         "type": "object",
         "required": [
@@ -1920,7 +2121,7 @@
               "string",
               "null"
             ],
-            "description": "`null` until the channel was fetched once, shortly after the first subscription."
+            "description": "`null` until the channel was fetched once, shortly after the first subscription,\nunless an import provided it."
           },
           "subscribed_at": {
             "type": "string",
