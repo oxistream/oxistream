@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { pickImage, toChannel } from '#lib/api/mapping.js';
 	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
+	import { createShortDetailsQuery } from '#lib/api/shorts.js';
 	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
 	import Player from '#lib/components/player/player.svelte';
@@ -37,6 +38,7 @@
 
 	const video = useVideo(() => id);
 	const manifest = useManifest(() => (loaded ? id : null));
+	const overlay = createShortDetailsQuery(() => (loaded ? id : null));
 	const segmentsQuery = useSegments(() => (loaded ? id : null));
 	const sponsorBlock = useSponsorBlockSettings();
 	const segments = $derived(
@@ -114,6 +116,7 @@
 		videoId={id}
 		{title}
 		{channel}
+		linkedVideo={overlay.data?.linked_video ?? undefined}
 		onblocked={() => channel?.id && onblocked?.(channel.id)}
 	/>
 </div>

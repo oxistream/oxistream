@@ -1,6 +1,8 @@
 <script lang="ts">
+	import PlayIcon from '@lucide/svelte/icons/play';
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { resolve } from '$app/paths';
+	import type { LinkedVideo } from '#lib/api/shorts.js';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
@@ -15,6 +17,7 @@
 		videoId,
 		title,
 		channel,
+		linkedVideo,
 		onblocked,
 		class: className
 	}: {
@@ -22,6 +25,8 @@
 		title: string;
 		/** Without an id, the channel is shown without link and subscribe button. */
 		channel?: ChannelSummary;
+		/** The full video the short links to. */
+		linkedVideo?: LinkedVideo;
 		/** The user just blocked the channel. */
 		onblocked?: () => void;
 		class?: string;
@@ -67,6 +72,16 @@
 			>
 				{title}
 			</h1>
+		{/if}
+		{#if linkedVideo}
+			<a
+				href={resolve(`/watch?v=${linkedVideo.id}`)}
+				class="pointer-events-auto flex max-w-full items-center gap-1.5 self-start rounded-full bg-black/40 py-1 ps-2 pe-3 text-xs font-medium backdrop-blur-sm transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+				data-testid="short-linked-video"
+			>
+				<PlayIcon class="size-3.5 shrink-0 fill-current" />
+				<span class="truncate">{m.shorts_full_video({ title: linkedVideo.title })}</span>
+			</a>
 		{/if}
 	</div>
 	<!-- Action column: more actions go above the watch page link. -->

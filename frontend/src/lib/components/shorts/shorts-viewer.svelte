@@ -1,14 +1,26 @@
+<script lang="ts" module>
+	export type ShortsFeed = 'discover' | 'subscriptions';
+</script>
+
 <script lang="ts">
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
+	import ClapperboardIcon from '@lucide/svelte/icons/clapperboard';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { createBlocksQuery } from '#lib/api/blocks.js';
 	import { createChannelTabQuery } from '#lib/api/channel.js';
+	import { uniqueBy } from '#lib/api/mapping.js';
+	import { createShortsDiscoveryQuery } from '#lib/api/shorts.js';
+	import { createFeedQuery } from '#lib/api/subscriptions.js';
 	import { useVideo } from '#lib/api/video.js';
+	import EmptyState from '#lib/components/state/empty-state.svelte';
+	import ErrorState from '#lib/components/state/error-state.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { session } from '#lib/session.svelte.js';
 	import {
 		createWheelPager,
 		dragOffset,
@@ -19,7 +31,10 @@
 	} from '#lib/shorts/gestures.js';
 	import {
 		buildQueue,
+		discoveryQueue,
+		markShortSeen,
 		needsMore,
+		seenShorts,
 		shortSlots,
 		shortStub,
 		takeShortsList
@@ -27,24 +42,47 @@
 	import type { VideoSummary } from '#lib/video.js';
 	import ShortSlot from './short-slot.svelte';
 
-	let { openedId }: { openedId: string } = $props();
+	let {
+		openedId,
+		feed = 'discover'
+	}: {
+		/** The short opened from outside; without one, the shorts come from `feed`. */
+		openedId?: string;
+		feed?: ShortsFeed;
+	} = $props();
 
-	// Read once: the viewer is recreated for every short opened from outside.
+	// Read once: the viewer is recreated for every short opened from outside and every feed.
 	// svelte-ignore state_referenced_locally
-	const context = takeShortsList(openedId);
+	const opened = openedId;
 	// svelte-ignore state_referenced_locally
-	let currentId = $state(openedId);
+	const source: ShortsFeed | undefined = opened ? undefined : feed;
+	const context = opened ? takeShortsList(opened) : undefined;
+	const seenBefore = source === 'discover' ? seenShorts() : new Set<string>();
+
+	let currentId = $state(opened);
 	let sourceChannel = $state<string>();
 	/** Finger offset in px while dragging, else 0. */
 	let drag = $state(0);
 	let dragging = $state(false);
 
-	const video = useVideo(() => currentId);
-	const details = $derived(video.data);
+	const feedQuery =
+		source === 'discover'
+			? createShortsDiscoveryQuery(() => true)
+			: source === 'subscriptions'
+				? createFeedQuery(() => false, 'shorts')
+				: undefined;
+	const feedItems = $derived.by(() => {
+		const items = feedQuery?.data?.pages.flatMap((p) => p.items) ?? [];
+		return source === 'discover'
+			? discoveryQueue(items, seenBefore)
+			: uniqueBy(items, (short) => short.id);
+	});
 
 	// Without a list to continue, the next shorts come from the opened short's channel.
+	const openedVideo = useVideo(() => (opened && !context ? opened : null));
 	$effect(() => {
-		if (context || sourceChannel !== undefined || !details || details.id !== openedId) return;
+		const details = openedVideo.data;
+		if (sourceChannel !== undefined || !details || details.id !== opened) return;
 		sourceChannel = details.channel.id;
 	});
 	const channelShorts = createChannelTabQuery(
@@ -55,25 +93,50 @@
 
 	const blocks = createBlocksQuery();
 	const blocked = $derived(new Set(blocks.data?.map((c) => c.id)));
+	const listed = $derived(
+		opened
+			? buildQueue(opened, context, channelShorts.data?.pages.flatMap((p) => p.items) ?? [])
+			: feedItems
+	);
+	const activeId = $derived(currentId ?? listed.find((s) => !blocked.has(s.channel.id))?.id);
 	// Shorts of blocked channels drop out, except the one on screen.
 	const queue = $derived(
-		buildQueue(openedId, context, channelShorts.data?.pages.flatMap((p) => p.items) ?? []).filter(
-			(short) => short.id === currentId || !blocked.has(short.channel.id)
-		)
+		listed.filter((short) => short.id === activeId || !blocked.has(short.channel.id))
 	);
-	const index = $derived(queue.findIndex((short) => short.id === currentId));
-	const current = $derived(queue[index] ?? shortStub(currentId));
+	const index = $derived(queue.findIndex((short) => short.id === activeId));
+	const current = $derived(activeId ? (queue[index] ?? shortStub(activeId)) : undefined);
 	const previous = $derived(index > 0 ? queue[index - 1] : undefined);
 	const next = $derived(index >= 0 ? queue[index + 1] : undefined);
-	const slots = $derived(shortSlots(current, previous, next));
+	const slots = $derived(current ? shortSlots(current, previous, next) : []);
 
 	$effect(() => {
-		if (!needsMore(queue, index)) return;
-		if (channelShorts.hasNextPage && !channelShorts.isFetching) void channelShorts.fetchNextPage();
+		if (source === 'discover' && activeId) markShortSeen(activeId);
 	});
 
-	const shown = $derived(details?.id === currentId ? details : undefined);
-	const title = $derived(shown?.title ?? current.title);
+	// Pages can come back empty once blocked or seen shorts are left out, so this keeps loading.
+	$effect(() => {
+		if (activeId ? !needsMore(queue, index) : !feedQuery?.data) return;
+		const more = feedQuery ?? channelShorts;
+		if (more.hasNextPage && !more.isFetching) void more.fetchNextPage();
+	});
+
+	const video = useVideo(() => activeId ?? null);
+	const shown = $derived(video.data?.id === activeId ? video.data : undefined);
+	const title = $derived(shown?.title ?? current?.title);
+	const feedTitle = $derived(
+		source === 'subscriptions' ? m.shorts_feed_subscriptions() : m.nav_shorts()
+	);
+	const emptyFeed = $derived(
+		!activeId && !!feedQuery?.isSuccess && !feedQuery.hasNextPage && !feedQuery.isFetching
+	);
+	const feeds = [
+		{ kind: 'discover', label: m.shorts_feed_discover, href: resolve('/shorts') },
+		{
+			kind: 'subscriptions',
+			label: m.shorts_feed_subscriptions,
+			href: `${resolve('/shorts')}?feed=subscriptions`
+		}
+	] as const;
 
 	const canStep = (step: Step) => (step === 1 ? next : previous) !== undefined;
 
@@ -81,7 +144,7 @@
 		if (!target) return;
 		currentId = target.id;
 		// Replaces the entry, so going back leaves the shorts instead of stepping through them.
-		void replaceState(resolve('/shorts/[id=videoid]', { id: target.id }), {});
+		if (opened) void replaceState(resolve('/shorts/[id=videoid]', { id: target.id }), {});
 	}
 
 	function go(step: Step) {
@@ -176,13 +239,50 @@
 </script>
 
 <svelte:head>
-	<title>{pageTitle(title || m.channel_tab_shorts())}</title>
+	<title>{pageTitle(title || (source ? feedTitle : m.channel_tab_shorts()))}</title>
 </svelte:head>
 
 <svelte:window {onkeydown} />
 
 <section class="shorts" aria-label={m.shorts_player_label()} data-testid="shorts-viewer">
 	<div class="shorts-stage" data-dragging={dragging ? '' : undefined} {@attach gestures}>
+		{#if source && session.user}
+			<nav class="shorts-feeds" aria-label={m.shorts_feed_label()} data-testid="shorts-feeds">
+				{#each feeds as item (item.kind)}
+					<a
+						href={item.href}
+						data-sveltekit-replacestate
+						aria-current={source === item.kind ? 'page' : undefined}
+					>
+						{item.label()}
+					</a>
+				{/each}
+			</nav>
+		{/if}
+		{#if !current}
+			<div class="shorts-placeholder" data-testid="shorts-feed-state">
+				{#if feedQuery?.isError}
+					<ErrorState onretry={() => void feedQuery.refetch()} class="m-4" />
+				{:else if emptyFeed}
+					<EmptyState
+						icon={ClapperboardIcon}
+						title={source === 'subscriptions'
+							? m.shorts_subscriptions_empty_title()
+							: m.shorts_discover_empty_title()}
+						description={source === 'subscriptions'
+							? m.shorts_subscriptions_empty_body()
+							: m.shorts_discover_empty_body()}
+						class="m-4 border-white/20 text-white [&_p]:text-white/70"
+					/>
+				{:else}
+					<Skeleton
+						class="size-full rounded-none bg-white/10"
+						role="status"
+						aria-label={m.shorts_loading()}
+					/>
+				{/if}
+			</div>
+		{/if}
 		{#each slots as slot (slot.short.id)}
 			<div
 				class="shorts-cell"
@@ -258,6 +358,59 @@
 		will-change: translate;
 	}
 
+	.shorts-placeholder {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		background: oklch(0.13 0.004 286);
+		color: white;
+	}
+
+	/* Over the video, like the overlay: light text on a frosted pill. */
+	.shorts-feeds {
+		position: absolute;
+		top: 0.75rem;
+		left: 50%;
+		z-index: 20;
+		translate: -50% 0;
+		display: flex;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: rgb(0 0 0 / 35%);
+		backdrop-filter: blur(8px);
+	}
+
+	.shorts-feeds a {
+		padding: 0.25rem 0.75rem;
+		border-radius: 999px;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		line-height: 1.25rem;
+		white-space: nowrap;
+		color: rgb(255 255 255 / 75%);
+		transition:
+			background-color 150ms,
+			color 150ms;
+	}
+
+	.shorts-feeds a:hover {
+		color: white;
+	}
+
+	.shorts-feeds a[aria-current='page'] {
+		background: white;
+		color: oklch(0.21 0.006 286);
+	}
+
+	.shorts-feeds a:focus-visible {
+		outline: 2px solid var(--color-ring, white);
+		outline-offset: 2px;
+	}
+
 	.shorts-stage[data-dragging] .shorts-cell {
 		transition: none;
 	}
@@ -291,6 +444,10 @@
 			display: flex;
 			flex-direction: column;
 			gap: 0.75rem;
+		}
+
+		.shorts-placeholder {
+			border-radius: var(--radius-xl, 0.75rem);
 		}
 	}
 </style>

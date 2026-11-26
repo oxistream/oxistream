@@ -31,6 +31,17 @@
 
 <Story name="Overlay" {template} />
 
+<Story
+	name="Overlay with full video"
+	args={{
+		linkedVideo: {
+			id: 'aqz-KE-bpKQ',
+			title: 'Forging a chef knife from an old file: the full build'
+		}
+	}}
+	{template}
+/>
+
 <Story name="Overlay without channel" args={{ channel: { id: '', name: '' } }} {template} />
 
 <Story

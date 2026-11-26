@@ -35,6 +35,43 @@ export function buildQueue(
 	return [shortStub(openedId), ...unique];
 }
 
+const SEEN_KEY = 'oxistream:shorts-seen';
+const SEEN_LIMIT = 500;
+let seen: string[] | undefined;
+
+function seenList(): string[] {
+	if (seen) return seen;
+	try {
+		const stored: unknown = JSON.parse(sessionStorage.getItem(SEEN_KEY) ?? '[]');
+		seen = Array.isArray(stored) ? stored.filter((id) => typeof id === 'string') : [];
+	} catch {
+		seen = [];
+	}
+	return seen;
+}
+
+/** Shorts shown so far in this browser session. */
+export function seenShorts(): Set<string> {
+	return new Set(seenList());
+}
+
+export function markShortSeen(id: string) {
+	const list = seenList();
+	if (list.includes(id)) return;
+	list.push(id);
+	if (list.length > SEEN_LIMIT) list.splice(0, list.length - SEEN_LIMIT);
+	try {
+		sessionStorage.setItem(SEEN_KEY, JSON.stringify(list));
+	} catch {
+		// Without storage the list lasts until the page is reloaded.
+	}
+}
+
+/** Discovered shorts without repeats and without those shown before the viewer opened. */
+export function discoveryQueue(items: VideoSummary[], seenBefore: Set<string>): VideoSummary[] {
+	return uniqueBy(items, (short) => short.id).filter((short) => !seenBefore.has(short.id));
+}
+
 /** Ask for more shorts once the viewer gets this close to the end of the queue. */
 export const LOAD_AHEAD = 3;
 

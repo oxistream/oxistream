@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ClapperboardIcon from '@lucide/svelte/icons/clapperboard';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
@@ -36,6 +37,7 @@
 
 	const primary: NavItem[] = [
 		{ href: '/', label: m.nav_home, icon: HouseIcon },
+		{ href: '/shorts', label: m.nav_shorts, icon: ClapperboardIcon },
 		{ href: '/feed/subscriptions', label: m.nav_subscriptions, icon: TvMinimalPlayIcon }
 	];
 	const library: NavItem[] = [
