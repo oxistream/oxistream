@@ -1,6 +1,7 @@
 import type { Decorator, Preview } from '@storybook/sveltekit';
 import { baseLocale, locales, setLocale, type Locale } from '../src/lib/paraglide/runtime.js';
 import '../src/routes/layout.css';
+import QueryProvider from './query-provider.svelte';
 
 const withThemeAndLocale: Decorator = (story, context) => {
 	const theme = context.globals.theme as 'light' | 'dark';
@@ -11,6 +12,8 @@ const withThemeAndLocale: Decorator = (story, context) => {
 	void setLocale(locale, { reload: false });
 	return story();
 };
+
+const withQueryClient: Decorator = () => ({ Component: QueryProvider });
 
 const preview: Preview = {
 	globalTypes: {
@@ -40,7 +43,7 @@ const preview: Preview = {
 		theme: 'light',
 		locale: baseLocale
 	},
-	decorators: [withThemeAndLocale],
+	decorators: [withQueryClient, withThemeAndLocale],
 	parameters: {
 		controls: {
 			matchers: {
