@@ -1832,6 +1832,8 @@ export interface operations {
                 continuation?: string;
                 /** @description Page size, 1 to 100; default 30. */
                 limit?: number;
+                /** @description Defaults to `all`. */
+                kind?: "all" | "videos" | "shorts";
             };
             header?: never;
             path?: never;
@@ -1847,7 +1849,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedPage"];
                 };
             };
-            /** @description Invalid continuation or limit */
+            /** @description Invalid continuation, limit or kind */
             400: {
                 headers: {
                     [name: string]: unknown;

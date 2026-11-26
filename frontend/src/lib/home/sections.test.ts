@@ -3,7 +3,11 @@ import { homeSections, rowState, showGuestFallback, trendingCategory } from './s
 
 describe('home sections', () => {
 	it('defaults per audience', () => {
-		expect(homeSections('user')).toEqual(['continue-watching', 'subscriptions']);
+		expect(homeSections('user')).toEqual([
+			'continue-watching',
+			'subscriptions',
+			'subscription-shorts'
+		]);
 		expect(homeSections('guest')).toEqual([
 			'trending-news',
 			'trending-gaming',

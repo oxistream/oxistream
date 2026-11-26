@@ -38,6 +38,8 @@
 		dashSettings,
 		theater = false,
 		globalHotkeys = true,
+		variant = 'video',
+		loop = false,
 		ontheatertoggle,
 		ontimeupdate,
 		onprogress,
@@ -58,6 +60,12 @@
 		theater?: boolean;
 		/** Keyboard shortcuts work anywhere on the page, not only while the player has focus. */
 		globalHotkeys?: boolean;
+		/**
+		 * `short` is portrait with fewer controls, and leaves arrow up/down and j/k to the page
+		 * for moving between shorts.
+		 */
+		variant?: 'video' | 'short';
+		loop?: boolean;
 		/** Shows a theater mode button when set. */
 		ontheatertoggle?: () => void;
 		ontimeupdate?: (currentTime: number, duration: number) => void;
@@ -225,8 +233,16 @@
 			data-theme="default"
 			data-preset="video"
 			data-theater={theater ? '' : undefined}
+			data-variant={variant}
 		>
-			<dash-video bind:this={media} source={dashSource} playsinline preload="metadata" {autoplay}>
+			<dash-video
+				bind:this={media}
+				source={dashSource}
+				playsinline
+				preload="metadata"
+				{autoplay}
+				{loop}
+			>
 				{#each subtitles as track (track.id)}
 					<track kind="subtitles" src={track.url} srclang={track.lang} label={track.label} />
 				{/each}
@@ -684,14 +700,18 @@
 				</media-controls-content>
 			</media-controls>
 			<media-hotkey target={hotkeyTarget} keys="Space" action="togglePaused"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="k" action="togglePaused"> </media-hotkey>
+			{#if variant === 'video'}
+				<media-hotkey target={hotkeyTarget} keys="k" action="togglePaused"> </media-hotkey>
+			{/if}
 			<media-hotkey target={hotkeyTarget} keys="m" action="toggleMuted"> </media-hotkey>
 			<media-hotkey target={hotkeyTarget} keys="ArrowRight" action="seekStep"> </media-hotkey>
 			<media-hotkey target={hotkeyTarget} keys="ArrowLeft" action="seekStep"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="l" action="seekStep"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="j" action="seekStep"> </media-hotkey>
-			<media-hotkey keys="ArrowUp" action="volumeStep"> </media-hotkey>
-			<media-hotkey keys="ArrowDown" action="volumeStep"> </media-hotkey>
+			{#if variant === 'video'}
+				<media-hotkey target={hotkeyTarget} keys="l" action="seekStep"> </media-hotkey>
+				<media-hotkey target={hotkeyTarget} keys="j" action="seekStep"> </media-hotkey>
+				<media-hotkey keys="ArrowUp" action="volumeStep"> </media-hotkey>
+				<media-hotkey keys="ArrowDown" action="volumeStep"> </media-hotkey>
+			{/if}
 			<media-hotkey target={hotkeyTarget} keys="0-9" action="seekToPercent"> </media-hotkey>
 			<media-hotkey keys="Home" action="seekToPercent" value="0"> </media-hotkey>
 			<media-hotkey keys="End" action="seekToPercent" value="100"> </media-hotkey>
@@ -757,6 +777,20 @@
 <style>
 	.oxi-player :global(.oxi-player-frame) {
 		aspect-ratio: 16 / 9;
+	}
+
+	.oxi-player :global(.oxi-player-frame[data-variant='short']) {
+		aspect-ratio: 9 / 16;
+	}
+
+	/* Shorts keep play, volume, the time bar, captions, settings and fullscreen. */
+	.oxi-player :global([data-variant='short'] .video-controls-center-seek),
+	.oxi-player :global([data-variant='short'] .media-time-value),
+	.oxi-player :global([data-variant='short'] .media-time-toggle),
+	.oxi-player :global([data-variant='short'] .media-cast-button),
+	.oxi-player :global([data-variant='short'] .media-airplay-button),
+	.oxi-player :global([data-variant='short'] .media-pip-button) {
+		display: none;
 	}
 
 	.oxi-player :global(.oxi-player-frame[data-theater]) {

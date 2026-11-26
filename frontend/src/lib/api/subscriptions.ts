@@ -7,7 +7,8 @@ import {
 import { session } from '#lib/session.svelte.js';
 import type { VideoSummary } from '#lib/video.js';
 import { api } from './client';
-import { toVideo, unwrap } from './mapping';
+import { toShort, toVideo, unwrap } from './mapping';
+import type { operations } from './schema';
 import {
 	hasPendingChannels,
 	toSubscribedChannel,
@@ -17,6 +18,10 @@ import {
 } from './subscription-list';
 
 export type FeedPage = { items: VideoSummary[]; continuation?: string };
+export type FeedKind = Exclude<
+	NonNullable<operations['feed']['parameters']['query']>['kind'],
+	'all' | undefined
+>;
 
 const FEED_PAGE_SIZE = 30;
 // While a new channel waits for its first fetch, the list and feed are polled until it lands.
@@ -65,27 +70,31 @@ export function createSubscriptionStateQuery(channelId: () => string | undefined
 }
 
 async function fetchFeedPage(
+	kind: FeedKind,
 	continuation: string | undefined,
 	signal: AbortSignal
 ): Promise<FeedPage> {
 	const page = unwrap(
 		await api.GET('/api/v0/feed', {
-			params: { query: { limit: FEED_PAGE_SIZE, continuation } },
+			params: { query: { limit: FEED_PAGE_SIZE, kind, continuation } },
 			signal
 		})
 	);
 	return {
-		items: page.items.map((video) => toVideo(video)),
+		items: page.items.map((video) => (kind === 'shorts' ? toShort(video) : toVideo(video))),
 		continuation: page.continuation ?? undefined
 	};
 }
 
-/** Videos of subscribed channels, newest first; polls while channels are still being fetched. */
-export function createFeedQuery(polling: () => boolean) {
+/**
+ * Videos or shorts of subscribed channels, newest first; polls while channels are still being
+ * fetched. Regular videos and shorts are listed apart, as grid and shelf.
+ */
+export function createFeedQuery(polling: () => boolean, kind: FeedKind = 'videos') {
 	return createInfiniteQuery(() => ({
-		queryKey: subscriptionKeys.feed,
+		queryKey: [...subscriptionKeys.feed, kind],
 		queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-			fetchFeedPage(pageParam, signal),
+			fetchFeedPage(kind, pageParam, signal),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (last: FeedPage) => last.continuation,
 		enabled: session.user !== null,

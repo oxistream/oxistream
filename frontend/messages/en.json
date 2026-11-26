@@ -431,5 +431,12 @@
 	"playlist_remove_item": "Remove from playlist",
 	"playlist_reorder_handle": "Reorder {title}",
 	"playlist_reorder_hint": "Drag to reorder, or use the arrow keys, Home and End.",
-	"playlist_moved": "Moved {title} to position {index} of {total}"
+	"playlist_moved": "Moved {title} to position {index} of {total}",
+	"home_subscription_shorts": "Shorts from your subscriptions",
+	"feed_shorts": "Shorts",
+	"shorts_player_label": "Shorts player",
+	"shorts_previous": "Previous short",
+	"shorts_next": "Next short",
+	"shorts_open_watch": "Open in watch page",
+	"shorts_loading": "Loading short"
 }

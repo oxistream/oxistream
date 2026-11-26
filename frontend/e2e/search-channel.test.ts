@@ -270,9 +270,10 @@ test('an unknown channel shows a not-found state', async ({ page }) => {
 	await expect(page).toHaveTitle('Channel not found · Oxistream');
 });
 
-test('shorts and short links redirect to the watch page', async ({ page }) => {
+test('short links redirect to the watch page, shorts open the shorts player', async ({ page }) => {
 	await page.goto('/shorts/dQw4w9WgXcQ');
-	await expect(page).toHaveURL(/\/watch\?v=dQw4w9WgXcQ$/);
+	await expect(page.getByTestId('shorts-viewer')).toBeVisible();
+	await expect(page).toHaveURL(/\/shorts\/dQw4w9WgXcQ$/);
 
 	await page.goto('/dQw4w9WgXcQ?t=5');
 	await expect(page).toHaveURL(/\/watch\?v=dQw4w9WgXcQ&t=5$/);

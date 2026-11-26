@@ -3,6 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import type { VideoSummary } from '#lib/video.js';
+	import { rememberShortsList } from '#lib/shorts/queue.js';
 	import ShortCard from './short-card.svelte';
 
 	let {
@@ -10,12 +11,15 @@
 		loading = false,
 		skeletonCount = 12,
 		label,
+		playAsList = false,
 		class: className
 	}: {
 		shorts?: VideoSummary[];
 		loading?: boolean;
 		skeletonCount?: number;
 		label?: string;
+		/** Opening a short plays through this grid instead of the short's channel. */
+		playAsList?: boolean;
 		class?: string;
 	} = $props();
 
@@ -38,7 +42,7 @@
 		<ul class={grid} aria-label={label}>
 			{#each shorts as short (short.id)}
 				<li class="min-w-0">
-					<ShortCard {short} />
+					<ShortCard {short} onopen={playAsList ? () => rememberShortsList(shorts) : undefined} />
 				</li>
 			{/each}
 		</ul>

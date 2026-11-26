@@ -3,6 +3,7 @@ import type { TrendingCategory } from '#lib/api/trending.js';
 export const HOME_SECTIONS = [
 	'continue-watching',
 	'subscriptions',
+	'subscription-shorts',
 	'trending-news',
 	'trending-gaming',
 	'trending-podcasts'
@@ -14,13 +15,14 @@ export type Audience = 'user' | 'guest';
 const AUDIENCE: Record<HomeSectionKey, Audience> = {
 	'continue-watching': 'user',
 	subscriptions: 'user',
+	'subscription-shorts': 'user',
 	'trending-news': 'guest',
 	'trending-gaming': 'guest',
 	'trending-podcasts': 'guest'
 };
 
 export const DEFAULT_SECTIONS: Record<Audience, readonly HomeSectionKey[]> = {
-	user: ['continue-watching', 'subscriptions'],
+	user: ['continue-watching', 'subscriptions', 'subscription-shorts'],
 	guest: ['trending-news', 'trending-gaming', 'trending-podcasts']
 };
 

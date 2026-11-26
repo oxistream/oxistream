@@ -1,4 +1,4 @@
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, type QueryClient } from '@tanstack/svelte-query';
 import { getLocale } from '#lib/paraglide/runtime.js';
 import { api } from './client';
 import { ApiError, unwrap } from './mapping';
@@ -48,6 +48,15 @@ export function useVideo(id: () => string | null) {
 			enabled: videoId !== null,
 			retry
 		};
+	});
+}
+
+/** Loads a video's details ahead of time, e.g. for the next short. */
+export function prefetchVideo(client: QueryClient, id: string, locale = getLocale()) {
+	return client.prefetchQuery({
+		queryKey: ['video', id, locale],
+		queryFn: () => fetchVideo(id, locale),
+		retry
 	});
 }
 

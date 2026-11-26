@@ -15,6 +15,7 @@
 		createSubscriptionsQuery,
 		subscriptionKeys
 	} from '#lib/api/subscriptions.js';
+	import ShortRow from '#lib/components/shorts/short-row.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -29,6 +30,10 @@
 	const subscriptions = createSubscriptionsQuery();
 	const pending = $derived(subscriptions.data ? hasPendingChannels(subscriptions.data) : false);
 	const feed = createFeedQuery(() => pending);
+	const shortsFeed = createFeedQuery(() => pending, 'shorts');
+	const shorts = $derived(
+		uniqueBy(shortsFeed.data?.pages.flatMap((p) => p.items) ?? [], (short) => short.id)
+	);
 
 	const listed = $derived(
 		uniqueBy(feed.data?.pages.flatMap((p) => p.items) ?? [], (video) => video.id)
@@ -84,7 +89,7 @@
 		<VideoGrid loading skeletonCount={12} />
 	{:else if feed.isError && !feed.data}
 		<ErrorState onretry={() => void feed.refetch()} />
-	{:else if items.length === 0}
+	{:else if items.length === 0 && shorts.length === 0}
 		<EmptyState
 			icon={pending ? HourglassIcon : TvMinimalPlayIcon}
 			title={pending ? m.feed_fetching_title() : m.feed_no_videos_title()}
@@ -99,6 +104,12 @@
 				/>
 				{m.feed_fetching_inline()}
 			</p>
+		{/if}
+		{#if shorts.length}
+			<section aria-labelledby="feed-shorts" class="flex flex-col gap-3">
+				<h2 id="feed-shorts" class="text-base font-semibold tracking-tight">{m.feed_shorts()}</h2>
+				<ShortRow {shorts} label={m.feed_shorts()} />
+			</section>
 		{/if}
 		<VideoGrid videos={items} label={m.nav_subscriptions()} />
 		<InfiniteLoader
