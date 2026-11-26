@@ -28,8 +28,11 @@ test('deep links are served by the SPA fallback', async ({ page }) => {
 
 test('slash focuses the search field', async ({ page }) => {
 	await page.goto('/');
-	await page.locator('body').press('/');
-	await expect(page.getByTestId('search-input')).toBeFocused();
+	// The SPA attaches its window keydown handler after mount, so retry the keypress until it lands.
+	await expect(async () => {
+		await page.locator('body').press('/');
+		await expect(page.getByTestId('search-input')).toBeFocused({ timeout: 500 });
+	}).toPass();
 });
 
 test('theme can be switched', async ({ page }) => {
