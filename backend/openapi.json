@@ -3903,6 +3903,162 @@
         ]
       }
     },
+    "/api/v0/shorts/discover": {
+      "get": {
+        "tags": [
+          "shorts"
+        ],
+        "summary": "Endless shorts to swipe through, like YouTube's shorts player. Each page continues the\ncurrent sequence and starts a new one from the next seed, interleaved. Seeds are the\nsigned-in user's liked shorts and the latest shorts of their subscriptions, plus trending\nvideos; anonymous users get trending seeds only. Nothing about the user is sent to YouTube\nbut the seed video IDs. Shorts of blocked channels are left out, so a page may be empty\nwhile more follow.",
+        "operationId": "discover",
+        "parameters": [
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Token from a previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid continuation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/shorts/{id}": {
+      "get": {
+        "tags": [
+          "shorts"
+        ],
+        "summary": "The shorts player overlay of a short: its title and the full video it links to.",
+        "operationId": "short",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "YouTube video ID of the short",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "description": "Content language",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not a short",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YouTube request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limited by YouTube",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/subscriptions": {
       "get": {
         "tags": [
@@ -5135,6 +5291,31 @@
           }
         }
       },
+      "DiscoveredShort": {
+        "type": "object",
+        "description": "A short to discover. YouTube sends no title or channel name with it; load them with\n`GET /videos/{id}` when it is shown.",
+        "required": [
+          "id",
+          "thumbnails"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "required": [
@@ -5536,6 +5717,22 @@
             "format": "int32",
             "description": "Number of liked videos in all pages.",
             "minimum": 0
+          }
+        }
+      },
+      "LinkedVideo": {
+        "type": "object",
+        "description": "A full-length video a short links to.",
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -6083,6 +6280,55 @@
           }
         },
         "additionalProperties": false
+      },
+      "ShortDetails": {
+        "type": "object",
+        "description": "What the shorts player shows over a short.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "linked_video": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LinkedVideo",
+                "description": "The full video the uploader linked to the short."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ShortsPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "continuation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredShort"
+            }
+          }
+        }
       },
       "SkipCategories": {
         "type": "object",

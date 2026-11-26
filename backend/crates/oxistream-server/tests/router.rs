@@ -82,6 +82,9 @@ async fn youtube_endpoints_validate_input_without_upstream() {
         "/api/v0/resolve",
         "/api/v0/resolve?url=https%3A%2F%2Fexample.com%2Fwatch%3Fv%3DdQw4w9WgXcQ",
         "/api/v0/trending?category=music",
+        "/api/v0/shorts/not-an-id",
+        "/api/v0/shorts/discover?continuation=nodot",
+        "/api/v0/shorts/discover?continuation=short.x",
     ] {
         assert_eq!(
             error_code(uri).await,
