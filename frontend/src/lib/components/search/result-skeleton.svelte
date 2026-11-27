@@ -3,7 +3,7 @@
 </script>
 
 <div
-	class="grid gap-3 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:gap-4 @4xl:grid-cols-[22rem_minmax(0,1fr)]"
+	class="grid gap-3 @xl:grid-cols-[clamp(15rem,38%,22.5rem)_minmax(0,1fr)] @xl:gap-4"
 	aria-hidden="true"
 >
 	<Skeleton class="aspect-video w-full rounded-lg" />

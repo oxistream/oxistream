@@ -19,7 +19,7 @@
 
 <article
 	class={cn(
-		'group/video relative grid min-w-0 gap-3 rounded-lg outline-offset-4 outline-ring has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-solid @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:gap-4 @4xl:grid-cols-[22rem_minmax(0,1fr)]',
+		'group/video relative grid min-w-0 gap-3 rounded-lg outline-offset-4 outline-ring has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-solid @xl:grid-cols-[clamp(15rem,38%,22.5rem)_minmax(0,1fr)] @xl:gap-4',
 		className
 	)}
 >
