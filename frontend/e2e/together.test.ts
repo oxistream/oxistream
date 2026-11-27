@@ -81,7 +81,7 @@ type ClientMessage = {
 	entry?: number;
 };
 
-/** A room server in the test process, shared by both browsers. */
+/** A party server in the test process, shared by both browsers. */
 class FakeRoom {
 	sockets = new Map<WebSocketRoute, { id: string; name: string; owner: boolean }>();
 	queue: { id: number; video: ReturnType<typeof summary>; added_by: string }[] = [];
@@ -158,6 +158,17 @@ class FakeRoom {
 			case 'add':
 				this.add(message.video_id!, this.sockets.get(socket)!.name);
 				return this.broadcast();
+			case 'select': {
+				if (!this.queue.some((e) => e.id === message.entry)) return;
+				const previous = this.current;
+				this.queue = this.queue.filter((e) => e.id !== previous);
+				this.current = message.entry!;
+				this.setPosition(0, this.playing);
+				return this.broadcast();
+			}
+			case 'remove':
+				this.queue = this.queue.filter((e) => e.id !== message.entry || e.id === this.current);
+				return this.broadcast();
 			case 'ended':
 			case 'skip':
 				if (message.entry !== this.current) return;
@@ -228,7 +239,9 @@ async function mockApi(
 			like_count: null,
 			keywords: [],
 			subtitles: [],
-			related: []
+			related: Object.keys(TITLES)
+				.filter((other) => other !== id)
+				.map(summary)
 		});
 	});
 	await context.routeWebSocket(/\/api\/v0\/rooms\/[^/]+\/ws$/, (socket) => {
@@ -240,10 +253,47 @@ async function mockApi(
 	});
 }
 
-const media = (page: Page) => page.getByTestId('room-player').locator('dash-video');
+/** The party's video, in the watch page slot or the mini player. */
+const media = (page: Page) => page.locator('.app-player dash-video');
 const isPaused = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => el.paused);
 const hasMetadata = (page: Page) =>
 	media(page).evaluate((el: HTMLMediaElement) => el.readyState >= HTMLMediaElement.HAVE_METADATA);
+const watchUrl = (id: string) => new RegExp(`/watch\\?v=${id}$`);
+
+async function openParty(page: Page, query = '') {
+	await page.goto(`/party/${ROOM}${query}`);
+}
+
+async function joinAsGuest(page: Page, query = '') {
+	await openParty(page, query);
+	await expect(page.getByRole('heading', { name: "Join mara's party" })).toBeVisible();
+	await page.getByLabel('Your name').fill('Grace');
+	await page.getByRole('button', { name: 'Join', exact: true }).click();
+}
+
+async function openSheet(page: Page) {
+	const sheet = page.getByTestId('party-sheet');
+	if (await sheet.isVisible()) return sheet;
+	await page.getByTestId('party-button').click();
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+async function closeSheet(page: Page) {
+	const sheet = page.getByTestId('party-sheet');
+	await sheet.getByRole('button', { name: 'Close' }).click();
+	await expect(sheet).toBeHidden();
+}
+
+/** Follows a related video on the watch page, without reloading the app. */
+async function browseTo(page: Page, id: string) {
+	await page
+		.locator('section[aria-labelledby="related-heading"]')
+		.getByRole('link', { name: title(id) })
+		.first()
+		.click();
+	await expect(page).toHaveURL(watchUrl(id));
+}
 
 test('two people stay in sync and the queue plays in order', async ({ browser }) => {
 	const room = new FakeRoom();
@@ -254,21 +304,28 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 	const host = await hostContext.newPage();
 	const guest = await guestContext.newPage();
 
-	await host.goto(`/together/${ROOM}`);
-	await expect(host.getByTestId('room-status')).toHaveText('Connected');
-	await expect(host.getByRole('button', { name: 'Close room' })).toBeVisible();
+	// The invite link opens the watch page of what the party plays.
+	await openParty(host);
+	await expect(host).toHaveURL(watchUrl(FIRST));
+	await expect(host.getByRole('heading', { name: title(FIRST) })).toBeVisible();
+	await expect(host.getByTestId('party-count')).toHaveText('1');
 
-	await guest.goto(`/together/${ROOM}`);
-	await expect(guest.getByRole('heading', { name: "Join mara's room" })).toBeVisible();
-	await guest.getByLabel('Your name').fill('Grace');
-	await guest.getByRole('button', { name: 'Join', exact: true }).click();
-	await expect(guest.getByTestId('room-status')).toHaveText('Connected');
+	await joinAsGuest(guest);
+	await expect(guest).toHaveURL(watchUrl(FIRST));
+	await expect(host.getByTestId('party-count')).toHaveText('2');
+	await expect(guest.getByTestId('party-count')).toHaveText('2');
 
-	const people = host.getByTestId('room-participants');
+	const hostSheet = await openSheet(host);
+	await expect(hostSheet.getByTestId('party-status')).toHaveText('Connected');
+	await expect(hostSheet.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	const people = hostSheet.getByTestId('party-members');
 	await expect(people.getByText('Grace')).toBeVisible();
 	await expect(people.getByRole('button', { name: 'Remove Grace' })).toBeVisible();
-	await expect(guest.getByTestId('room-participants').getByRole('button')).toHaveCount(0);
-	await expect(guest.getByRole('heading', { name: title(FIRST) })).toBeVisible();
+	await expect(hostSheet.getByRole('button', { name: 'End party' })).toBeVisible();
+	const guestSheet = await openSheet(guest);
+	await expect(guestSheet.getByTestId('party-members').getByRole('button')).toHaveCount(0);
+	await expect(guestSheet.getByRole('button', { name: 'End party' })).toHaveCount(0);
+	await closeSheet(guest);
 
 	// Playing in one browser plays in the other; so does pausing.
 	await expect.poll(() => isPaused(guest)).toBe(true);
@@ -284,16 +341,24 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 	);
 	expect(Math.abs(positions[0] - positions[1])).toBeLessThan(0.5);
 
-	// A video queued by the guest shows up for the host and plays once the first one ends.
-	await guest.getByLabel('Add a video').fill(`https://youtu.be/${SECOND}`);
-	await guest.getByRole('button', { name: 'Add', exact: true }).click();
-	const queue = host.getByTestId('room-queue');
+	// The guest browses on: the party video moves to the mini player, and another one is queued.
+	await browseTo(guest, SECOND);
+	await expect(guest.getByTestId('party-elsewhere')).toContainText(title(FIRST));
+	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(FIRST));
+	await guest.getByTestId('add-to-party').click();
+	await expect(guest.getByTestId('add-to-party')).toHaveText('Added to party');
+	const queue = hostSheet.getByTestId('party-queue');
 	await expect(queue.getByText(title(SECOND))).toBeVisible();
 	await expect(queue.getByText('Added by Grace')).toBeVisible();
 
+	// When the first video ends, the host on its watch page follows to the next one; the guest
+	// already is on that page, where the party video now plays.
 	await media(host).evaluate((el: HTMLMediaElement) => el.play());
-	await expect(host.getByRole('heading', { name: title(SECOND) })).toBeVisible({ timeout: 15_000 });
-	await expect(guest.getByRole('heading', { name: title(SECOND) })).toBeVisible();
+	await expect(host).toHaveURL(watchUrl(SECOND), { timeout: 15_000 });
+	await expect(host.getByRole('heading', { name: title(SECOND) })).toBeVisible();
+	await expect(guest.getByTestId('party-elsewhere')).toBeHidden();
+	await expect(guest.getByTestId('player-slot')).toBeVisible();
+	await expect(guest.getByTestId('app-player')).toBeVisible();
 	await expect.poll(() => isPaused(guest)).toBe(false);
 
 	await hostContext.close();
@@ -327,29 +392,29 @@ async function worstGap(a: Page, b: Page, seconds: number): Promise<number> {
 	return worst;
 }
 
-/** Each player may sit up to 30 ms off the room before it corrects, in opposite directions. */
+/** Each player may sit up to 30 ms off the party before it corrects, in opposite directions. */
 const SETTLED_GAP = 0.05;
 
-async function joinRoom(browser: Browser, room: FakeRoom, query = '') {
+async function joinParty(browser: Browser, room: FakeRoom, query = '') {
 	const hostContext = await browser.newContext();
 	const guestContext = await browser.newContext();
 	await mockApi(hostContext, room, { signedIn: true });
 	await mockApi(guestContext, room, { signedIn: false });
 	const host = await hostContext.newPage();
 	const guest = await guestContext.newPage();
-	await host.goto(`/together/${ROOM}${query}`);
-	await expect(host.getByTestId('room-status')).toHaveText('Connected');
-	await guest.goto(`/together/${ROOM}${query}`);
-	await guest.getByLabel('Your name').fill('Grace');
-	await guest.getByRole('button', { name: 'Join', exact: true }).click();
-	await expect(guest.getByTestId('room-status')).toHaveText('Connected');
+	const first = room.state().current!.video.id;
+	await openParty(host, query);
+	await expect(host).toHaveURL(watchUrl(first));
+	await joinAsGuest(guest, query);
+	await expect(guest).toHaveURL(watchUrl(first));
+	await expect(host.getByTestId('party-count')).toHaveText('2');
 	return { host, guest, hostContext, guestContext };
 }
 
 test('players stay within a few frames of each other', async ({ browser }) => {
 	test.setTimeout(90_000);
 	const room = new FakeRoom(LONG);
-	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room, '?debug=sync');
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room, '?debug=sync');
 
 	await expect.poll(() => hasMetadata(host)).toBe(true);
 	await media(host).evaluate((el: HTMLMediaElement) => el.play());
@@ -391,61 +456,53 @@ test('players stay within a few frames of each other', async ({ browser }) => {
 	await expect.poll(() => isPaused(host)).toBe(true);
 	await expect.poll(async () => Math.abs(await gap(host, guest))).toBeLessThan(0.04);
 
+	// No watch progress is recorded in a party.
+	expect(await guest.evaluate(() => localStorage.getItem('oxistream:progress'))).toBeNull();
+
 	await hostContext.close();
 	await guestContext.close();
 });
 
-test('the room search lists more videos and other tabs add to the room', async ({ browser }) => {
+test('the party plays on while browsing and leaving asks first', async ({ browser }) => {
+	test.setTimeout(60_000);
 	const room = new FakeRoom(LONG);
-	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room, '?debug=sync');
-	const video = (id: string, extra = {}) => ({ type: 'video', ...summary(id), ...extra });
-	await guest.route('**/api/v0/search?*', (route) => {
-		const url = new URL(route.request().url());
-		if (url.searchParams.get('continuation') === 'page-2') {
-			return json(route, { items: [video(SECOND)] });
-		}
-		return json(route, {
-			items: [
-				video(FIRST),
-				video('shortEEEEEA', { title: 'A short', is_short: true }),
-				video('liveFFFFFFE', { title: 'Live now', is_live: true }),
-				{
-					type: 'channel',
-					id: 'UCfjord',
-					name: 'Fjord channel',
-					avatar: [],
-					verified: false,
-					description: ''
-				}
-			],
-			continuation: 'page-2'
-		});
-	});
-	const add = guest.getByTestId('room-add');
-	await guest.getByLabel('Add a video').fill('fjord');
-	await guest.getByRole('button', { name: 'Add', exact: true }).click();
-	const results = add.getByRole('list', { name: 'Search results' });
-	await expect(results.getByRole('button', { name: `Add ${title(FIRST)}` })).toBeVisible();
-	await expect(results.getByRole('button', { name: `Add ${title(SECOND)}` })).toBeVisible();
-	await expect(results.getByRole('button')).toHaveCount(2);
-	await results.getByRole('button', { name: `Add ${title(SECOND)}` }).click();
-	await expect(host.getByTestId('room-queue').getByText(title(SECOND))).toBeVisible();
-	await expect(results.getByRole('button', { name: `Add ${title(SECOND)}` })).toBeDisabled();
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	await expect.poll(() => isPaused(guest)).toBe(false);
 
-	// A second tab of the host offers adding the video it shows to the open room.
-	const other = await hostContext.newPage();
-	await other.goto(`/watch?v=${LONG_TOO}`);
-	const addHere = other.getByTestId('add-to-room');
-	await expect(addHere).toHaveText("Add to mara's room");
-	await addHere.click();
-	await expect(addHere).toHaveText("Added to mara's room");
-	await expect(host.getByTestId('room-queue').getByText(title(LONG_TOO))).toBeVisible();
+	// Off the watch page, the party video goes on in the mini player.
+	await guest.getByRole('link', { name: 'Home' }).first().click();
+	await expect(guest).toHaveURL(/\/$/);
+	const mini = guest.getByTestId('mini-player');
+	await expect(mini).toBeVisible();
+	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LONG));
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	expect(room.playing).toBe(true);
 
-	// Once the room tab is gone, nothing is offered.
-	await host.goto('about:blank');
-	await other.reload();
-	await expect(other.getByRole('heading', { name: title(LONG_TOO) })).toBeVisible();
-	await expect(other.getByTestId('add-to-room')).toHaveCount(0);
+	// Another member switching the video changes the mini player, without moving the guest.
+	await browseTo(host, LONG_TOO);
+	await host.getByTestId('add-to-party').click();
+	const queue = (await openSheet(host)).getByTestId('party-queue');
+	await queue.getByRole('button', { name: 'Play now' }).click();
+	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LONG_TOO));
+	await expect(guest).toHaveURL(/\/$/);
+	await expect(host).toHaveURL(watchUrl(LONG_TOO));
+	await expect(host.getByTestId('player-slot')).toBeVisible();
+	await expect.poll(() => isPaused(guest)).toBe(false);
+
+	// Closing the mini player leaves the party, after asking.
+	await mini.getByRole('button', { name: 'Leave party' }).click();
+	const dialog = guest.getByRole('alertdialog');
+	await expect(dialog).toContainText('Leave the party?');
+	await dialog.getByRole('button', { name: 'Cancel' }).click();
+	await expect(mini).toBeVisible();
+	await mini.getByRole('button', { name: 'Leave party' }).click();
+	await guest.getByTestId('party-leave-confirm').click();
+	await expect(mini).toBeHidden();
+	await expect(guest.getByTestId('party-button')).toHaveCount(0);
+	await expect(host.getByTestId('party-count')).toHaveText('1');
+	expect(room.playing).toBe(true);
 
 	await hostContext.close();
 	await guestContext.close();
@@ -455,7 +512,7 @@ const currentTime = (page: Page) => media(page).evaluate((el: HTMLMediaElement) 
 
 /** Drags the time slider from where playback is to `fraction` of its width. */
 async function scrub(page: Page, fraction: number) {
-	const player = page.getByTestId('room-player');
+	const player = page.getByTestId('app-player');
 	await player.hover();
 	const slider = player.locator('media-time-slider');
 	await expect(slider).toBeVisible();
@@ -472,11 +529,11 @@ async function scrub(page: Page, fraction: number) {
 	await page.mouse.up();
 }
 
-/** Where the room is now. */
+/** Where the party is now. */
 const live = (room: FakeRoom) =>
 	room.position + (room.playing ? (Date.now() - room.positionAt) / 1000 : 0);
 
-/** The player stays with the room instead of snapping back to where it was before. */
+/** The player stays with the party instead of snapping back to where it was before. */
 async function staysWithRoom(page: Page, room: FakeRoom, seconds: number) {
 	for (let i = 0; i < seconds * 4; i++) {
 		expect(Math.abs((await currentTime(page)) - live(room))).toBeLessThan(3);
@@ -484,10 +541,10 @@ async function staysWithRoom(page: Page, room: FakeRoom, seconds: number) {
 	}
 }
 
-test('scrubbing in a room moves everyone there', async ({ browser }) => {
+test('scrubbing in a party moves everyone there', async ({ browser }) => {
 	test.setTimeout(90_000);
 	const room = new FakeRoom(LONG);
-	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room);
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
 
 	await expect.poll(() => hasMetadata(host)).toBe(true);
 	await media(host).evaluate((el: HTMLMediaElement) => el.play());
@@ -505,13 +562,13 @@ test('scrubbing in a room moves everyone there', async ({ browser }) => {
 	// With the keyboard, a second per step.
 	const before = await currentTime(guest);
 	const dragged = room.position;
-	await guest.getByTestId('room-player').locator('media-time-slider').focus();
+	await guest.getByTestId('app-player').locator('media-time-slider').focus();
 	// Paced like a person: the slider steps from the time it last showed.
 	for (let i = 0; i < 5; i++) {
 		await guest.keyboard.press('ArrowLeft');
 		await guest.waitForTimeout(150);
 	}
-	// The room was already a little behind `before` after the drag; wait for the steps.
+	// The party was already a little behind `before` after the drag; wait for the steps.
 	await expect.poll(() => room.position !== dragged && room.position < before - 2).toBe(true);
 	await expect
 		.poll(async () => Math.abs((await currentTime(guest)) - live(room)))
