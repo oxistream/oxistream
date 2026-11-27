@@ -122,7 +122,8 @@ describe('engine hooks', () => {
 		setCustomInitialTrackSelectionFunction: vi.fn(),
 		resetCustomInitialTrackSelectionFunction: vi.fn(),
 		registerCustomCapabilitiesFilter: vi.fn(),
-		unregisterCustomCapabilitiesFilter: vi.fn()
+		unregisterCustomCapabilitiesFilter: vi.fn(),
+		updateSettings: vi.fn()
 	});
 
 	it('registers only what is set and cleans up', () => {
@@ -132,6 +133,9 @@ describe('engine hooks', () => {
 			{ codecs: ['av1'], maxQuality: 720, defaultQuality: null, audioLanguage: null }
 		);
 		expect(e.setCustomInitialTrackSelectionFunction).toHaveBeenCalledOnce();
+		expect(e.updateSettings).toHaveBeenCalledWith({
+			streaming: { lastMediaSettingsCachingInfo: { enabled: false } }
+		});
 		expect(e.registerCustomCapabilitiesFilter).toHaveBeenCalledOnce();
 		cleanup();
 		expect(e.resetCustomInitialTrackSelectionFunction).toHaveBeenCalledOnce();

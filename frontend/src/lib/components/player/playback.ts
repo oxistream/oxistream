@@ -164,6 +164,9 @@ type DashEngine = {
 	resetCustomInitialTrackSelectionFunction(): void;
 	registerCustomCapabilitiesFilter(filter: (rep: RepresentationInfo) => boolean): void;
 	unregisterCustomCapabilitiesFilter(filter: (rep: RepresentationInfo) => boolean): void;
+	updateSettings(settings: {
+		streaming: { lastMediaSettingsCachingInfo: { enabled: boolean } };
+	}): void;
 };
 
 function isDashEngine(value: unknown): value is DashEngine {
@@ -171,7 +174,8 @@ function isDashEngine(value: unknown): value is DashEngine {
 		typeof value === 'object' &&
 		value !== null &&
 		typeof (value as DashEngine).setCustomInitialTrackSelectionFunction === 'function' &&
-		typeof (value as DashEngine).registerCustomCapabilitiesFilter === 'function'
+		typeof (value as DashEngine).registerCustomCapabilitiesFilter === 'function' &&
+		typeof (value as DashEngine).updateSettings === 'function'
 	);
 }
 
@@ -186,6 +190,8 @@ export function applyPlaybackPreferences(
 	const engine = host.engine;
 	if (!preferences || !isDashEngine(engine)) return () => {};
 	const cleanups: (() => void)[] = [];
+	// dash.js would filter by the track of the last video first, e.g. an auto-dub picked there.
+	engine.updateSettings({ streaming: { lastMediaSettingsCachingInfo: { enabled: false } } });
 	// Always set: dash.js would otherwise start with whatever track YouTube marks as default.
 	engine.setCustomInitialTrackSelectionFunction(
 		trackSelector(preferences.codecs, preferences.audioLanguage)
