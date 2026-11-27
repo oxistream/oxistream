@@ -26,12 +26,13 @@
 	} = $props();
 
 	const locale = getLocale();
+	const live = $derived(video.isLive === true);
 </script>
 
 <!-- Stacks below the container's xl width; side by side above it. Needs an @container ancestor. -->
 <article
 	class={cn(
-		'group/video relative grid min-w-0 gap-3 rounded-lg outline-offset-4 outline-ring has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-solid @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:gap-4 @4xl:grid-cols-[22rem_minmax(0,1fr)]',
+		'group/video relative grid min-w-0 gap-3 rounded-lg outline-offset-4 outline-ring has-[[data-card-link]:focus-visible]:outline-2 has-[[data-card-link]:focus-visible]:outline-solid @xl:grid-cols-[clamp(15rem,38%,22.5rem)_minmax(0,1fr)] @xl:gap-4',
 		className
 	)}
 >
@@ -39,25 +40,38 @@
 		src={video.thumbnailUrl}
 		durationSeconds={video.durationSeconds}
 		progress={video.progress}
-		badge={video.isLive ? m.search_live() : undefined}
+		badge={live ? m.search_live() : undefined}
+		unavailable={live}
 	/>
 	<div class="flex min-w-0 flex-col gap-1 @xl:pt-0.5">
 		<div class="flex items-start gap-2">
 			<h3
-				class="line-clamp-2 flex-1 text-sm leading-5 font-medium text-foreground @xl:text-base @xl:leading-6"
+				class={cn(
+					'line-clamp-2 flex-1 text-sm leading-5 font-medium @xl:text-base @xl:leading-6',
+					live ? 'text-muted-foreground' : 'text-foreground'
+				)}
 			>
-				<a
-					href={resolve(`/watch?v=${video.id}`)}
-					data-card-link
-					title={video.title}
-					class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
-				>
-					{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
-							, {m.video_duration({ duration: formatDurationLong(video.durationSeconds, locale) })}
-						</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
-							, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
-						</span>{/if}
-				</a>
+				{#if live}
+					<!-- Livestreams are not played yet, so they get no watch link. -->
+					<span title={video.title} data-testid="live-result">
+						{video.title}<span class="sr-only">, {m.search_live_unavailable()}</span>
+					</span>
+				{:else}
+					<a
+						href={resolve(`/watch?v=${video.id}`)}
+						data-card-link
+						title={video.title}
+						class="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
+					>
+						{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
+								, {m.video_duration({
+									duration: formatDurationLong(video.durationSeconds, locale)
+								})}
+							</span>{/if}{#if video.progress !== undefined}<span class="sr-only">
+								, {m.video_watched({ percent: formatPercent(video.progress, locale) })}
+							</span>{/if}
+					</a>
+				{/if}
 			</h3>
 			{#if actions && video.channel.id}
 				<ChannelActionsMenu

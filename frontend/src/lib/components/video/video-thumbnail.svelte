@@ -7,6 +7,7 @@
 		durationSeconds,
 		progress,
 		badge,
+		unavailable = false,
 		class: className
 	}: {
 		src?: string;
@@ -14,6 +15,8 @@
 		progress?: number;
 		/** Replaces the duration chip, e.g. for live streams. */
 		badge?: string;
+		/** Dims the image of a video that cannot be played. */
+		unavailable?: boolean;
 		class?: string;
 	} = $props();
 
@@ -36,7 +39,12 @@
 			decoding="async"
 			width="640"
 			height="360"
-			class="size-full object-cover transition-transform duration-(--motion-image) ease-ui group-hover/video:scale-[1.03]"
+			class={cn(
+				'size-full object-cover',
+				unavailable
+					? 'opacity-45 grayscale'
+					: 'transition-transform duration-(--motion-image) ease-ui group-hover/video:scale-[1.03]'
+			)}
 		/>
 	{/if}
 	{#if badge}
