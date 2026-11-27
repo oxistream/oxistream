@@ -12,7 +12,7 @@ use rustypipe::model::{
     Channel, Playlist, PlaylistItem, SearchResult, ShortDetails, ShortItem, UrlTarget,
     VideoDetails, VideoItem, VideoPlayer, YouTubeItem,
 };
-use rustypipe::param::search_filter::{ItemType, SearchFilter};
+use rustypipe::param::search_filter::SearchFilter;
 use rustypipe::param::{ChannelOrder, ChannelVideoTab, Country, Language, TrendingCategory};
 use rustypipe::validate;
 use time::OffsetDateTime;
@@ -184,20 +184,17 @@ impl YouTube {
         Ok(self.query(lang).short_details(video_id).await?)
     }
 
-    /// Searches everything, or only one item type.
+    /// Searches everything, or with filters (item type, upload date, length, order).
     pub async fn search(
         &self,
         query: &str,
-        item_type: Option<ItemType>,
+        filter: Option<&SearchFilter>,
         lang: Language,
     ) -> Result<SearchResult<YouTubeItem>> {
         let rp = self.query(lang);
-        Ok(match item_type {
+        Ok(match filter {
             None => rp.search(query).await?,
-            Some(item_type) => {
-                rp.search_filter(query, &SearchFilter::new().item_type(item_type))
-                    .await?
-            }
+            Some(filter) => rp.search_filter(query, filter).await?,
         })
     }
 

@@ -3,7 +3,7 @@ use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path, Query, State};
 use oxistream_db::VideoUpsert;
 use rustypipe::model as rp;
-use rustypipe::param::search_filter::ItemType;
+use rustypipe::param::search_filter::{self as filter, ItemType, SearchFilter};
 use rustypipe::param::{ChannelOrder, ChannelVideoTab, Language};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
@@ -185,6 +185,66 @@ impl SearchType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum SearchUploadDate {
+    Hour,
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+impl From<SearchUploadDate> for filter::UploadDate {
+    fn from(date: SearchUploadDate) -> Self {
+        match date {
+            SearchUploadDate::Hour => Self::Hour,
+            SearchUploadDate::Day => Self::Day,
+            SearchUploadDate::Week => Self::Week,
+            SearchUploadDate::Month => Self::Month,
+            SearchUploadDate::Year => Self::Year,
+        }
+    }
+}
+
+/// `short` is under 4 minutes, `medium` 4 to 20, `long` over 20.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum SearchDuration {
+    Short,
+    Medium,
+    Long,
+}
+
+impl From<SearchDuration> for filter::Length {
+    fn from(duration: SearchDuration) -> Self {
+        match duration {
+            SearchDuration::Short => Self::Short,
+            SearchDuration::Medium => Self::Medium,
+            SearchDuration::Long => Self::Long,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum SearchSort {
+    #[default]
+    Relevance,
+    Date,
+    Views,
+}
+
+impl SearchSort {
+    fn order(self) -> Option<filter::Order> {
+        match self {
+            Self::Relevance => None,
+            Self::Date => Some(filter::Order::Date),
+            Self::Views => Some(filter::Order::Views),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct SearchParams {
@@ -193,6 +253,46 @@ struct SearchParams {
     /// Result type, defaults to `all`. Pass the same type with `continuation`.
     #[param(inline)]
     r#type: Option<SearchType>,
+    /// Only results uploaded within this period.
+    #[param(inline)]
+    upload_date: Option<SearchUploadDate>,
+    /// Only videos of this length.
+    #[param(inline)]
+    duration: Option<SearchDuration>,
+    /// Result order, defaults to `relevance`.
+    #[param(inline)]
+    sort: Option<SearchSort>,
+    /// Token from a previous page; it keeps the type and filters of its first page.
+    continuation: Option<String>,
+}
+
+impl SearchParams {
+    /// `None` for an unfiltered search of all types.
+    fn filter(&self) -> Option<SearchFilter> {
+        let item_type = self.r#type.unwrap_or_default().item_type();
+        let order = self.sort.unwrap_or_default().order();
+        if item_type.is_none()
+            && order.is_none()
+            && self.upload_date.is_none()
+            && self.duration.is_none()
+        {
+            return None;
+        }
+        Some(
+            SearchFilter::new()
+                .item_type_opt(item_type)
+                .sort_opt(order)
+                .date_opt(self.upload_date.map(Into::into))
+                .length_opt(self.duration.map(Into::into)),
+        )
+    }
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ChannelSearchParams {
+    /// Search query; required unless `continuation` is given.
+    q: Option<String>,
     /// Token from a previous page.
     continuation: Option<String>,
 }
@@ -208,7 +308,7 @@ struct SearchParams {
     ),
     responses(
         (status = OK, body = SearchPage),
-        (status = BAD_REQUEST, description = "Missing query or unknown type", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Missing query, unknown type or filter", body = ErrorBody),
         (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
         (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
     )
@@ -219,9 +319,7 @@ async fn search(
     ContentLanguage(lang): ContentLanguage,
     blocked: BlockedChannels,
 ) -> Result<Json<SearchPage>, ApiError> {
-    let Query(params) = params.map_err(|_| {
-        ApiError::bad_request("`type` must be `all`, `videos`, `shorts`, `channels` or `playlists`")
-    })?;
+    let Query(params) = params.map_err(|err| ApiError::bad_request(err.body_text()))?;
     let kind = params.r#type.unwrap_or_default();
     let img = |url: &str| state.image_url(url);
     let mut page = if let Some(token) = non_empty(params.continuation.as_deref()) {
@@ -230,7 +328,8 @@ async fn search(
     } else {
         let query = non_empty(params.q.as_deref())
             .ok_or_else(|| ApiError::bad_request("query parameter `q` is required"))?;
-        let result = state.youtube.search(query, kind.item_type(), lang).await?;
+        let filter = params.filter();
+        let result = state.youtube.search(query, filter.as_ref(), lang).await?;
         SearchPage::from_rp(result.items, result.corrected_query, &img)
     };
     page.items.retain(|item| kind.matches(item));
@@ -498,7 +597,7 @@ async fn channel_playlists(
     tag = "youtube",
     params(
         ("id" = String, Path, description = "YouTube channel ID (`UC…`)"),
-        SearchParams,
+        ChannelSearchParams,
         ("Accept-Language" = Option<String>, Header, description = "Content language"),
     ),
     responses(
@@ -512,7 +611,7 @@ async fn channel_playlists(
 async fn channel_search(
     State(state): State<AppState>,
     Path(id): Path<String>,
-    Query(params): Query<SearchParams>,
+    Query(params): Query<ChannelSearchParams>,
     ContentLanguage(lang): ContentLanguage,
     blocked: BlockedChannels,
 ) -> Result<Json<VideoPage>, ApiError> {
@@ -633,4 +732,34 @@ async fn resolve(
 
 fn non_empty(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|v| !v.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(query: &str) -> SearchParams {
+        let uri = format!("/search?{query}").parse().unwrap();
+        Query::<SearchParams>::try_from_uri(&uri).unwrap().0
+    }
+
+    #[test]
+    fn plain_searches_need_no_filter() {
+        assert!(params("q=x").filter().is_none());
+        assert!(params("q=x&type=all&sort=relevance").filter().is_none());
+    }
+
+    #[test]
+    fn filters_map_to_rustypipe() {
+        let filter = params("q=x&type=videos&upload_date=week&duration=long&sort=views")
+            .filter()
+            .unwrap();
+        let expected = SearchFilter::new()
+            .item_type(ItemType::Video)
+            .date(filter::UploadDate::Week)
+            .length(filter::Length::Long)
+            .sort(filter::Order::Views);
+        assert_eq!(format!("{filter:?}"), format!("{expected:?}"));
+        assert!(params("q=x&upload_date=hour").filter().is_some());
+    }
 }
