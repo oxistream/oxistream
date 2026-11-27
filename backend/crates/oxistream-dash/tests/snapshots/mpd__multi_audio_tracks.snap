@@ -82,6 +82,7 @@ expression: "mpd(&video, &audio)"
     <AdaptationSet id="7" contentType="audio" mimeType="audio/mp4" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1" lang="es-US">
       <Label>Spanish (Latin America)</Label>
       <Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+      <Role schemeIdUri="urn:oxistream:dash:role:2026" value="auto-dub"/>
       <Representation id="140-es-US.3" codecs="mp4a.40.2" bandwidth="130000" audioSamplingRate="44100">
         <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
         <BaseURL>https://oxistream.example/proxy/video/abc140?sig=x&amp;xtags=lang%3Des-US.3</BaseURL>
@@ -93,6 +94,7 @@ expression: "mpd(&video, &audio)"
     <AdaptationSet id="8" contentType="audio" mimeType="audio/webm" subsegmentAlignment="true" subsegmentStartsWithSAP="1" startWithSAP="1" lang="es-US">
       <Label>Spanish (Latin America)</Label>
       <Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+      <Role schemeIdUri="urn:oxistream:dash:role:2026" value="auto-dub"/>
       <Representation id="251-es-US.3" codecs="opus" bandwidth="141000" audioSamplingRate="48000">
         <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
         <BaseURL>https://oxistream.example/proxy/video/abc251?sig=x&amp;xtags=lang%3Des-US.3</BaseURL>

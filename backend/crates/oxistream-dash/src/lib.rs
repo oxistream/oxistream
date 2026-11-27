@@ -18,6 +18,7 @@ pub use model::{AudioStream, AudioTrack, AudioTrackType, VideoStream};
 const MPD_NS: &str = "urn:mpeg:dash:schema:mpd:2011";
 const PROFILE: &str = "urn:mpeg:dash:profile:isoff-on-demand:2011";
 const ROLE_SCHEME: &str = "urn:mpeg:dash:role:2011";
+const OXISTREAM_ROLE_SCHEME: &str = "urn:oxistream:dash:role:2026";
 const CHANNEL_SCHEME: &str = "urn:mpeg:dash:23003:3:audio_channel_configuration:2011";
 const CICP_PRIMARIES: &str = "urn:mpeg:mpegB:cicp:ColourPrimaries";
 const CICP_TRANSFER: &str = "urn:mpeg:mpegB:cicp:TransferCharacteristics";
@@ -402,6 +403,10 @@ fn write_set<W: io::Write>(w: &mut Writer<W>, id: usize, set: &Set<'_>) -> io::R
             w.create_element("Label")
                 .write_text_content(BytesText::new(&track.lang_name))?;
             descriptor(w, "Role", ROLE_SCHEME, role(track))?;
+            // The DASH role scheme has no value for machine dubbing.
+            if track.track_type == Some(AudioTrackType::DubbedAuto) {
+                descriptor(w, "Role", OXISTREAM_ROLE_SCHEME, "auto-dub")?;
+            }
         }
         for rep in &set.reps {
             write_rep(w, rep)?;
