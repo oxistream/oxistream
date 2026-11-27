@@ -25,12 +25,20 @@ pub enum RoomClientMessage {
     },
     Play {
         position: f64,
+        /// Server time in ms since the epoch at which `position` was read, from the `pong`
+        /// clock; at most 5 s in the past. Defaults to when the server receives the message.
+        #[serde(default)]
+        at: Option<f64>,
     },
     Pause {
         position: f64,
     },
     Seek {
         position: f64,
+        /// Server time in ms since the epoch at which `position` was read, from the `pong`
+        /// clock; at most 5 s in the past. Defaults to when the server receives the message.
+        #[serde(default)]
+        at: Option<f64>,
     },
     /// The current entry finished playing; the queue advances once, however many report it.
     Ended {
