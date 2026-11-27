@@ -1,5 +1,7 @@
 //! API representations of YouTube data. Every image URL passes through the `img` mapper.
 
+use std::collections::HashSet;
+
 use rustypipe::model::paginator::Paginator;
 use rustypipe::model::richtext::ToPlaintext;
 use rustypipe::model::{self as rp, UrlTarget};
@@ -50,7 +52,109 @@ pub struct VideoDetails {
     pub subtitles: Vec<Subtitle>,
     /// `WebVTT` thumbnails track for seek previews; absent without storyboard.
     pub storyboard_url: Option<String>,
+    /// Empty when the player data could not be fetched or the video has a single track.
+    pub audio_tracks: Vec<AudioTrack>,
+    /// YouTube's "How this was made" labels, e.g. altered or synthetic content.
+    pub content_disclosures: Vec<ContentDisclosure>,
     pub related: Vec<VideoSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct AudioTrack {
+    /// YouTube's track ID, e.g. `en.4`.
+    pub id: String,
+    /// Language code, e.g. `en-US`.
+    pub lang: Option<String>,
+    /// Human-readable language name.
+    pub label: String,
+    pub kind: AudioTrackKind,
+    /// The track YouTube plays by default.
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioTrackKind {
+    Original,
+    Dubbed,
+    /// Dubbed with YouTube's AI auto-dubbing.
+    AutoDubbed,
+    Descriptive,
+    Unknown,
+}
+
+impl From<Option<rp::AudioTrackType>> for AudioTrackKind {
+    fn from(kind: Option<rp::AudioTrackType>) -> Self {
+        match kind {
+            Some(rp::AudioTrackType::Original) => Self::Original,
+            Some(rp::AudioTrackType::Dubbed) => Self::Dubbed,
+            Some(rp::AudioTrackType::DubbedAuto) => Self::AutoDubbed,
+            Some(rp::AudioTrackType::Descriptive) => Self::Descriptive,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl AudioTrack {
+    /// One entry per track, in the order of the player's streams.
+    pub fn from_player(player: &rp::VideoPlayer) -> Vec<Self> {
+        let mut seen = HashSet::new();
+        player
+            .audio_streams
+            .iter()
+            .filter_map(|s| s.track.as_ref())
+            .filter(|t| seen.insert(t.id.as_str()))
+            .map(|t| Self {
+                id: t.id.clone(),
+                lang: t.lang.clone(),
+                label: t.lang_name.clone(),
+                kind: t.track_type.into(),
+                is_default: t.is_default,
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct ContentDisclosure {
+    pub kind: ContentDisclosureKind,
+    /// Localized short label, e.g. "Made with AI".
+    pub title: Option<String>,
+    /// Localized explanation, e.g. "Sounds or visuals were altered or fully generated."
+    pub text: String,
+    /// Source of the label, e.g. "Info from Google LLC".
+    pub attribution: Option<String>,
+    /// YouTube help page about the label.
+    pub help_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContentDisclosureKind {
+    AlteredOrSynthetic,
+    AutoDubbed,
+    Other,
+}
+
+impl ContentDisclosure {
+    pub fn from_rp(disclosures: Vec<rp::ContentDisclosure>) -> Vec<Self> {
+        disclosures
+            .into_iter()
+            .map(|d| Self {
+                kind: match d.kind {
+                    rp::ContentDisclosureKind::AlteredOrSynthetic => {
+                        ContentDisclosureKind::AlteredOrSynthetic
+                    }
+                    rp::ContentDisclosureKind::AutoDubbed => ContentDisclosureKind::AutoDubbed,
+                    _ => ContentDisclosureKind::Other,
+                },
+                title: d.title,
+                text: d.text,
+                attribution: d.attribution,
+                help_url: d.url,
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -338,6 +442,8 @@ impl VideoDetails {
                 })
                 .unwrap_or_default(),
             storyboard_url: None,
+            audio_tracks: player.map(AudioTrack::from_player).unwrap_or_default(),
+            content_disclosures: ContentDisclosure::from_rp(details.content_disclosures),
             related: details
                 .recommended
                 .items
@@ -579,11 +685,32 @@ mod tests {
             "is_live": false,
             "is_ccommons": false,
             "chapters": [],
+            "content_disclosures": [{
+                "kind": "altered_or_synthetic",
+                "title": "Made with AI",
+                "text": "Sounds or visuals were altered or fully generated.",
+                "url": "https://support.google.com/youtube/answer/15447836?hl=en",
+                "attribution": null,
+            }],
             "recommended": paginator(&json!([video_item("aaaaaaaaaaa")]), Some("next"), "next"),
             "top_comments": paginator(&json!([]), None, "next"),
             "latest_comments": paginator(&json!([]), None, "next"),
             "visitor_data": null,
         }))
+    }
+
+    fn audio_stream(itag: u32, track: &str, is_default: bool, kind: &str) -> Value {
+        json!({
+            "url": format!("https://rr1.googlevideo.com/videoplayback?itag={itag}"),
+            "itag": itag, "bitrate": 1000, "average_bitrate": 900, "size": 10_000,
+            "index_range": null, "init_range": null, "duration_ms": 212_091,
+            "mime": "audio/webm; codecs=\"opus\"", "format": "webm", "codec": "opus",
+            "channels": 2, "loudness_db": null, "drm_track_type": null, "drm_systems": [],
+            "track": {
+                "id": track, "lang": track.split('.').next(), "lang_name": track,
+                "is_default": is_default, "track_type": kind,
+            },
+        })
     }
 
     fn player() -> rp::VideoPlayer {
@@ -603,7 +730,11 @@ mod tests {
             },
             "video_streams": [],
             "video_only_streams": [],
-            "audio_streams": [],
+            "audio_streams": [
+                audio_stream(251, "en.4", true, "original"),
+                audio_stream(140, "en.4", true, "original"),
+                audio_stream(251, "de-DE.10", false, "dubbed-auto"),
+            ],
             "subtitles": [
                 { "url": "https://www.youtube.com/api/timedtext?lang=de", "lang": "de",
                   "lang_name": "German", "auto_generated": false },
@@ -665,6 +796,26 @@ mod tests {
         );
         assert_eq!(dto.related.len(), 1);
         assert_eq!(dto.related[0].duration_seconds, Some(212));
+        assert_eq!(
+            dto.audio_tracks
+                .iter()
+                .map(|t| (t.id.as_str(), t.lang.as_deref(), t.kind, t.is_default))
+                .collect::<Vec<_>>(),
+            [
+                ("en.4", Some("en"), AudioTrackKind::Original, true),
+                ("de-DE.10", Some("de-DE"), AudioTrackKind::AutoDubbed, false),
+            ]
+        );
+        assert_eq!(
+            dto.content_disclosures,
+            [ContentDisclosure {
+                kind: ContentDisclosureKind::AlteredOrSynthetic,
+                title: Some("Made with AI".into()),
+                text: "Sounds or visuals were altered or fully generated.".into(),
+                attribution: None,
+                help_url: Some("https://support.google.com/youtube/answer/15447836?hl=en".into()),
+            }]
+        );
         assert_eq!(
             dto.subtitles,
             [
