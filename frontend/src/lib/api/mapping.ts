@@ -76,6 +76,8 @@ export function toVideo(
 		publishedAt: video.published_at ?? undefined,
 		publishedText: video.published_text ?? undefined,
 		isLive: video.is_live,
+		isShort: video.is_short || undefined,
+		isUpcoming: video.is_upcoming || undefined,
 		description: video.description ?? undefined,
 		thumbnailUrl: pickImage(video.thumbnails, 480)
 	};

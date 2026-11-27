@@ -22,6 +22,9 @@ export type VideoSummary = {
 	/** YouTube's own localized date text, used when no exact date is known. */
 	publishedText?: string;
 	isLive?: boolean;
+	isShort?: boolean;
+	/** A premiere or scheduled stream that cannot be played yet. */
+	isUpcoming?: boolean;
 	description?: string;
 	thumbnailUrl?: string;
 	/** Watched share between 0 and 1, when the user has started the video. */

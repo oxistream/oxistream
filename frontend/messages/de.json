@@ -675,5 +675,10 @@
 	"together_sync_play": "Mitschauen",
 	"together_no_video_title": "Gerade läuft nichts",
 	"together_no_video_body": "Füge ein Video zur Warteschlange hinzu, um loszulegen.",
-	"together_history_hint": "In Räumen geschaute Videos landen nicht in deinem Verlauf."
+	"together_history_hint": "In Räumen geschaute Videos landen nicht in deinem Verlauf.",
+	"together_add_to_room": "Zum Raum von {owner} hinzufügen",
+	"together_added_to_room": "Zum Raum von {owner} hinzugefügt",
+	"together_add_to_room_failed": "Der Raum ist in keinem anderen Tab mehr geöffnet.",
+	"together_search_clear": "Suche leeren",
+	"together_search_results": "Suchergebnisse"
 }

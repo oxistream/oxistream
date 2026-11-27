@@ -62,6 +62,7 @@
 			{#if actions && video.channel.id}
 				<ChannelActionsMenu
 					channel={video.channel}
+					videoId={video.id}
 					label={m.block_video_actions({ title: video.title })}
 					class="relative z-10 -me-1.5 -mt-1 shrink-0 pointer-fine:opacity-0 pointer-fine:group-hover/video:opacity-100 pointer-fine:focus-visible:opacity-100 pointer-fine:data-[state=open]:opacity-100"
 				/>
