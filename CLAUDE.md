@@ -115,6 +115,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one per request:
 - Static MPD with a single Period, `SegmentBase` using `init_range`/`index_range`.
 - One AdaptationSet per mime + codec, and per audio track (`AudioTrack` id/lang/is_default).
+- Audio roles from the `acont` xtag (`main`, `dub`, `description`); auto-dubs get an extra `<Role schemeIdUri="urn:oxistream:dash:role:2026" value="auto-dub"/>`.
 - Include all streams; skip streams without ranges (OTF).
 - All BaseURLs point to the proxy.
 - Subtitles are not in the MPD; they are side-loaded as VTT (`&fmt=vtt`) via the proxy.
@@ -144,7 +145,7 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 - SvelteKit with `adapter-static` (SPA), Svelte 5 runes, Vite, Tailwind CSS 4, shadcn-svelte (bits-ui), `@lucide/svelte`, pnpm, Node LTS.
 - API types generated from the backend OpenAPI with `openapi-typescript`. Requests via `openapi-fetch` and TanStack Svelte Query.
 - i18n via Paraglide JS. English and German are required for every user-facing string.
-- Player: Video.js 10 (`@videojs/html`) with `<dash-video>` (`@videojs/dash-video`, exact version pinned). Skin copied via shadcn and restyled. Codec and quality preferences come from user settings and are passed as dash.js settings. Progress is reported every ~10 s and on pause/unload; ≥ 90 % counts as finished.
+- Player: Video.js 10 (`@videojs/html`) with `<dash-video>` (`@videojs/dash-video`, exact version pinned). Skin copied via shadcn and restyled. Codec and quality preferences come from user settings and are passed as dash.js settings. The initial audio track is the original, or a preferred language (`user_settings.audio_language`, localStorage for guests); auto-dubs never start unless picked in the menu. Progress is reported every ~10 s and on pause/unload; ≥ 90 % counts as finished.
 - Design: use the `design-taste-frontend` skill.
   - Light and dark mode, following the system by default.
   - Dense, content- and thumbnail-first, calm neutral surfaces.
