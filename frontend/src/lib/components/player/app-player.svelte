@@ -105,7 +105,6 @@
 	style:top={mode === 'inline' && rect ? `${rect.top}px` : undefined}
 	style:left={mode === 'inline' && rect ? `${rect.left}px` : undefined}
 	style:width={mode === 'inline' && rect ? `${rect.width}px` : undefined}
-	style:--app-player-end-inset={appPlayer.endInset}
 >
 	<div class="app-player-video">
 		{#key appPlayer.generation}
@@ -206,10 +205,11 @@
 
 	.app-player[data-mode='mini'] {
 		position: fixed;
-		inset-inline-end: calc(1rem + var(--app-player-end-inset, 0px));
+		/* Half a rem inside the body card, which ends before the party sidebar. */
+		inset-inline-end: calc(var(--content-inset-end, 0.5rem) + 0.5rem);
 		bottom: calc(1rem + env(safe-area-inset-bottom));
 		z-index: 40;
-		transition: inset-inline-end 200ms ease-in-out;
+		transition: inset-inline-end 200ms linear;
 		width: 22rem;
 		overflow: hidden;
 		border: 1px solid var(--border);
@@ -219,6 +219,12 @@
 		box-shadow:
 			0 1px 2px oklch(0 0 0 / 6%),
 			0 12px 32px -8px oklch(0 0 0 / 24%);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.app-player[data-mode='mini'] {
+			transition: none;
+		}
 	}
 
 	.app-player-video {

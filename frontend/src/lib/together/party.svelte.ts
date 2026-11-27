@@ -1,3 +1,4 @@
+import { MediaQuery } from 'svelte/reactivity';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { page } from '$app/state';
@@ -19,6 +20,25 @@ import { guestKey } from './sync';
 
 const OWNER = 'party';
 const SESSION_KEY = 'oxistream:party';
+const PANEL_KEY = 'oxistream:party-panel';
+/** From this width on, the party panel is a sidebar next to the content; below, a sheet. */
+export const PARTY_SIDEBAR_QUERY = 'min-width: 64rem';
+
+function readPanelOpen() {
+	try {
+		return localStorage.getItem(PANEL_KEY) === 'open';
+	} catch {
+		return false;
+	}
+}
+
+function writePanelOpen(open: boolean) {
+	try {
+		localStorage.setItem(PANEL_KEY, open ? 'open' : 'closed');
+	} catch {
+		// Without storage, the sidebar starts closed.
+	}
+}
 
 export type PartyEnd = {
 	id: string;
@@ -68,7 +88,9 @@ export class Party {
 	connection = $state.raw<RoomConnection | null>(null);
 	sync = $state.raw<PartySync | null>(null);
 	debug = $state(false);
-	/** The party sheet. */
+	/** The party sidebar on wide screens, remembered per browser. */
+	sidebarOpen = $state(readPanelOpen());
+	/** The party sheet on narrow screens. */
 	sheetOpen = $state(false);
 	/** Asks before leaving, e.g. from the mini player. */
 	leaveOpen = $state(false);
@@ -85,6 +107,26 @@ export class Party {
 	#shown: string | null = null;
 	#resume: JoinOptions['resume'] | null = null;
 	#silent = false;
+	#wide: MediaQuery | null = null;
+
+	/** Whether the panel is a sidebar next to the content, rather than a sheet. */
+	get docked() {
+		this.#wide ??= new MediaQuery(PARTY_SIDEBAR_QUERY);
+		return this.#wide.current;
+	}
+
+	get panelOpen() {
+		return this.docked ? this.sidebarOpen : this.sheetOpen;
+	}
+
+	set panelOpen(open: boolean) {
+		if (!this.docked) {
+			this.sheetOpen = open;
+			return;
+		}
+		this.sidebarOpen = open;
+		writePanelOpen(open);
+	}
 
 	get active() {
 		return this.connection !== null;
@@ -149,7 +191,7 @@ export class Party {
 				? { videoId, position: appPlayer.position(), playing: !appPlayer.paused }
 				: undefined
 		});
-		this.sheetOpen = true;
+		this.panelOpen = true;
 	}
 
 	/** Rejoins the party this tab was in before a reload. */
