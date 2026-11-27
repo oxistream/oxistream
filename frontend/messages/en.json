@@ -134,6 +134,8 @@
 	"watch_title": "Watch",
 	"channel_title": "Channel",
 	"search_suggestions_label": "Search suggestions",
+	"search_recent_remove": "Remove from search history",
+	"search_recent_clear": "Clear search history",
 	"search_resolving": "Opening link…",
 	"search_corrected": "Showing results for “{query}”",
 	"search_prompt_title": "Search videos, channels and playlists",
