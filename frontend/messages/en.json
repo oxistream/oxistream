@@ -279,6 +279,8 @@
 	"player_theater_enter": "Theater mode",
 	"player_theater_exit": "Default view",
 	"player_auto_generated": "{label} (auto-generated)",
+	"disclosure_altered": "Altered or synthetic content",
+	"disclosure_learn_more": "Learn more on YouTube",
 	"auth_oidc_sign_in": "Sign in with {name}",
 	"auth_oidc_error_disabled": "Single sign-on is not set up on this instance.",
 	"auth_oidc_error_unavailable": "The sign-in provider cannot be reached right now. Try again in a moment.",

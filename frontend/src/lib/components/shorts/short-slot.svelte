@@ -117,6 +117,7 @@
 		{title}
 		{channel}
 		linkedVideo={overlay.data?.linked_video ?? undefined}
+		disclosures={overlay.data?.content_disclosures}
 		onblocked={() => channel?.id && onblocked?.(channel.id)}
 	/>
 </div>

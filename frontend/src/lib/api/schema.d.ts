@@ -1063,6 +1063,19 @@ export interface components {
         };
         /** @enum {string} */
         Action: "skip" | "poi" | "full";
+        AudioTrack: {
+            /** @description YouTube's track ID, e.g. `en.4`. */
+            id: string;
+            /** @description The track YouTube plays by default. */
+            is_default: boolean;
+            kind: components["schemas"]["AudioTrackKind"];
+            /** @description Human-readable language name. */
+            label: string;
+            /** @description Language code, e.g. `en-US`. */
+            lang?: string | null;
+        };
+        /** @enum {string} */
+        AudioTrackKind: "original" | "dubbed" | "auto_dubbed" | "descriptive" | "unknown";
         /** @description Which sign-in methods this instance offers. */
         AuthCapabilities: {
             /** @description Local accounts with username and password. */
@@ -1124,6 +1137,19 @@ export interface components {
             subscriber_count?: number | null;
             verified: boolean;
         };
+        ContentDisclosure: {
+            /** @description Source of the label, e.g. "Info from Google LLC". */
+            attribution?: string | null;
+            /** @description YouTube help page about the label. */
+            help_url?: string | null;
+            kind: components["schemas"]["ContentDisclosureKind"];
+            /** @description Localized explanation, e.g. "Sounds or visuals were altered or fully generated." */
+            text: string;
+            /** @description Localized short label, e.g. "Made with AI". */
+            title?: string | null;
+        };
+        /** @enum {string} */
+        ContentDisclosureKind: "altered_or_synthetic" | "auto_dubbed" | "other";
         CreatePlaylist: {
             /** @description Up to 5000 characters. */
             description?: string | null;
@@ -1615,6 +1641,11 @@ export interface components {
         /** @description The signed-in user's preferences. The watch history pause lives at `/history/settings`. */
         Settings: {
             /**
+             * @description Audio track to start with: `null` for the original audio, `interface` for the interface
+             *     language, else a language code such as `de` or `pt-BR`.
+             */
+            audio_language: string | null;
+            /**
              * Format: int32
              * @description Video height to start with; `null` for adaptive quality.
              */
@@ -1634,6 +1665,8 @@ export interface components {
         };
         /** @description Fields to change. Absent fields are kept; `null` resets a field to its default. */
         SettingsPatch: {
+            /** @description `interface` or a language code such as `de` or `pt-BR`. */
+            audio_language?: string | null;
             /**
              * Format: int32
              * @description One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.
@@ -1651,6 +1684,8 @@ export interface components {
         };
         /** @description What the shorts player shows over a short. */
         ShortDetails: {
+            /** @description YouTube's "How this was made" labels, e.g. altered or synthetic content. */
+            content_disclosures: components["schemas"]["ContentDisclosure"][];
             id: string;
             linked_video?: components["schemas"]["LinkedVideo"] | null;
             title?: string | null;
@@ -1774,7 +1809,11 @@ export interface components {
         /** @enum {string} */
         VideoCodec: "av1" | "vp9" | "h264";
         VideoDetails: {
+            /** @description Empty when the player data could not be fetched or the video has a single track. */
+            audio_tracks: components["schemas"]["AudioTrack"][];
             channel: components["schemas"]["ChannelRef"];
+            /** @description YouTube's "How this was made" labels, e.g. altered or synthetic content. */
+            content_disclosures: components["schemas"]["ContentDisclosure"][];
             /** @description Plain text; links are written out as URLs. */
             description: string;
             /**

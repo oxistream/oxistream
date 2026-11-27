@@ -6,6 +6,7 @@ import type { components } from './schema';
 
 export type VideoDetails = components['schemas']['VideoDetails'];
 export type Subtitle = components['schemas']['Subtitle'];
+export type ContentDisclosure = components['schemas']['ContentDisclosure'];
 
 // Client errors will not change on a retry; upstream and rate-limit errors might.
 function retry(failureCount: number, error: Error): boolean {
