@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import jsQR from 'jsqr';
 import {
 	expect,
 	test,
@@ -804,5 +805,67 @@ test('on a phone the party opens as a sheet', async ({ browser }) => {
 	await expect(page.getByTestId('party-button')).toHaveAttribute('aria-expanded', 'false');
 	await expect(sheet).toHaveCount(0);
 
+	await context.close();
+});
+
+test('the invite menu copies the link and shows a scannable QR code', async ({
+	browser,
+	browserName
+}) => {
+	const context = await browser.newContext({
+		permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : []
+	});
+	await mockApi(context, new FakeRoom(LONG), { signedIn: true });
+	const page = await context.newPage();
+	await page.addInitScript(() => delete (Navigator.prototype as Partial<Navigator>).share);
+	await openParty(page);
+	const invite = page.getByTestId('party-panel').getByTestId('party-invite');
+	await expect(invite).toHaveAttribute('data-url', new RegExp(`/party/${ROOM}$`));
+	const url = await invite.getAttribute('data-url');
+
+	await invite.click();
+	await page.getByTestId('party-invite-copy').click();
+	await expect(invite).toHaveAttribute('data-copied', 'true');
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
+
+	await invite.click();
+	await page.getByTestId('party-invite-qr').click();
+	const qr = page.getByRole('dialog').getByTestId('party-qr');
+	await expect(qr).toBeVisible();
+	expect((await qr.boundingBox())!.width).toBeGreaterThanOrEqual(200);
+	const image = await qr.evaluate(async (svg) => {
+		const size = 400;
+		const img = new Image();
+		img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+		await img.decode();
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = size;
+		const ctx = canvas.getContext('2d')!;
+		ctx.drawImage(img, 0, 0, size, size);
+		return { size, data: Array.from(ctx.getImageData(0, 0, size, size).data) };
+	});
+	expect(jsQR(Uint8ClampedArray.from(image.data), image.size, image.size)?.data).toBe(url);
+
+	await page.keyboard.press('Escape');
+	await expect(qr).toBeHidden();
+
+	// Without the Web Share API there is no share item.
+	await invite.click();
+	await expect(page.getByTestId('party-invite-copy')).toBeVisible();
+	await expect(page.getByTestId('party-invite-share')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await page.addInitScript(() => {
+		navigator.share = (data) => {
+			(window as unknown as { shared: ShareData }).shared = data!;
+			return Promise.resolve();
+		};
+	});
+	await page.reload();
+	await invite.click();
+	await page.getByTestId('party-invite-share').click();
+	await expect
+		.poll(() => page.evaluate(() => (window as unknown as { shared?: ShareData }).shared?.url))
+		.toBe(url);
 	await context.close();
 });
