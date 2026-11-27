@@ -1,5 +1,5 @@
 import type { components } from '../api/schema';
-import { ClockSync, backoffDelay } from './sync';
+import { ClockSync, backoffDelay, localNow } from './sync';
 
 type Schemas = components['schemas'];
 export type RoomState = Schemas['RoomState'];
@@ -22,7 +22,9 @@ export type ConnectionStatus =
 
 export type JoinDetails = { name?: string; guestKey?: string };
 
-const PING_INTERVAL = 15_000;
+const PING_INTERVAL = 10_000;
+/** Pings right after joining, so the clock is accurate before the first seek. */
+const PING_BURST = [0, 150, 300, 450, 600, 900];
 const FINAL_ERRORS: Partial<Record<RoomErrorCode, ConnectionStatus>> = {
 	not_found: 'not_found',
 	room_full: 'full'
@@ -63,7 +65,13 @@ export class RoomConnection {
 
 	/** The server's clock in ms since the epoch. */
 	serverNow(): number {
-		return Date.now() + this.#clock.offset(this.#welcomeOffset);
+		return localNow() + this.#clock.offset(this.#welcomeOffset);
+	}
+
+	/** How well the server clock is known, for the sync readout. */
+	clockStats(): { offset: number; rtt: number | null; samples: number } {
+		const clock = this.#clock;
+		return { offset: clock.offset(this.#welcomeOffset), rtt: clock.rtt, samples: clock.samples };
 	}
 
 	connect() {
@@ -104,7 +112,7 @@ export class RoomConnection {
 	}
 
 	#sendPing() {
-		this.#write({ type: 'ping', t: Date.now() });
+		this.#write({ type: 'ping', t: localNow() });
 	}
 
 	#receive(data: string) {
@@ -117,11 +125,13 @@ export class RoomConnection {
 		switch (message.type) {
 			case 'welcome':
 				this.#attempt = 0;
-				this.#welcomeOffset = message.server_time - Date.now();
+				// Another replica may answer after a reconnect.
+				this.#clock.reset();
+				this.#welcomeOffset = message.server_time - localNow();
 				this.participantId = message.participant_id;
 				this.isOwner = message.is_owner;
 				this.status = 'open';
-				for (const delay of [0, 500, 1500]) setTimeout(() => this.#sendPing(), delay);
+				for (const delay of PING_BURST) setTimeout(() => this.#sendPing(), delay);
 				clearInterval(this.#ping);
 				this.#ping = setInterval(() => this.#sendPing(), PING_INTERVAL);
 				break;
@@ -129,7 +139,7 @@ export class RoomConnection {
 				if (!this.room || message.room.revision >= this.room.revision) this.room = message.room;
 				break;
 			case 'pong':
-				this.#clock.sample(message.t, Date.now(), message.server_time);
+				this.#clock.sample(message.t, localNow(), message.server_time);
 				break;
 			case 'error': {
 				const rejected = this.status !== 'open' && message.code === 'invalid';
