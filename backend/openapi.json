@@ -6467,6 +6467,14 @@
               "type"
             ],
             "properties": {
+              "at": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "double",
+                "description": "Server time in ms since the epoch at which `position` was read, from the `pong`\nclock; at most 5 s in the past. Defaults to when the server receives the message."
+              },
               "position": {
                 "type": "number",
                 "format": "double"
@@ -6505,6 +6513,14 @@
               "type"
             ],
             "properties": {
+              "at": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "double",
+                "description": "Server time in ms since the epoch at which `position` was read, from the `pong`\nclock; at most 5 s in the past. Defaults to when the server receives the message."
+              },
               "position": {
                 "type": "number",
                 "format": "double"

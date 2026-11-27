@@ -25,6 +25,8 @@ const MAX_MESSAGE_BYTES: usize = 4096;
 const JOIN_TIMEOUT: Duration = Duration::from_secs(10);
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_NAME_CHARS: usize = 32;
+/// How far back a client may date a play or seek, to account for its latency.
+const MAX_BACKDATE: Duration = Duration::from_secs(5);
 /// Positions beyond a day are not valid for any video we can play.
 const MAX_POSITION_SECONDS: f64 = 86_400.0;
 
@@ -148,6 +150,20 @@ fn position_ms(seconds: f64) -> Option<i64> {
     #[allow(clippy::cast_possible_truncation)]
     (seconds.is_finite() && (0.0..=MAX_POSITION_SECONDS).contains(&seconds))
         .then(|| (seconds * 1000.0).round() as i64)
+}
+
+/// When a position was read: the client's estimate of the server clock, clamped to the recent
+/// past, so latency does not put everyone behind whoever played or seeked.
+fn position_time(at: Option<f64>, now: OffsetDateTime) -> OffsetDateTime {
+    let Some(at) = at.filter(|at| at.is_finite()) else {
+        return now;
+    };
+    // Whole milliseconds first: nanoseconds since the epoch exceed f64's exact range.
+    let whole = at.floor();
+    #[allow(clippy::cast_possible_truncation)]
+    let nanos = i128::from(whole as i64) * 1_000_000 + ((at - whole) * 1_000_000.0) as i128;
+    let at = OffsetDateTime::from_unix_timestamp_nanos(nanos).unwrap_or(now);
+    at.clamp(now - MAX_BACKDATE, now)
 }
 
 fn now_ms() -> i64 {
@@ -351,6 +367,7 @@ impl Connection {
         let Ok(message) = serde_json::from_str::<RoomClientMessage>(text) else {
             return self.reject(RoomErrorCode::Invalid).await;
         };
+        let mut now = OffsetDateTime::now_utc();
         let op = match message {
             RoomClientMessage::Ping { t } => {
                 let pong = RoomServerMessage::Pong {
@@ -361,16 +378,22 @@ impl Connection {
                 return;
             }
             RoomClientMessage::Join { .. } => return self.reject(RoomErrorCode::Invalid).await,
-            RoomClientMessage::Play { position } => match position_ms(position) {
-                Some(position_ms) => RoomOp::Play { position_ms },
+            RoomClientMessage::Play { position, at } => match position_ms(position) {
+                Some(position_ms) => {
+                    now = position_time(at, now);
+                    RoomOp::Play { position_ms }
+                }
                 None => return self.reject(RoomErrorCode::Invalid).await,
             },
             RoomClientMessage::Pause { position } => match position_ms(position) {
                 Some(position_ms) => RoomOp::Pause { position_ms },
                 None => return self.reject(RoomErrorCode::Invalid).await,
             },
-            RoomClientMessage::Seek { position } => match position_ms(position) {
-                Some(position_ms) => RoomOp::Seek { position_ms },
+            RoomClientMessage::Seek { position, at } => match position_ms(position) {
+                Some(position_ms) => {
+                    now = position_time(at, now);
+                    RoomOp::Seek { position_ms }
+                }
                 None => return self.reject(RoomErrorCode::Invalid).await,
             },
             RoomClientMessage::Ended { entry } | RoomClientMessage::Skip { entry } => {
@@ -413,12 +436,7 @@ impl Connection {
                 }
             }
         };
-        let result = self
-            .state
-            .rooms
-            .repo()
-            .apply(&self.room_id, &op, OffsetDateTime::now_utc())
-            .await;
+        let result = self.state.rooms.repo().apply(&self.room_id, &op, now).await;
         match result {
             Ok(_) => {}
             Err(oxistream_db::Error::LimitReached) => self.reject(RoomErrorCode::QueueFull).await,
@@ -472,6 +490,19 @@ mod tests {
         assert_eq!(position_ms(f64::NAN), None);
         assert_eq!(position_ms(f64::INFINITY), None);
         assert_eq!(position_ms(90_000.0), None);
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn positions_can_be_dated_back_a_little() {
+        let now = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let ms = |t: OffsetDateTime| unix_ms(t) as f64;
+        assert_eq!(position_time(None, now), now);
+        assert_eq!(position_time(Some(f64::NAN), now), now);
+        let earlier = now - Duration::from_millis(80);
+        assert_eq!(position_time(Some(ms(earlier)), now), earlier);
+        assert_eq!(position_time(Some(ms(now) + 1000.0), now), now);
+        assert_eq!(position_time(Some(0.0), now), now - MAX_BACKDATE);
     }
 
     #[test]

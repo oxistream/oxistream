@@ -400,6 +400,18 @@ async fn replicas_stay_in_sync_through_the_database() {
     })
     .await;
 
+    // A seek dated back by the sender's latency keeps that time.
+    let at = i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000)
+        .unwrap()
+        - 300;
+    send(
+        &mut host,
+        json!({ "type": "seek", "position": 21.0, "at": at }),
+    )
+    .await;
+    let state = state_where(&mut guest, |r| r["position"] == 21.0).await;
+    assert_eq!(state["position_at"], at);
+
     send(&mut guest, json!({ "type": "add", "video_id": VIDEOS[1] })).await;
     let state = state_where(&mut host, |r| r["queue"].as_array().unwrap().len() == 1).await;
     assert_eq!(state["queue"][0]["video"]["id"], VIDEOS[1]);

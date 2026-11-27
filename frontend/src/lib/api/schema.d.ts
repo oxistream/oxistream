@@ -1454,6 +1454,12 @@ export interface components {
             /** @enum {string} */
             type: "ping";
         } | {
+            /**
+             * Format: double
+             * @description Server time in ms since the epoch at which `position` was read, from the `pong`
+             *     clock; at most 5 s in the past. Defaults to when the server receives the message.
+             */
+            at?: number | null;
             /** Format: double */
             position: number;
             /** @enum {string} */
@@ -1464,6 +1470,12 @@ export interface components {
             /** @enum {string} */
             type: "pause";
         } | {
+            /**
+             * Format: double
+             * @description Server time in ms since the epoch at which `position` was read, from the `pong`
+             *     clock; at most 5 s in the past. Defaults to when the server receives the message.
+             */
+            at?: number | null;
             /** Format: double */
             position: number;
             /** @enum {string} */
