@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { createVideoProgressQuery } from '#lib/api/history.js';
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
+	import { queueRemote } from '#lib/api/queue.js';
 	import { useManifest, useVideo } from '#lib/api/video.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
 	import { readLocalProgress, resumePosition } from '#lib/components/watch/local-progress.js';
@@ -13,6 +14,16 @@
 	// eslint-disable-next-line svelte/no-navigation-without-resolve -- hrefs come resolved
 	appPlayer.navigate = (href) => void goto(href);
 	appPlayer.watchHref = (id) => resolve(`/watch?v=${id}`);
+
+	// Signed-in users keep the queue on the server; other devices' changes show on return.
+	$effect(() => {
+		if (!session.ready) return;
+		appPlayer.queue.connect(session.user?.id ?? null, queueRemote);
+	});
+
+	function refreshQueue() {
+		if (document.visibilityState === 'visible') void appPlayer.queue.refresh();
+	}
 
 	// A queued video that plays outside the watch page loads here, as the watch page would.
 	const pending = $derived(appPlayer.pending);
@@ -72,3 +83,6 @@
 		else void manifest.refetch();
 	}
 </script>
+
+<svelte:window onfocus={refreshQueue} />
+<svelte:document onvisibilitychange={refreshQueue} />

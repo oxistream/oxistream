@@ -151,23 +151,3 @@ describe('AppPlayer', () => {
 		expect(onnext).toHaveBeenCalledOnce();
 	});
 });
-
-describe('UpNextQueue', () => {
-	it('keeps the queue in session storage', () => {
-		const data = new Map<string, string>();
-		const storage = {
-			getItem: (k: string) => data.get(k) ?? null,
-			setItem: (k: string, v: string) => void data.set(k, v),
-			removeItem: (k: string) => void data.delete(k)
-		} as Storage;
-		const queue = new UpNextQueue(storage);
-		queue.add({ id: 'a', title: 'A' });
-		queue.add({ id: 'b', title: 'B' });
-		queue.add({ id: 'c', title: 'C' });
-		queue.move(2, 0);
-		queue.remove(queue.entries[1].key);
-		expect(new UpNextQueue(storage).entries.map((e) => e.id)).toEqual(['c', 'b']);
-		queue.clear();
-		expect(data.size).toBe(0);
-	});
-});

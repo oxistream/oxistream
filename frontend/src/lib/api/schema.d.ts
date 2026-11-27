@@ -714,6 +714,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's up-next queue. Guests keep theirs in the browser. */
+        get: operations["get_queue"];
+        put?: never;
+        post?: never;
+        /** Remove all entries. */
+        delete: operations["clear_queue"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/queue/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add entries at the start or end. A full queue loses entries at the end. */
+        post: operations["add_entries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/queue/entries/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an entry. Succeeds if it is not queued, too, so two players taking the same
+         *     entry do not fail.
+         */
+        delete: operations["remove_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/queue/entries/{key}/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move an entry to another position. Succeeds if it is not queued, too. */
+        put: operations["move_entry"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/resolve": {
         parameters: {
             query?: never;
@@ -1122,6 +1194,17 @@ export interface components {
         };
         /** @enum {string} */
         Action: "skip" | "poi" | "full";
+        AddToUpNext: {
+            /** @description Up to 200. Entries whose key is already queued are left out, so retries are harmless. */
+            entries: components["schemas"]["NewUpNextEntry"][];
+            /** @description Default `end`. */
+            position?: components["schemas"]["UpNextPosition"];
+            /**
+             * @description Also leaves out videos that are already queued, e.g. to merge a queue from before
+             *     signing in.
+             */
+            skip_queued?: boolean;
+        };
         AudioTrack: {
             /** @description YouTube's track ID, e.g. `en.4`. */
             id: string;
@@ -1416,6 +1499,25 @@ export interface components {
              * @description Zero-based target position; past the end moves the item to the end.
              */
             index: number;
+        };
+        MoveUpNextEntry: {
+            /**
+             * Format: int32
+             * @description Zero-based target position; past the end moves the entry to the end.
+             */
+            index: number;
+        };
+        NewUpNextEntry: {
+            channel_id?: string | null;
+            /** @description Up to 200 characters; ignored without `channel_id`. */
+            channel_name?: string | null;
+            /** Format: int32 */
+            duration_seconds?: number | null;
+            /** @description Chosen by the client and unique within the queue: 1 to 64 of `A-Z a-z 0-9 _ -`. */
+            key: string;
+            /** @description 1 to 500 characters. */
+            title: string;
+            video_id: string;
         };
         /** @description OAuth 2.0 error response, as the back-channel logout spec asks for. */
         OAuthError: {
@@ -1883,6 +1985,22 @@ export interface components {
             items: components["schemas"]["VideoSummary"][];
             /** @description ISO 3166-1 alpha-2 country code, from `OXISTREAM_TRENDING_REGION`. */
             region: string;
+        };
+        UpNextEntry: {
+            key: string;
+            /** @description As sent by the client; view counts and dates are never set. */
+            video: components["schemas"]["VideoSummary"];
+        };
+        /** @enum {string} */
+        UpNextPosition: "start" | "end";
+        /** @description The signed-in user's up-next queue, in play order. */
+        UpNextQueue: {
+            entries: components["schemas"]["UpNextEntry"][];
+            /**
+             * Format: int64
+             * @description Grows with every change, so clients can tell newer states from older ones.
+             */
+            revision: number;
         };
         /** @description Fields to change; absent fields stay as they are. */
         UpdatePlaylist: {
@@ -4606,6 +4724,227 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpNextQueue"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The queue after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpNextQueue"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_entries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddToUpNext"];
+            };
+        };
+        responses: {
+            /** @description The queue after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpNextQueue"];
+                };
+            };
+            /** @description Invalid entry */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The queue after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpNextQueue"];
+                };
+            };
+            /** @description Invalid key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveUpNextEntry"];
+            };
+        };
+        responses: {
+            /** @description The queue after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpNextQueue"];
+                };
+            };
+            /** @description Invalid key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
