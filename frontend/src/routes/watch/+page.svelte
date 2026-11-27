@@ -27,6 +27,7 @@
 	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
 	import AddToPartyButton from '#lib/components/together/add-to-party-button.svelte';
+	import { addErrorMessage } from '#lib/components/together/errors.js';
 	import PartyElsewhere from '#lib/components/together/party-elsewhere.svelte';
 	import StartPartyButton from '#lib/components/together/start-party-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
@@ -180,6 +181,38 @@
 	const partyElsewhere = $derived(
 		videoId !== null && party.active && !playing && party.current?.video.id !== videoId
 	);
+
+	/** What this tab last asked the party to do with this video. */
+	let partyRequest = $state<{ action: 'play' | 'queue'; at: number } | null>(null);
+	$effect(() => {
+		void [videoId, party.id];
+		partyRequest = null;
+	});
+	const partyQueued = $derived.by(() => {
+		if (!party.room?.queue.some((e) => e.video.id === videoId)) return null;
+		return partyRequest?.action === 'queue' ? 'added' : 'already';
+	});
+	const partyError = $derived.by(() => {
+		const last = party.connection?.lastError;
+		return partyRequest && last && last.at >= partyRequest.at ? addErrorMessage(last.code) : null;
+	});
+	// Waits for the switch or an error; a reconnect allows trying again.
+	const partyBusy = $derived(
+		party.status !== 'open' ||
+			(partyRequest?.action === 'play' && !partyError) ||
+			(partyRequest?.action === 'queue' && !partyError && !partyQueued)
+	);
+	$effect(() => {
+		if (party.status !== 'open') partyRequest = null;
+	});
+
+	function partyRequestSend(action: 'play' | 'queue') {
+		if (!videoId) return;
+		partyRequest = { action, at: Date.now() };
+		if (action === 'play') party.playNow(videoId);
+		else party.add(videoId);
+	}
+
 	const ready = $derived(
 		videoId !== null && !problem && details?.id === videoId && startKnown && settingsKnown
 	);
@@ -262,7 +295,7 @@
 			data-playlist={playlistStatus ? '' : undefined}
 		>
 			<div id="player" class="watch-player">
-				{#if problem}
+				{#if problem && !(party.active && playing)}
 					<PlayerMessage
 						{problem}
 						{videoId}
@@ -281,7 +314,16 @@
 						}))}
 					></div>
 				{:else if partyElsewhere}
-					<PartyElsewhere {poster} playing={party.current?.video.title} class="watch-frame" />
+					<PartyElsewhere
+						{poster}
+						playing={party.current?.video.title}
+						queued={partyQueued}
+						disabled={partyBusy}
+						error={partyError}
+						onplaynow={() => partyRequestSend('play')}
+						onqueue={() => partyRequestSend('queue')}
+						class="watch-frame"
+					/>
 				{:else}
 					<div class="watch-frame" role="status" aria-label={m.watch_loading()}>
 						<Skeleton class="aspect-video w-full rounded-xl" />

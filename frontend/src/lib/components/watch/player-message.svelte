@@ -14,6 +14,7 @@
 		videoId,
 		poster,
 		onretry,
+		compact = false,
 		class: className
 	}: {
 		problem: WatchProblem;
@@ -21,6 +22,8 @@
 		/** Dimmed behind the message, so the slot still reads as this video. */
 		poster?: string;
 		onretry?: () => void;
+		/** Icon and title only, e.g. in the mini player. */
+		compact?: boolean;
 		class?: string;
 	} = $props();
 
@@ -50,40 +53,50 @@
 			class="absolute inset-0 -z-10 size-full scale-105 object-cover opacity-25 blur-md"
 		/>
 	{/if}
-	<div class="flex max-w-md flex-col items-center gap-3 px-6 py-8 text-center">
+	<div
+		class={cn(
+			'flex max-w-md flex-col items-center text-center',
+			compact ? 'gap-1.5 px-3 py-2' : 'gap-3 px-6 py-8'
+		)}
+	>
 		<div
 			class={cn(
-				'flex size-11 items-center justify-center rounded-full bg-white/10',
+				'flex items-center justify-center rounded-full bg-white/10',
+				compact ? 'size-8' : 'size-11',
 				problem.kind === 'live' ? 'text-primary' : 'text-white/80'
 			)}
 		>
-			<Icon class="size-5" />
+			<Icon class={compact ? 'size-4' : 'size-5'} />
 		</div>
-		<div class="flex flex-col gap-1">
-			<p class="text-base font-semibold tracking-tight text-pretty">{problem.title}</p>
-			<p class="text-sm text-pretty text-white/70">{problem.description}</p>
-		</div>
-		{#if (problem.retry && onretry) || (problem.youtube && videoId)}
-			<div class="mt-1 flex flex-wrap justify-center gap-2">
-				{#if problem.retry && onretry}
-					<Button variant="secondary" size="sm" onclick={onretry}>
-						<RotateCwIcon />
-						{m.action_retry()}
-					</Button>
-				{/if}
-				{#if problem.youtube && videoId}
-					<Button
-						variant="outline"
-						size="sm"
-						href="https://www.youtube.com/watch?v={encodeURIComponent(videoId)}"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						<ExternalLinkIcon />
-						{m.watch_open_youtube()}
-					</Button>
-				{/if}
+		{#if compact}
+			<p class="line-clamp-2 text-xs font-medium text-pretty max-sm:sr-only">{problem.title}</p>
+		{:else}
+			<div class="flex flex-col gap-1">
+				<p class="text-base font-semibold tracking-tight text-pretty">{problem.title}</p>
+				<p class="text-sm text-pretty text-white/70">{problem.description}</p>
 			</div>
+			{#if (problem.retry && onretry) || (problem.youtube && videoId)}
+				<div class="mt-1 flex flex-wrap justify-center gap-2">
+					{#if problem.retry && onretry}
+						<Button variant="secondary" size="sm" onclick={onretry}>
+							<RotateCwIcon />
+							{m.action_retry()}
+						</Button>
+					{/if}
+					{#if problem.youtube && videoId}
+						<Button
+							variant="outline"
+							size="sm"
+							href="https://www.youtube.com/watch?v={encodeURIComponent(videoId)}"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<ExternalLinkIcon />
+							{m.watch_open_youtube()}
+						</Button>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 	</div>
 </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PauseIcon from '@lucide/svelte/icons/pause';
 	import PlayIcon from '@lucide/svelte/icons/play';
+	import VolumeOffIcon from '@lucide/svelte/icons/volume-off';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -11,6 +12,7 @@
 		channel,
 		href,
 		paused,
+		muted = false,
 		ontoggle,
 		onclose,
 		closeLabel,
@@ -21,7 +23,10 @@
 		/** The watch page the title leads back to. */
 		href: string;
 		paused: boolean;
-		ontoggle: () => void;
+		/** Muted for now, e.g. while a short plays over a watch party. */
+		muted?: boolean;
+		/** Shows the play/pause button when set. */
+		ontoggle?: () => void;
 		onclose: () => void;
 		/** Defaults to closing the player. */
 		closeLabel?: string;
@@ -40,23 +45,33 @@
 			{title}
 		</a>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
-		{#if channel}
+		{#if muted}
+			<p
+				class="flex items-center gap-1 truncate text-xs leading-4 text-muted-foreground"
+				data-testid="mini-player-muted"
+			>
+				<VolumeOffIcon class="size-3.5 shrink-0" />
+				<span class="truncate">{m.mini_player_muted()}</span>
+			</p>
+		{:else if channel}
 			<p class="truncate text-xs leading-4 text-muted-foreground">{channel}</p>
 		{/if}
 	</div>
-	<Button
-		variant="ghost"
-		size="icon-sm"
-		aria-label={paused ? m.player_play() : m.player_pause()}
-		data-testid="mini-player-toggle"
-		onclick={ontoggle}
-	>
-		{#if paused}
-			<PlayIcon class="fill-current" />
-		{:else}
-			<PauseIcon class="fill-current" />
-		{/if}
-	</Button>
+	{#if ontoggle}
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			aria-label={paused ? m.player_play() : m.player_pause()}
+			data-testid="mini-player-toggle"
+			onclick={ontoggle}
+		>
+			{#if paused}
+				<PlayIcon class="fill-current" />
+			{:else}
+				<PauseIcon class="fill-current" />
+			{/if}
+		</Button>
+	{/if}
 	<Button
 		variant="ghost"
 		size="icon-sm"
