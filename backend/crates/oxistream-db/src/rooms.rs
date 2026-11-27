@@ -105,11 +105,13 @@ pub enum RoomOp {
     Select {
         entry: i64,
     },
-    /// Queues a cached video; it becomes current, paused, if nothing is.
+    /// Queues a cached video; it becomes current, paused, if nothing is. With `play`, it
+    /// replaces the current entry and plays.
     Add {
         video_id: String,
         added_by: String,
         max_queue: u32,
+        play: bool,
     },
     Remove {
         entry: i64,
@@ -302,14 +304,16 @@ async fn add(
     tx: &mut sqlx::PgConnection,
     id: &str,
     current: Option<i64>,
-    (video_id, added_by, max_queue): (&str, &str, u32),
+    (video_id, added_by, max_queue, play): (&str, &str, u32, bool),
     now: OffsetDateTime,
 ) -> Result<(), Error> {
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM watch_room_queue WHERE room_id = $1")
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
-    if count >= i64::from(max_queue) {
+    // Playing now drops the current entry, so the queue does not grow.
+    let replaced = i64::from(play && current.is_some());
+    if count - replaced >= i64::from(max_queue) {
         return Err(Error::LimitReached);
     }
     let entry: i64 = sqlx::query_scalar(
@@ -321,7 +325,15 @@ async fn add(
     .bind(added_by)
     .fetch_one(&mut *tx)
     .await?;
-    if current.is_none() {
+    if play {
+        if let Some(current) = current {
+            sqlx::query("DELETE FROM watch_room_queue WHERE id = $1")
+                .bind(current)
+                .execute(&mut *tx)
+                .await?;
+        }
+        set_current(tx, id, Some(entry), true, now).await?;
+    } else if current.is_none() {
         set_current(tx, id, Some(entry), false, now).await?;
     }
     Ok(())
@@ -389,8 +401,16 @@ async fn apply_op(
             video_id,
             added_by,
             max_queue,
+            play,
         } => {
-            add(tx, id, current, (video_id, added_by, *max_queue), now).await?;
+            add(
+                tx,
+                id,
+                current,
+                (video_id, added_by, *max_queue, *play),
+                now,
+            )
+            .await?;
             Ok(true)
         }
         RoomOp::Remove { entry } => {

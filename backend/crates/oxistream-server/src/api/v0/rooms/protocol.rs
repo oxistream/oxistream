@@ -54,6 +54,9 @@ pub enum RoomClientMessage {
     },
     Add {
         video_id: String,
+        /// Plays it now instead of queueing it; the current entry is dropped.
+        #[serde(default)]
+        play: bool,
     },
     Remove {
         entry: i64,

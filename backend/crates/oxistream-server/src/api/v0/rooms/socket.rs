@@ -416,7 +416,7 @@ impl Connection {
                 }
                 RoomOp::Kick { participant }
             }
-            RoomClientMessage::Add { video_id } => {
+            RoomClientMessage::Add { video_id, play } => {
                 if validate::video_id(&video_id).is_err() {
                     return self.reject(RoomErrorCode::Invalid).await;
                 }
@@ -433,6 +433,7 @@ impl Connection {
                     video_id,
                     added_by: name.to_owned(),
                     max_queue: MAX_QUEUE,
+                    play,
                 }
             }
         };
