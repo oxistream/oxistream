@@ -49,6 +49,7 @@
 				<Sidebar.MenuItem>
 					<Sidebar.MenuButton
 						isActive={active}
+						class="group-data-[collapsible=icon]:p-1!"
 						tooltipContent={channel.name ?? m.subscriptions_channel_pending()}
 					>
 						{#snippet child({ props })}
@@ -58,13 +59,13 @@
 										name={channel.name}
 										src={channel.avatarUrl}
 										size="sm"
-										class="size-5 shrink-0 group-data-[collapsible=icon]:size-4"
+										class="size-5 shrink-0 group-data-[collapsible=icon]:size-6"
 										fallbackClass="text-[0.5625rem]"
 									/>
 									<span>{channel.name}</span>
 								{:else}
 									<LoaderCircleIcon
-										class="animate-spin text-muted-foreground motion-reduce:animate-none"
+										class="animate-spin text-muted-foreground group-data-[collapsible=icon]:m-1 motion-reduce:animate-none"
 									/>
 									<span class="text-muted-foreground">{m.subscriptions_channel_pending()}</span>
 								{/if}
