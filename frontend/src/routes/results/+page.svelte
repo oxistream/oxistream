@@ -52,7 +52,7 @@
 	};
 </script>
 
-<div class="flex w-full max-w-5xl flex-col gap-5 px-(--page-gutter) py-6">
+<div class="page-column flex flex-col gap-5 py-6">
 	<PageHeader {title} documentTitle={pageTitle(query || m.search_placeholder())} class="sr-only" />
 
 	{#if !query}
