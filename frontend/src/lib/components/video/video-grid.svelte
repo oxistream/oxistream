@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { Attachment } from 'svelte/attachments';
+	import RowScroller from '#lib/components/row-scroller.svelte';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import type { VideoSummary } from '#lib/video.js';
@@ -37,13 +39,23 @@
 				<VideoCardSkeleton {showChannel} />
 			{/each}
 		</div>
+	{:else if layout === 'row'}
+		<RowScroller>
+			{#snippet children(scroller)}
+				{@render list(scroller)}
+			{/snippet}
+		</RowScroller>
 	{:else}
-		<ul class="video-list" data-layout={layout} aria-label={label}>
-			{#each videos as video (video.id)}
-				<li class="min-w-0">
-					<VideoCard {video} {headingLevel} {showChannel} {now} />
-				</li>
-			{/each}
-		</ul>
+		{@render list()}
 	{/if}
 </div>
+
+{#snippet list(scroller?: Attachment<HTMLElement>)}
+	<ul class="video-list" data-layout={layout} aria-label={label} {@attach scroller}>
+		{#each videos as video (video.id)}
+			<li class="min-w-0">
+				<VideoCard {video} {headingLevel} {showChannel} {now} />
+			</li>
+		{/each}
+	</ul>
+{/snippet}

@@ -35,6 +35,8 @@
 	"user_sign_out": "Sign out",
 	"home_continue_watching": "Continue watching",
 	"home_show_all": "Show all",
+	"row_previous": "Previous",
+	"row_next": "Next",
 	"home_latest_subscriptions": "Latest from your subscriptions",
 	"home_find_channels": "Find channels",
 	"home_trending_news": "News",

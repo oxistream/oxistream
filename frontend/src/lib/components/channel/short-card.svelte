@@ -28,7 +28,11 @@
 		className
 	)}
 >
-	<div class="relative aspect-9/16 overflow-hidden rounded-lg bg-muted" aria-hidden="true">
+	<div
+		class="relative aspect-9/16 overflow-hidden rounded-lg bg-muted"
+		aria-hidden="true"
+		data-thumbnail
+	>
 		{#if short.thumbnailUrl}
 			<img
 				src={short.thumbnailUrl}
