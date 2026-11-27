@@ -1118,22 +1118,6 @@
             }
           },
           {
-            "name": "type",
-            "in": "query",
-            "description": "Result type, defaults to `all`. Pass the same type with `continuation`.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "all",
-                "videos",
-                "shorts",
-                "channels",
-                "playlists"
-              ]
-            }
-          },
-          {
             "name": "continuation",
             "in": "query",
             "description": "Token from a previous page.",
@@ -3789,9 +3773,54 @@
             }
           },
           {
+            "name": "upload_date",
+            "in": "query",
+            "description": "Only results uploaded within this period.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            }
+          },
+          {
+            "name": "duration",
+            "in": "query",
+            "description": "Only videos of this length.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`short` is under 4 minutes, `medium` 4 to 20, `long` over 20.",
+              "enum": [
+                "short",
+                "medium",
+                "long"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Result order, defaults to `relevance`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "relevance",
+                "date",
+                "views"
+              ]
+            }
+          },
+          {
             "name": "continuation",
             "in": "query",
-            "description": "Token from a previous page.",
+            "description": "Token from a previous page; it keeps the type and filters of its first page.",
             "required": false,
             "schema": {
               "type": "string"
@@ -3821,7 +3850,7 @@
             }
           },
           "400": {
-            "description": "Missing query or unknown type",
+            "description": "Missing query, unknown type or filter",
             "content": {
               "application/json": {
                 "schema": {

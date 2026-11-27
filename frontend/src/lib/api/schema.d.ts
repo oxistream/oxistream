@@ -2743,8 +2743,6 @@ export interface operations {
             query?: {
                 /** @description Search query; required unless `continuation` is given. */
                 q?: string;
-                /** @description Result type, defaults to `all`. Pass the same type with `continuation`. */
-                type?: "all" | "videos" | "shorts" | "channels" | "playlists";
                 /** @description Token from a previous page. */
                 continuation?: string;
             };
@@ -4708,7 +4706,13 @@ export interface operations {
                 q?: string;
                 /** @description Result type, defaults to `all`. Pass the same type with `continuation`. */
                 type?: "all" | "videos" | "shorts" | "channels" | "playlists";
-                /** @description Token from a previous page. */
+                /** @description Only results uploaded within this period. */
+                upload_date?: "hour" | "day" | "week" | "month" | "year";
+                /** @description Only videos of this length. */
+                duration?: "short" | "medium" | "long";
+                /** @description Result order, defaults to `relevance`. */
+                sort?: "relevance" | "date" | "views";
+                /** @description Token from a previous page; it keeps the type and filters of its first page. */
                 continuation?: string;
             };
             header?: {
@@ -4728,7 +4732,7 @@ export interface operations {
                     "application/json": components["schemas"]["SearchPage"];
                 };
             };
-            /** @description Missing query or unknown type */
+            /** @description Missing query, unknown type or filter */
             400: {
                 headers: {
                     [name: string]: unknown;
