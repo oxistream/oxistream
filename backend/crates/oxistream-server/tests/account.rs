@@ -250,7 +250,11 @@ async fn user_repository_deletes_and_keeps_the_last_admin() {
     );
     assert!(users.get(member.id).await.unwrap().is_none());
     assert!(
-        history.list(member.id, None, 10).await.unwrap().is_empty(),
+        history
+            .list(member.id, None, None, 10)
+            .await
+            .unwrap()
+            .is_empty(),
         "owned rows cascade"
     );
     assert_eq!(

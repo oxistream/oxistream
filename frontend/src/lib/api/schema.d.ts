@@ -419,9 +419,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the watch history is paused. */
+        /** Whether the watch history is paused, and how long it is kept. */
         get: operations["history_settings"];
-        /** Pause or resume the watch history. */
+        /** Pause or resume the watch history, or change how long it is kept. */
         put: operations["update_history_settings"];
         post?: never;
         delete?: never;
@@ -1400,6 +1400,16 @@ export interface components {
         HistorySettings: {
             /** @description Progress reports are ignored while paused; existing history stays. */
             paused: boolean;
+            /**
+             * @description Entries are deleted this long after they were last watched. Capped by the instance's
+             *     `history_max_retention`.
+             */
+            retention: components["schemas"]["Retention"];
+        };
+        /** @description Fields to change; absent fields are kept. */
+        HistorySettingsUpdate: {
+            paused?: boolean | null;
+            retention?: components["schemas"]["Retention"] | null;
         };
         /**
          * Format: binary
@@ -1441,6 +1451,8 @@ export interface components {
         };
         InstanceInfo: {
             auth: components["schemas"]["AuthCapabilities"];
+            /** @description Longest watch history retention users may pick; guests' local history follows it, too. */
+            history_max_retention: components["schemas"]["Retention"];
             /** @description Software name. */
             name: string;
             /** @description SponsorBlock segments are available. */
@@ -1614,6 +1626,11 @@ export interface components {
         };
         /** @enum {string} */
         ResolvedKind: "video" | "channel" | "playlist";
+        /**
+         * @description How long watch history entries are kept after they were last watched.
+         * @enum {string}
+         */
+        Retention: "1d" | "7d" | "14d" | "30d" | "90d" | "180d" | "365d" | "forever";
         /** @description Sent by clients. The first message must be `join`; positions are in seconds. */
         RoomClientMessage: {
             /** @description Random 16 to 128 URL-safe characters a guest keeps, so a removal sticks. */
@@ -3232,6 +3249,11 @@ export interface operations {
                 continuation?: string;
                 /** @description Page size, 1 to 100; default 30. */
                 limit?: number;
+                /**
+                 * @description Only videos whose title or channel name contain this, ignoring case. At most 200
+                 *     characters.
+                 */
+                q?: string;
             };
             header?: never;
             path?: never;
@@ -3247,7 +3269,7 @@ export interface operations {
                     "application/json": components["schemas"]["HistoryPage"];
                 };
             };
-            /** @description Invalid continuation or limit */
+            /** @description Invalid continuation, limit or search */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3428,7 +3450,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HistorySettings"];
+                "application/json": components["schemas"]["HistorySettingsUpdate"];
             };
         };
         responses: {
@@ -3460,6 +3482,15 @@ export interface operations {
             };
             /** @description Foreign origin */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Retention above the instance maximum */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

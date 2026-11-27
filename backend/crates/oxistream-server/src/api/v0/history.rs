@@ -3,7 +3,7 @@ use axum::body::Bytes;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use oxistream_db::{HistoryCursor, HistoryEntry, ProgressUpdate, WatchProgress};
+use oxistream_db::{HistoryCursor, HistoryEntry, ProgressUpdate, UserSettings, WatchProgress};
 use rustypipe::validate;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -14,8 +14,9 @@ use utoipa_axum::routes;
 use super::cursor;
 use crate::AppState;
 use crate::api::dto::{ChannelRef, Thumbnail, VideoSummary, default_thumbnails};
-use crate::api::error::{ApiError, ErrorBody};
+use crate::api::error::{ApiError, ErrorBody, FieldError};
 use crate::auth::CurrentUser;
+use crate::retention::Retention;
 
 const HISTORY_DEFAULT_LIMIT: u32 = 30;
 const HISTORY_MAX_LIMIT: u32 = 100;
@@ -84,10 +85,24 @@ pub struct HistoryPage {
     pub continuation: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct HistorySettings {
     /// Progress reports are ignored while paused; existing history stays.
     pub paused: bool,
+    /// Entries are deleted this long after they were last watched. Capped by the instance's
+    /// `history_max_retention`.
+    pub retention: Retention,
+}
+
+/// Fields to change; absent fields are kept.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HistorySettingsUpdate {
+    #[serde(default)]
+    pub paused: Option<bool>,
+    /// At most the instance's `history_max_retention`.
+    #[serde(default)]
+    pub retention: Option<Retention>,
 }
 
 impl From<WatchProgress> for VideoProgress {
@@ -291,7 +306,12 @@ struct HistoryParams {
     continuation: Option<String>,
     /// Page size, 1 to 100; default 30.
     limit: Option<u32>,
+    /// Only videos whose title or channel name contain this, ignoring case. At most 200
+    /// characters.
+    q: Option<String>,
 }
+
+const MAX_SEARCH_LENGTH: usize = 200;
 
 /// Watched videos, most recently watched first.
 #[utoipa::path(
@@ -302,7 +322,7 @@ struct HistoryParams {
     params(HistoryParams),
     responses(
         (status = OK, body = HistoryPage),
-        (status = BAD_REQUEST, description = "Invalid continuation or limit", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Invalid continuation, limit or search", body = ErrorBody),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
     )
 )]
@@ -312,6 +332,12 @@ async fn history(
     Query(params): Query<HistoryParams>,
 ) -> Result<Json<HistoryPage>, ApiError> {
     let limit = check_limit(params.limit, HISTORY_DEFAULT_LIMIT, HISTORY_MAX_LIMIT)?;
+    let search = params.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
+    if search.is_some_and(|q| q.chars().count() > MAX_SEARCH_LENGTH) {
+        return Err(ApiError::bad_request(format!(
+            "`q` must be at most {MAX_SEARCH_LENGTH} characters"
+        )));
+    }
     let after = match params.continuation.as_deref().map(str::trim) {
         None | Some("") => None,
         Some(token) => {
@@ -325,7 +351,7 @@ async fn history(
     };
     let mut entries = state
         .history
-        .list(user.id, after.as_ref(), limit + 1)
+        .list(user.id, search, after.as_ref(), limit + 1)
         .await?;
     let continuation = if entries.len() > limit as usize {
         entries.truncate(limit as usize);
@@ -449,7 +475,14 @@ async fn dismiss_continue(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Whether the watch history is paused.
+fn history_settings_body(settings: &UserSettings, max: Retention) -> HistorySettings {
+    HistorySettings {
+        paused: settings.history_paused,
+        retention: Retention::from_days(settings.history_retention_days).min(max),
+    }
+}
+
+/// Whether the watch history is paused, and how long it is kept.
 #[utoipa::path(
     get,
     path = "/history/settings",
@@ -465,36 +498,60 @@ async fn history_settings(
     CurrentUser(user): CurrentUser,
 ) -> Result<Json<HistorySettings>, ApiError> {
     let settings = state.settings.get(user.id).await?;
-    Ok(Json(HistorySettings {
-        paused: settings.history_paused,
-    }))
+    Ok(Json(history_settings_body(
+        &settings,
+        state.history_max_retention,
+    )))
 }
 
-/// Pause or resume the watch history.
+/// Pause or resume the watch history, or change how long it is kept.
 #[utoipa::path(
     put,
     path = "/history/settings",
     tag = "history",
     security(("session" = [])),
-    request_body = HistorySettings,
+    request_body = HistorySettingsUpdate,
     responses(
         (status = OK, body = HistorySettings),
         (status = BAD_REQUEST, description = "Invalid body", body = ErrorBody),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
         (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+        (status = UNPROCESSABLE_ENTITY, description = "Retention above the instance maximum", body = ErrorBody),
     )
 )]
 async fn update_history_settings(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    body: Result<Json<HistorySettings>, JsonRejection>,
+    body: Result<Json<HistorySettingsUpdate>, JsonRejection>,
 ) -> Result<Json<HistorySettings>, ApiError> {
     let Json(body) = body?;
-    let settings = state
-        .settings
-        .set_history_paused(user.id, body.paused)
-        .await?;
-    Ok(Json(HistorySettings {
-        paused: settings.history_paused,
-    }))
+    if body
+        .retention
+        .is_some_and(|r| r > state.history_max_retention)
+    {
+        return Err(ApiError::validation(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            [("retention".to_owned(), FieldError::Invalid)].into(),
+        ));
+    }
+    let mut settings = None;
+    if let Some(paused) = body.paused {
+        settings = Some(state.settings.set_history_paused(user.id, paused).await?);
+    }
+    if let Some(retention) = body.retention {
+        settings = Some(
+            state
+                .settings
+                .set_history_retention(user.id, retention.days())
+                .await?,
+        );
+    }
+    let settings = match settings {
+        Some(settings) => settings,
+        None => state.settings.get(user.id).await?,
+    };
+    Ok(Json(history_settings_body(
+        &settings,
+        state.history_max_retention,
+    )))
 }

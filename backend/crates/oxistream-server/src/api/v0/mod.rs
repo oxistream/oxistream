@@ -6,6 +6,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::AppState;
+use crate::retention::Retention;
 
 mod account;
 mod auth;
@@ -59,6 +60,8 @@ pub struct InstanceInfo {
     pub auth: AuthCapabilities,
     /// SponsorBlock segments are available.
     pub sponsorblock: bool,
+    /// Longest watch history retention users may pick; guests' local history follows it, too.
+    pub history_max_retention: Retention,
 }
 
 /// Which sign-in methods this instance offers.
@@ -97,5 +100,6 @@ async fn instance(State(state): State<AppState>) -> Json<InstanceInfo> {
             oidc_name: config.oidc.as_ref().map(|oidc| oidc.name.clone()),
         },
         sponsorblock: state.sponsorblock.enabled(),
+        history_max_retention: state.history_max_retention,
     })
 }

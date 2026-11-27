@@ -1554,6 +1554,15 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Only videos whose title or channel name contain this, ignoring case. At most 200\ncharacters.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1567,7 +1576,7 @@
             }
           },
           "400": {
-            "description": "Invalid continuation or limit",
+            "description": "Invalid continuation, limit or search",
             "content": {
               "application/json": {
                 "schema": {
@@ -1757,7 +1766,7 @@
         "tags": [
           "history"
         ],
-        "summary": "Whether the watch history is paused.",
+        "summary": "Whether the watch history is paused, and how long it is kept.",
         "operationId": "history_settings",
         "responses": {
           "200": {
@@ -1790,13 +1799,13 @@
         "tags": [
           "history"
         ],
-        "summary": "Pause or resume the watch history.",
+        "summary": "Pause or resume the watch history, or change how long it is kept.",
         "operationId": "update_history_settings",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HistorySettings"
+                "$ref": "#/components/schemas/HistorySettingsUpdate"
               }
             }
           },
@@ -1834,6 +1843,16 @@
           },
           "403": {
             "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Retention above the instance maximum",
             "content": {
               "application/json": {
                 "schema": {
@@ -6431,14 +6450,43 @@
       "HistorySettings": {
         "type": "object",
         "required": [
-          "paused"
+          "paused",
+          "retention"
         ],
         "properties": {
           "paused": {
             "type": "boolean",
             "description": "Progress reports are ignored while paused; existing history stays."
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention",
+            "description": "Entries are deleted this long after they were last watched. Capped by the instance's\n`history_max_retention`."
           }
         }
+      },
+      "HistorySettingsUpdate": {
+        "type": "object",
+        "description": "Fields to change; absent fields are kept.",
+        "properties": {
+          "paused": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "retention": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Retention",
+                "description": "At most the instance's `history_max_retention`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "ImportFile": {
         "type": "string",
@@ -6522,11 +6570,16 @@
           "name",
           "version",
           "auth",
-          "sponsorblock"
+          "sponsorblock",
+          "history_max_retention"
         ],
         "properties": {
           "auth": {
             "$ref": "#/components/schemas/AuthCapabilities"
+          },
+          "history_max_retention": {
+            "$ref": "#/components/schemas/Retention",
+            "description": "Longest watch history retention users may pick; guests' local history follows it, too."
           },
           "name": {
             "type": "string",
@@ -7040,6 +7093,20 @@
           "video",
           "channel",
           "playlist"
+        ]
+      },
+      "Retention": {
+        "type": "string",
+        "description": "How long watch history entries are kept after they were last watched.",
+        "enum": [
+          "1d",
+          "7d",
+          "14d",
+          "30d",
+          "90d",
+          "180d",
+          "365d",
+          "forever"
         ]
       },
       "RoomClientMessage": {

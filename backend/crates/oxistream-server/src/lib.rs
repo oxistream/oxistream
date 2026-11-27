@@ -28,6 +28,7 @@ pub mod feed;
 mod ops;
 pub mod proxy;
 pub mod rate_limit;
+pub mod retention;
 pub mod rooms;
 mod spa;
 pub mod sponsorblock;
@@ -45,6 +46,8 @@ pub struct AppState {
     pub videos: Arc<dyn VideoRepository>,
     pub subscriptions: Arc<dyn SubscriptionRepository>,
     pub history: Arc<dyn HistoryRepository>,
+    /// Longest retention users may pick; `history` must cap at the same value.
+    pub history_max_retention: retention::Retention,
     pub settings: Arc<dyn UserSettingsRepository>,
     pub playlists: Arc<dyn PlaylistRepository>,
     /// Followed YouTube playlists.
@@ -167,6 +170,12 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     let rooms = rooms::Rooms::new(Arc::new(PgRoomRepository::new(db.clone())));
     rooms.spawn(db.clone());
 
+    let history: Arc<dyn HistoryRepository> = Arc::new(
+        PgHistoryRepository::new(db.clone())
+            .with_max_retention_days(config.history_max_retention.days()),
+    );
+    retention::spawn_cleanup(db.clone(), history.clone());
+
     let listener = TcpListener::bind(config.bind).await?;
     tracing::info!(addr = %listener.local_addr()?, "listening");
 
@@ -175,7 +184,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         app(AppState {
             videos: Arc::new(PgVideoRepository::new(db.clone())),
             subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
-            history: Arc::new(PgHistoryRepository::new(db.clone())),
+            history,
+            history_max_retention: config.history_max_retention,
             settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
             playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
             follows: Arc::new(PgPlaylistFollowRepository::new(db.clone())),

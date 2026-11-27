@@ -21,6 +21,8 @@ pub struct UserSettings {
     pub home_sections: Option<Vec<String>>,
     /// Preferred audio language, `interface` for the interface language; `None` for the original.
     pub audio_language: Option<String>,
+    /// Days the watch history is kept; `None` for forever.
+    pub history_retention_days: Option<i32>,
 }
 
 /// Fields to change; `None` keeps the stored value, `Some(None)` resets it.
@@ -39,6 +41,13 @@ pub trait UserSettingsRepository: Send + Sync {
     async fn get(&self, user_id: Uuid) -> Result<UserSettings, Error>;
 
     async fn set_history_paused(&self, user_id: Uuid, paused: bool) -> Result<UserSettings, Error>;
+
+    /// `days` is one of 1, 7, 14, 30, 90, 180 and 365, or `None` for forever.
+    async fn set_history_retention(
+        &self,
+        user_id: Uuid,
+        days: Option<i32>,
+    ) -> Result<UserSettings, Error>;
 
     async fn update(&self, user_id: Uuid, update: &SettingsUpdate) -> Result<UserSettings, Error>;
 
@@ -72,7 +81,8 @@ impl PgUserSettingsRepository {
 
 macro_rules! settings_columns {
     () => {
-        "history_paused, video_codecs, max_quality, default_quality, home_sections, audio_language"
+        "history_paused, video_codecs, max_quality, default_quality, home_sections, audio_language, \
+         history_retention_days"
     };
 }
 
@@ -85,6 +95,7 @@ fn settings_from_row(row: &PgRow) -> Result<UserSettings, sqlx::Error> {
         default_quality: row.try_get("default_quality")?,
         home_sections: home_sections.map(|Json(sections)| sections),
         audio_language: row.try_get("audio_language")?,
+        history_retention_days: row.try_get("history_retention_days")?,
     })
 }
 
@@ -117,6 +128,26 @@ impl UserSettingsRepository for PgUserSettingsRepository {
         ))
         .bind(user_id)
         .bind(paused)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(settings_from_row(&row)?)
+    }
+
+    async fn set_history_retention(
+        &self,
+        user_id: Uuid,
+        days: Option<i32>,
+    ) -> Result<UserSettings, Error> {
+        let row = sqlx::query(concat!(
+            "INSERT INTO user_settings (user_id, history_retention_days) VALUES ($1, $2) \
+             ON CONFLICT (user_id) DO UPDATE SET \
+                history_retention_days = EXCLUDED.history_retention_days, \
+                updated_at = now() \
+             RETURNING ",
+            settings_columns!()
+        ))
+        .bind(user_id)
+        .bind(days)
         .fetch_one(&self.pool)
         .await?;
         Ok(settings_from_row(&row)?)

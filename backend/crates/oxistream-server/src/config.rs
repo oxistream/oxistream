@@ -8,6 +8,8 @@ use std::time::Duration;
 use axum::http::HeaderName;
 use rustypipe::param::Country;
 
+pub use crate::retention::Retention;
+
 const BIND: &str = "OXISTREAM_BIND";
 const DATABASE_URL: &str = "OXISTREAM_DATABASE_URL";
 const DATABASE_MAX_CONNECTIONS: &str = "OXISTREAM_DATABASE_MAX_CONNECTIONS";
@@ -39,6 +41,7 @@ const OIDC_GROUPS_CLAIM: &str = "OXISTREAM_OIDC_GROUPS_CLAIM";
 const FEED_INTERVAL: &str = "OXISTREAM_FEED_INTERVAL_MINUTES";
 const SPONSORBLOCK_ENABLED: &str = "OXISTREAM_SPONSORBLOCK_ENABLED";
 const SPONSORBLOCK_API_URL: &str = "OXISTREAM_SPONSORBLOCK_API_URL";
+const HISTORY_MAX_RETENTION: &str = "OXISTREAM_HISTORY_MAX_RETENTION";
 
 pub const MIN_PROXY_SECRET_LEN: usize = 32;
 
@@ -92,6 +95,8 @@ pub struct Config {
     pub auth: AuthConfig,
     pub feed: FeedConfig,
     pub sponsorblock: SponsorBlockConfig,
+    /// Longest watch history retention users may pick.
+    pub history_max_retention: Retention,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -347,6 +352,7 @@ impl fmt::Debug for Config {
             .field("auth", &self.auth)
             .field("feed", &self.feed)
             .field("sponsorblock", &self.sponsorblock)
+            .field("history_max_retention", &self.history_max_retention)
             .finish()
     }
 }
@@ -434,6 +440,11 @@ impl Config {
                     |value| sponsorblock_api_url(&value),
                 )?,
             },
+            history_max_retention: parse_or(
+                get(HISTORY_MAX_RETENTION),
+                HISTORY_MAX_RETENTION,
+                Retention::Forever,
+            )?,
         })
     }
 }
@@ -658,6 +669,33 @@ mod tests {
         assert_eq!(config.auth.session_ttl, Duration::from_hours(720));
         assert_eq!(config.feed, FeedConfig::default());
         assert_eq!(config.sponsorblock, SponsorBlockConfig::default());
+        assert_eq!(config.history_max_retention, Retention::Forever);
+    }
+
+    #[test]
+    fn history_max_retention() {
+        for (value, expected) in [
+            ("30d", Retention::Month),
+            (" 1D ", Retention::Day),
+            ("forever", Retention::Forever),
+            ("365d", Retention::Year),
+        ] {
+            let config = with(&[(HISTORY_MAX_RETENTION, value)]).unwrap();
+            assert_eq!(config.history_max_retention, expected, "{value}");
+        }
+        for value in ["1y", "2d", "30", "never"] {
+            let err = with(&[(HISTORY_MAX_RETENTION, value)]).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    ConfigError::Invalid {
+                        var: HISTORY_MAX_RETENTION,
+                        ..
+                    }
+                ),
+                "{err}"
+            );
+        }
     }
 
     #[test]
