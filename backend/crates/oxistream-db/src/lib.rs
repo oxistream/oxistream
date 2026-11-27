@@ -12,6 +12,7 @@ mod history;
 mod likes;
 mod lock;
 mod playlists;
+mod queue;
 mod rooms;
 mod sessions;
 mod settings;
@@ -36,6 +37,7 @@ pub use playlists::{
     NewPlaylist, PgPlaylistRepository, Playlist, PlaylistItem, PlaylistRepository, PlaylistUpdate,
     Visibility,
 };
+pub use queue::{PgQueueRepository, Queue, QueueEntry, QueueOp, QueuePosition, QueueRepository};
 pub use rooms::{
     JoinOutcome, NewParticipant, OpOutcome, Participant, PgRoomRepository, ROOM_CHANNEL, Room,
     RoomEntry, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, RoomSummary,
