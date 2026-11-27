@@ -7249,6 +7249,28 @@
           },
           {
             "type": "object",
+            "description": "Queues up to 100 videos in order, as many as fit; answered with `added`.",
+            "required": [
+              "video_ids",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "add_many"
+                ]
+              },
+              "video_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
             "required": [
               "entry",
               "type"
@@ -7262,6 +7284,52 @@
                 "type": "string",
                 "enum": [
                   "remove"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Moves an upcoming entry to index `to` of `queue`; `revision` is that of the state it\nwas based on. A newer room answers `stale` and stays as it is.",
+            "required": [
+              "entry",
+              "to",
+              "revision",
+              "type"
+            ],
+            "properties": {
+              "entry": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "revision": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "to": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "move"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Puts the upcoming entries in a random order.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "shuffle"
                 ]
               }
             }
@@ -7299,6 +7367,7 @@
           "video_unavailable",
           "forbidden",
           "rate_limited",
+          "stale",
           "internal"
         ]
       },
@@ -7496,6 +7565,33 @@
                 "type": "string",
                 "enum": [
                   "error"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Answer to `add_many`. `skipped` videos were unavailable or did not fit in the queue.",
+            "required": [
+              "added",
+              "skipped",
+              "type"
+            ],
+            "properties": {
+              "added": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "skipped": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "added"
                 ]
               }
             }

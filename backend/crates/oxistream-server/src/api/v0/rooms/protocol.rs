@@ -58,9 +58,22 @@ pub enum RoomClientMessage {
         #[serde(default)]
         play: bool,
     },
+    /// Queues up to 100 videos in order, as many as fit; answered with `added`.
+    AddMany {
+        video_ids: Vec<String>,
+    },
     Remove {
         entry: i64,
     },
+    /// Moves an upcoming entry to index `to` of `queue`; `revision` is that of the state it
+    /// was based on. A newer room answers `stale` and stays as it is.
+    Move {
+        entry: i64,
+        to: u32,
+        revision: i64,
+    },
+    /// Puts the upcoming entries in a random order.
+    Shuffle,
     /// Owner only: removes a participant for the rest of the room's life.
     Kick {
         participant: Uuid,
@@ -82,6 +95,8 @@ pub enum RoomErrorCode {
     /// Only the owner may do this.
     Forbidden,
     RateLimited,
+    /// The room changed since the state a `move` was based on.
+    Stale,
     Internal,
 }
 
@@ -107,6 +122,11 @@ pub enum RoomServerMessage {
     },
     Error {
         code: RoomErrorCode,
+    },
+    /// Answer to `add_many`. `skipped` videos were unavailable or did not fit in the queue.
+    Added {
+        added: u32,
+        skipped: u32,
     },
     /// The owner removed this participant; the connection closes.
     Kicked,

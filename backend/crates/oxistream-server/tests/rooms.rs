@@ -25,7 +25,14 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-const VIDEOS: [&str; 3] = ["vvvvvvvvvv0", "vvvvvvvvvv1", "vvvvvvvvvv2"];
+const VIDEOS: [&str; 6] = [
+    "vvvvvvvvvv0",
+    "vvvvvvvvvv4",
+    "vvvvvvvvvv8",
+    "vvvvvvvvvvA",
+    "vvvvvvvvvvE",
+    "vvvvvvvvvvI",
+];
 const ROOM: &str = "rrrrrrrrrrrrrrrrrrrrrA";
 
 async fn user(pool: &PgPool) -> User {
@@ -133,7 +140,7 @@ async fn queue_advances_once_and_respects_limits() {
         repo.apply(ROOM, &add(VIDEOS[0]), now).await,
         Err(Error::LimitReached)
     ));
-    assert_eq!(queue(&repo).await.1, VIDEOS);
+    assert_eq!(queue(&repo).await.1, &VIDEOS[..3]);
 
     let play = RoomOp::Play { position_ms: 5000 };
     assert_eq!(
@@ -157,7 +164,7 @@ async fn queue_advances_once_and_respects_limits() {
         OpOutcome::Unchanged
     );
     let (current, ids, playing) = queue(&repo).await;
-    assert_eq!(ids, &VIDEOS[1..]);
+    assert_eq!(ids, &VIDEOS[1..3]);
     assert!(playing, "the next entry autoplays");
 
     let s = repo.snapshot(ROOM).await.unwrap().unwrap();
@@ -213,6 +220,156 @@ async fn queue_advances_once_and_respects_limits() {
     assert!(!repo.delete(user(&db.pool).await.id, ROOM).await.unwrap());
     assert!(repo.delete(owner.id, ROOM).await.unwrap());
     assert!(repo.get(ROOM).await.unwrap().is_none());
+}
+
+fn add_many(video_ids: &[&str], max_queue: u32) -> RoomOp {
+    RoomOp::AddMany {
+        video_ids: video_ids.iter().map(|&id| id.to_owned()).collect(),
+        added_by: "Ada".into(),
+        max_queue,
+    }
+}
+
+async fn entries(repo: &PgRoomRepository) -> (i64, Vec<i64>) {
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    (
+        s.room.revision,
+        s.queue.iter().map(|e| e.entry_id).collect(),
+    )
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn queue_fills_in_batches_and_reorders() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    repo.create(owner.id, ROOM, None, 1).await.unwrap();
+
+    // Into an empty room, the first becomes current, paused; the rest of the batch is cut off.
+    assert_eq!(
+        repo.apply(ROOM, &add_many(&VIDEOS, 5), now).await.unwrap(),
+        OpOutcome::Added(5)
+    );
+    let (current, ids, playing) = queue(&repo).await;
+    assert_eq!(ids, &VIDEOS[..5]);
+    assert!(current.is_some() && !playing);
+    assert!(matches!(
+        repo.apply(ROOM, &add_many(&VIDEOS[5..], 5), now).await,
+        Err(Error::LimitReached)
+    ));
+
+    // Upcoming entries move by index among themselves; the current one stays first.
+    let (revision, before) = entries(&repo).await;
+    let last = before[4];
+    let to_front = RoomOp::Move {
+        entry: last,
+        to: 0,
+        revision,
+    };
+    assert_eq!(
+        repo.apply(ROOM, &to_front, now).await.unwrap(),
+        OpOutcome::Applied
+    );
+    let (_, after) = entries(&repo).await;
+    assert_eq!(after, [before[0], last, before[1], before[2], before[3]]);
+    assert_eq!(
+        repo.apply(ROOM, &to_front, now).await.unwrap(),
+        OpOutcome::Stale,
+        "the room moved on since"
+    );
+    assert_eq!(entries(&repo).await.1, after);
+
+    let (revision, _) = entries(&repo).await;
+    let current_entry = RoomOp::Move {
+        entry: before[0],
+        to: 2,
+        revision,
+    };
+    assert_eq!(
+        repo.apply(ROOM, &current_entry, now).await.unwrap(),
+        OpOutcome::Unchanged
+    );
+    let to_end = RoomOp::Move {
+        entry: last,
+        to: 99,
+        revision,
+    };
+    repo.apply(ROOM, &to_end, now).await.unwrap();
+    assert_eq!(
+        entries(&repo).await.1,
+        [before[0], before[1], before[2], before[3], last]
+    );
+
+    // The queue advances in its new order, and new entries go to the end.
+    let (revision, _) = entries(&repo).await;
+    let move_up = RoomOp::Move {
+        entry: before[3],
+        to: 0,
+        revision,
+    };
+    repo.apply(ROOM, &move_up, now).await.unwrap();
+    repo.apply(ROOM, &RoomOp::Advance { from: before[0] }, now)
+        .await
+        .unwrap();
+    let (current, ..) = queue(&repo).await;
+    assert_eq!(current, Some(before[3]));
+    repo.apply(ROOM, &RoomOp::Remove { entry: last }, now)
+        .await
+        .unwrap();
+    let append = RoomOp::Add {
+        video_id: VIDEOS[5].to_owned(),
+        added_by: "Ada".into(),
+        max_queue: 5,
+        play: false,
+    };
+    repo.apply(ROOM, &append, now).await.unwrap();
+    let (_, ids, _) = queue(&repo).await;
+    assert_eq!(ids, [VIDEOS[3], VIDEOS[1], VIDEOS[2], VIDEOS[5]]);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn shuffles_change_only_the_upcoming_order() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    repo.create(owner.id, ROOM, None, 1).await.unwrap();
+    repo.apply(ROOM, &add_many(&VIDEOS[..4], 5), now)
+        .await
+        .unwrap();
+
+    // Shuffling always changes the order of the upcoming entries, never the current one.
+    let (_, before) = entries(&repo).await;
+    for _ in 0..5 {
+        let (_, previous) = entries(&repo).await;
+        assert_eq!(
+            repo.apply(ROOM, &RoomOp::Shuffle, now).await.unwrap(),
+            OpOutcome::Applied
+        );
+        let (_, shuffled) = entries(&repo).await;
+        assert_eq!(shuffled[0], before[0]);
+        assert_ne!(shuffled, previous);
+        let mut sorted = shuffled.clone();
+        sorted.sort_unstable();
+        let mut expected = before.clone();
+        expected.sort_unstable();
+        assert_eq!(sorted, expected);
+    }
+    for entry in &before[2..] {
+        repo.apply(ROOM, &RoomOp::Remove { entry: *entry }, now)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        repo.apply(ROOM, &RoomOp::Shuffle, now).await.unwrap(),
+        OpOutcome::Unchanged,
+        "one upcoming entry has no other order"
+    );
 }
 
 #[tokio::test]
@@ -515,4 +672,89 @@ async fn sockets_need_this_origin_and_a_valid_join() {
     )
     .await;
     assert_eq!(expect(&mut socket, "error").await["code"], "not_found");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn sockets_queue_batches_reorder_and_shuffle() {
+    let db = isolated_test_pool().await;
+    cache_videos(&db.pool).await;
+    let owner = user(&db.pool).await;
+    let token = session(&db.pool, &owner).await;
+    PgRoomRepository::new(db.pool.clone())
+        .create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 10)
+        .await
+        .unwrap();
+    let (_, a) = replica(&db.pool).await;
+    let (_, b) = replica(&db.pool).await;
+
+    let mut host = connect(&a, ROOM, Some(&token)).await;
+    send(&mut host, json!({ "type": "join" })).await;
+    expect(&mut host, "welcome").await;
+    let mut guest = connect(&b, ROOM, None).await;
+    send(
+        &mut guest,
+        json!({ "type": "join", "name": "Grace", "guest_key": "guest-key-0123456789" }),
+    )
+    .await;
+    expect(&mut guest, "welcome").await;
+
+    send(
+        &mut guest,
+        json!({ "type": "add_many", "video_ids": &VIDEOS[1..4] }),
+    )
+    .await;
+    let added = expect(&mut guest, "added").await;
+    assert_eq!(
+        (added["added"].clone(), added["skipped"].clone()),
+        (json!(3), json!(0))
+    );
+    let ids = |room: &Value| -> Vec<String> {
+        room["queue"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["video"]["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let state = state_where(&mut host, |r| r["queue"].as_array().unwrap().len() == 3).await;
+    assert_eq!(ids(&state), &VIDEOS[1..4]);
+    assert_eq!(state["queue"][0]["added_by"], "Grace");
+
+    for invalid in [json!([]), json!(["short"])] {
+        send(
+            &mut guest,
+            json!({ "type": "add_many", "video_ids": invalid }),
+        )
+        .await;
+        assert_eq!(expect(&mut guest, "error").await["code"], "invalid");
+    }
+
+    // A move based on the latest state applies on the other replica too; a stale one does not.
+    let last = state["queue"][2]["id"].clone();
+    let revision = state["revision"].clone();
+    send(
+        &mut host,
+        json!({ "type": "move", "entry": last, "to": 0, "revision": revision }),
+    )
+    .await;
+    let moved = [VIDEOS[3], VIDEOS[1], VIDEOS[2]];
+    let state = state_where(&mut guest, |r| ids(r) == moved).await;
+    send(
+        &mut guest,
+        json!({ "type": "move", "entry": last, "to": 2, "revision": revision }),
+    )
+    .await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "stale");
+
+    send(&mut guest, json!({ "type": "shuffle" })).await;
+    let shuffled = state_where(&mut host, |r| {
+        r["revision"].as_i64() > state["revision"].as_i64()
+    })
+    .await;
+    assert_ne!(ids(&shuffled), moved);
+    let mut sorted = ids(&shuffled);
+    sorted.sort();
+    assert_eq!(sorted, &VIDEOS[1..4]);
+    assert_eq!(shuffled["current"]["video"]["id"], VIDEOS[0]);
 }
