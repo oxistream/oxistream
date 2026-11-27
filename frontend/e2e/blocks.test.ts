@@ -123,15 +123,20 @@ async function mockApi(page: Page, { signedIn = true } = {}) {
 	return state;
 }
 
-test('anonymous users are asked to sign in before blocking', async ({ page }) => {
+test('anonymous users are not offered blocking', async ({ page }) => {
 	await mockApi(page, { signedIn: false });
 	await page.goto('/results?search_query=forge');
 
 	await page
 		.getByRole('button', { name: `More actions for ${FORGE.name} video forge000001` })
 		.click();
-	await page.getByRole('menuitem', { name: 'Sign in to block channels' }).click();
-	await expect(page).toHaveURL(/\/login\?redirect=%2Fresults%3Fsearch_query%3Dforge$/);
+	await expect(page.getByRole('menuitem', { name: 'Play next' })).toBeVisible();
+	await expect(page.getByTestId('block-channel')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await page.goto(`/channel/${FORGE.id}`);
+	await expect(page.getByRole('heading', { level: 1, name: /Hammer & Tongs/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0);
 });
 
 test('blocking from search hides the channel until it is unblocked', async ({ page }) => {

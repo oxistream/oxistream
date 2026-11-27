@@ -105,15 +105,12 @@ async function mockApi(page: Page, { signedIn = true } = {}) {
 
 const likeButton = (page: Page) => page.getByTestId('like-button');
 
-test('anonymous users are asked to sign in', async ({ page }) => {
+test('anonymous users are not offered liking', async ({ page }) => {
 	await mockApi(page, { signedIn: false });
 
 	await page.goto(`/watch?v=${VIDEOS[0]}`);
-	await expect(likeButton(page)).toHaveAttribute(
-		'href',
-		`/login?redirect=%2Fwatch%3Fv%3D${VIDEOS[0]}`
-	);
-	await expect(likeButton(page)).toHaveText(/18K/);
+	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+	await expect(likeButton(page)).toHaveCount(0);
 
 	await page.goto('/playlist?list=LL');
 	await expect(page.getByText('Sign in to see the videos you liked.')).toBeVisible();
@@ -155,7 +152,7 @@ test('liked videos and shorts form a list in the library', async ({ page }) => {
 	);
 
 	await page.getByRole('button', { name: 'Actions for Fjord drive 2' }).click();
-	await page.getByRole('menuitem', { name: 'Remove from liked videos' }).click();
+	await page.getByRole('menuitem', { name: 'Remove' }).click();
 	await expect(titles).toHaveText([/Forge short/, /Fjord drive 1/]);
 
 	await page.goto(`/watch?v=${VIDEOS[0]}&list=LL`);

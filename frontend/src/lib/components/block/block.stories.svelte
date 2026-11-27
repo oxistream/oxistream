@@ -2,6 +2,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { BlockedChannel } from '#lib/api/blocks.js';
 	import { mockVideos } from '#lib/mocks/videos.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import BlockedChannelRow from './blocked-channel-row.svelte';
 	import ChannelActionsMenu from './channel-actions-menu.svelte';
 	import ChannelBlockedNotice from './channel-blocked-notice.svelte';
@@ -54,9 +55,20 @@
 
 <Story name="Actions menu" asChild>
 	<div class="flex items-center gap-4">
-		<ChannelActionsMenu channel={mockVideos[0].channel} />
+		<ChannelActionsMenu channel={mockVideos[0].channel} video={mockVideos[0]} />
+		<ChannelActionsMenu
+			channel={mockVideos[0].channel}
+			video={mockVideos[0]}
+			removeLabel={m.action_remove()}
+			onremove={() => undefined}
+		/>
 		<div class="rounded-xl bg-neutral-900 p-3">
-			<ChannelActionsMenu channel={mockVideos[0].channel} variant="overlay" size="icon-lg" />
+			<ChannelActionsMenu
+				channel={mockVideos[0].channel}
+				video={mockVideos[0]}
+				variant="overlay"
+				size="icon-lg"
+			/>
 		</div>
 	</div>
 </Story>

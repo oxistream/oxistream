@@ -30,8 +30,6 @@
 
 <Story name="Loading" args={{ loading: true }} />
 
-<Story name="Signed out" args={{ signInHref: '/login?redirect=%2Fchannel%2FUCx' }} />
-
 <Story name="Interactive" asChild>
 	<div class="flex items-center gap-3">
 		<SubscribeToggle {subscribed} onclick={() => (subscribed = !subscribed)} />

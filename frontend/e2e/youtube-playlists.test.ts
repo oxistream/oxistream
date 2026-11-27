@@ -268,13 +268,13 @@ test('mixes and unknown playlists get their own states', async ({ page }) => {
 	await expect(page.getByTestId('playlist-panel').getByText('Playlist unavailable')).toBeVisible();
 });
 
-test('anonymous users are sent to sign in to follow or copy', async ({ page }) => {
+test('anonymous users are not offered following or copying', async ({ page }) => {
 	await mockApi(page);
 	await page.goto(`/playlist?list=${LIST}`);
 
-	const redirect = `/login?redirect=${encodeURIComponent(`/playlist?list=${LIST}`)}`;
-	await expect(page.getByRole('link', { name: 'Follow' })).toHaveAttribute('href', redirect);
-	await expect(page.getByRole('link', { name: 'Save as copy' })).toHaveAttribute('href', redirect);
+	await expect(page.getByRole('link', { name: 'Play all' })).toBeVisible();
+	await expect(page.getByTestId('follow-button')).toHaveCount(0);
+	await expect(page.getByTestId('copy-playlist')).toHaveCount(0);
 });
 
 test('a YouTube playlist can be followed and saved as a copy', async ({ page }) => {

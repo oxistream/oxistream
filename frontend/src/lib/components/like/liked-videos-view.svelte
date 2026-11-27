@@ -89,7 +89,6 @@
 				items={data.items}
 				editable
 				reorderable={false}
-				removeLabel={m.liked_remove()}
 				onremove={(video) => unlike.mutate({ videoId: video.id, like: false })}
 			/>
 			<InfiniteLoader

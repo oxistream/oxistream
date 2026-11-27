@@ -23,7 +23,6 @@
 		<LikeToggle liked={likedCount} count={18_420} onclick={() => (likedCount = !likedCount)} />
 		<LikeToggle liked />
 		<LikeToggle loading />
-		<LikeToggle signInHref="/login" count={18_420} />
 	</div>
 </Story>
 
@@ -35,7 +34,6 @@
 			onclick={() => (likedOverlay = !likedOverlay)}
 		/>
 		<LikeToggle variant="overlay" />
-		<LikeToggle variant="overlay" signInHref="/login" />
 	</div>
 </Story>
 

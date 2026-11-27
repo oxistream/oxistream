@@ -3,7 +3,7 @@
 	import RowScroller from '#lib/components/row-scroller.svelte';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
-	import type { VideoSummary } from '#lib/video.js';
+	import type { VideoRemoval, VideoSummary } from '#lib/video.js';
 	import VideoCardSkeleton from './video-card-skeleton.svelte';
 	import VideoCard from './video-card.svelte';
 
@@ -16,6 +16,7 @@
 		showChannel = true,
 		now,
 		label,
+		removal,
 		class: className
 	}: {
 		videos?: VideoSummary[];
@@ -28,6 +29,7 @@
 		/** Reference time for relative dates; fixed in stories. */
 		now?: Date;
 		label?: string;
+		removal?: VideoRemoval;
 		class?: string;
 	} = $props();
 </script>
@@ -54,7 +56,7 @@
 	<ul class="video-list" data-layout={layout} aria-label={label} {@attach scroller}>
 		{#each videos as video (video.id)}
 			<li class="min-w-0">
-				<VideoCard {video} {headingLevel} {showChannel} {now} />
+				<VideoCard {video} {headingLevel} {showChannel} {now} {removal} />
 			</li>
 		{/each}
 	</ul>

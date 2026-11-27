@@ -267,6 +267,32 @@ export function createRemoveFromHistoryMutation() {
 	}));
 }
 
+/** Hides one video from "Continue watching" until it is watched again; the history keeps it. */
+export function createDismissContinueMutation() {
+	const client = useQueryClient();
+	return createMutation(() => ({
+		mutationFn: async (videoId: string) => {
+			const { response, error } = await api.DELETE('/api/v0/history/continue/{video_id}', {
+				params: { path: { video_id: videoId } }
+			});
+			if (!response.ok) unwrap({ error, response });
+		},
+		onMutate: async (videoId: string) => {
+			await client.cancelQueries({ queryKey: historyKeys.continue });
+			const previous = client.getQueryData<HistoryVideo[]>(historyKeys.continue);
+			client.setQueryData(
+				historyKeys.continue,
+				previous?.filter((video) => video.id !== videoId)
+			);
+			return { previous };
+		},
+		onError: (_error: Error, _videoId: string, context?: { previous?: HistoryVideo[] }) => {
+			if (context?.previous) client.setQueryData(historyKeys.continue, context.previous);
+		},
+		onSettled: () => void client.invalidateQueries({ queryKey: historyKeys.continue })
+	}));
+}
+
 export function createClearHistoryMutation() {
 	const client = useQueryClient();
 	return createMutation(() => ({

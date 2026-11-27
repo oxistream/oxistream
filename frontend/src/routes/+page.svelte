@@ -10,11 +10,12 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import VideoGrid from '#lib/components/video/video-grid.svelte';
-	import { recentLocalVideos } from '#lib/components/watch/local-progress.js';
+	import { recentLocalVideos, removeLocalProgress } from '#lib/components/watch/local-progress.js';
 	import { homeSections, showGuestFallback, trendingCategory } from '#lib/home/sections.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
+	import type { VideoSummary } from '#lib/video.js';
 
 	const RECENT_LIMIT = 12;
 
@@ -33,7 +34,17 @@
 		() => guest
 	);
 	const fallback = $derived(guest && showGuestFallback(trending));
-	const recent = $derived(fallback ? recentLocalVideos(RECENT_LIMIT) : []);
+	// Bumped on removal, since local storage is not reactive.
+	let localVersion = $state(0);
+	const recent = $derived.by(() => {
+		void localVersion;
+		return fallback ? recentLocalVideos(RECENT_LIMIT) : [];
+	});
+
+	function removeRecent(video: VideoSummary) {
+		removeLocalProgress(video.id);
+		localVersion++;
+	}
 </script>
 
 <div class="flex flex-col gap-8 px-(--page-gutter) py-6">
@@ -47,7 +58,7 @@
 			</div>
 		{/each}
 	{:else if fallback}
-		<GuestFallback {recent} />
+		<GuestFallback {recent} onremove={removeRecent} />
 	{:else if sections.length === 0}
 		<EmptyState icon={HouseIcon} title={m.home_empty_title()} description={m.home_empty_body()}>
 			{#snippet actions()}

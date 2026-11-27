@@ -305,11 +305,7 @@ test('channel page renders its header and pages through videos', async ({ page }
 	await expect(page.getByText('284K subscribers')).toBeVisible();
 	await expect(page.getByRole('img', { name: 'Verified' }).first()).toBeVisible();
 
-	// Anonymous users are sent to sign-in and come back here afterwards.
-	await expect(page.getByTestId('subscribe-button')).toHaveAttribute(
-		'href',
-		`/login?redirect=%2Fchannel%2F${forge.id}`
-	);
+	await expect(page.getByTestId('subscribe-button')).toHaveCount(0);
 
 	const videos = page.getByRole('list', { name: 'Videos' });
 	await expect(videos.getByRole('listitem')).toHaveCount(5);

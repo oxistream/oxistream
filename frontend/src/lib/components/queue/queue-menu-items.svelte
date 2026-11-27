@@ -23,5 +23,4 @@
 		<ListEndIcon />
 		{m.queue_add()}
 	</DropdownMenu.Item>
-	<DropdownMenu.Separator />
 {/if}

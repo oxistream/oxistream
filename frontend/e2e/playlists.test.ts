@@ -213,10 +213,8 @@ test('anonymous users get a sign-in prompt but can open unlisted playlists', asy
 	);
 
 	await page.goto(`/watch?v=${VIDEOS[0]}`);
-	await expect(page.getByRole('link', { name: 'Save' })).toHaveAttribute(
-		'href',
-		`/login?redirect=%2Fwatch%3Fv%3D${VIDEOS[0]}`
-	);
+	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
 });
 
 test('unknown playlists get a not-found state', async ({ page }) => {
@@ -266,7 +264,7 @@ test('owners reorder, remove and delete', async ({ page }) => {
 		.toEqual(['Fjord drive 3', 'Fjord drive 2', 'Fjord drive 1']);
 
 	await page.getByRole('button', { name: 'Actions for Fjord drive 2' }).click();
-	await page.getByRole('menuitem', { name: 'Remove from playlist' }).click();
+	await page.getByRole('menuitem', { name: 'Remove' }).click();
 	await expect.poll(() => titles(page)).toEqual(['Fjord drive 3', 'Fjord drive 1']);
 
 	await page.getByRole('button', { name: 'Delete playlist' }).click();

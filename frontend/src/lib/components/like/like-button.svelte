@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { createLikeMutation, createLikeStateQuery } from '#lib/api/likes.js';
-	import { authHref } from '#lib/auth/links.js';
 	import { session } from '#lib/session.svelte.js';
 	import LikeToggle from './like-toggle.svelte';
 
@@ -20,18 +18,16 @@
 	const status = createLikeStateQuery(() => videoId);
 	const mutation = createLikeMutation();
 
-	const signInHref = $derived(
-		session.user ? undefined : authHref('/login', page.url.pathname + page.url.search)
-	);
 	const liked = $derived(status.data === true);
 </script>
 
-<LikeToggle
-	{liked}
-	{signInHref}
-	{count}
-	{variant}
-	class={className}
-	loading={session.user !== null && status.isPending}
-	onclick={() => mutation.mutate({ videoId, like: !liked })}
-/>
+{#if session.user}
+	<LikeToggle
+		{liked}
+		{count}
+		{variant}
+		class={className}
+		loading={status.isPending}
+		onclick={() => mutation.mutate({ videoId, like: !liked })}
+	/>
+{/if}

@@ -10,6 +10,7 @@
 	import { formatCompactNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
+	import { session } from '#lib/session.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import ChannelAvatar from './channel-avatar.svelte';
 	import VerifiedBadge from './verified-badge.svelte';
@@ -112,9 +113,11 @@
 				{/if}
 			</div>
 		</div>
-		<div class="flex items-center gap-1.5">
-			<SubscribeButton channelId={channel.id} class="flex-1 @xl:flex-none" />
-			<ChannelActionsMenu {channel} size="icon" />
-		</div>
+		{#if session.user}
+			<div class="flex items-center gap-1.5">
+				<SubscribeButton channelId={channel.id} class="flex-1 @xl:flex-none" />
+				<ChannelActionsMenu {channel} size="icon" />
+			</div>
+		{/if}
 	</div>
 </header>

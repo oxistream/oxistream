@@ -31,6 +31,9 @@ export type VideoSummary = {
 	progress?: number;
 };
 
+/** A menu entry that removes a video from the list it is shown in. */
+export type VideoRemoval = { label: string; onremove: (video: VideoSummary) => void };
+
 export type User = {
 	id: string;
 	name: string;
