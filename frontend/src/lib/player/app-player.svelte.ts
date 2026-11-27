@@ -2,6 +2,7 @@ import type { Snippet } from 'svelte';
 import type { Attachment } from 'svelte/attachments';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
+import type { WatchProblem } from '#lib/components/watch/errors.js';
 
 /** A video loaded into the app-wide player. */
 export type PlayerMedia = {
@@ -26,6 +27,9 @@ export type PlayerMedia = {
 	externalRate?: boolean;
 	/** Media events for whoever loaded the video, e.g. to keep a party in sync. */
 	events?: PlayerEvents;
+	/** Shown instead of the video, e.g. when a party's video cannot play. */
+	problem?: WatchProblem;
+	onretry?: () => void;
 };
 
 export type PlayerEvents = {

@@ -8,6 +8,7 @@
 	import { appPlayer, type PlayerMedia } from '#lib/player/app-player.svelte.js';
 	import { session } from '#lib/session.svelte.js';
 	import { resolveSegments } from '#lib/sponsorblock/skip.js';
+	import PlayerMessage from '#lib/components/watch/player-message.svelte';
 	import MiniPlayerBar from './mini-player-bar.svelte';
 	import Player from './player.svelte';
 
@@ -30,8 +31,11 @@
 		sponsorBlockOpen = true;
 	}
 
-	// Shorts bring their own player, so this one waits out of sight, unless a party holds it.
-	const elsewhere = $derived(!appPlayer.claim && page.route.id?.startsWith('/shorts') === true);
+	// Shorts bring their own player, so this one waits out of sight. A party's video plays on
+	// in the mini player instead, muted for this tab.
+	const onShorts = $derived(page.route.id?.startsWith('/shorts') === true);
+	const elsewhere = $derived(!appPlayer.claim && onShorts);
+	const silenced = $derived(appPlayer.claim !== null && onShorts);
 	const mode = $derived(appPlayer.inline ? 'inline' : elsewhere ? 'hidden' : 'mini');
 	const options = $derived(appPlayer.inline ? appPlayer.slotOptions() : {});
 
@@ -105,34 +109,45 @@
 >
 	<div class="app-player-video">
 		{#key appPlayer.generation}
-			<Player
-				bind:this={instance}
-				src={manifestUrl(media.videoId)}
-				poster={media.poster}
-				subtitles={media.subtitles}
-				storyboard={media.storyboard}
-				startTime={media.startTime ?? 0}
-				playback={media.playback}
-				theater={options.theater ?? false}
-				globalHotkeys={mode === 'inline'}
-				autoplay={media.autoplay ?? true}
-				{segments}
-				externalRate={media.externalRate}
-				onsponsorblocksettings={session.sponsorblock ? openSponsorBlock : undefined}
-				ontheatertoggle={options.ontheatertoggle}
-				onprogress={media.trackProgress === false ? undefined : reportProgress(media.videoId)}
-				onplay={(time) => {
-					appPlayer.paused = false;
-					media.events?.onplay?.(time);
-				}}
-				onpause={(time) => {
-					appPlayer.paused = true;
-					media.events?.onpause?.(time);
-				}}
-				onseeked={media.events?.onseeked}
-				ontimeupdate={media.events?.ontimeupdate}
-				onended={ended}
-			/>
+			{#if media.problem}
+				<PlayerMessage
+					problem={media.problem}
+					videoId={media.videoId}
+					poster={media.poster}
+					onretry={media.onretry}
+					compact={mode === 'mini'}
+				/>
+			{:else}
+				<Player
+					bind:this={instance}
+					src={manifestUrl(media.videoId)}
+					poster={media.poster}
+					subtitles={media.subtitles}
+					storyboard={media.storyboard}
+					startTime={media.startTime ?? 0}
+					playback={media.playback}
+					theater={options.theater ?? false}
+					globalHotkeys={mode === 'inline'}
+					autoplay={media.autoplay ?? true}
+					{segments}
+					externalRate={media.externalRate}
+					onsponsorblocksettings={session.sponsorblock ? openSponsorBlock : undefined}
+					ontheatertoggle={options.ontheatertoggle}
+					onprogress={media.trackProgress === false ? undefined : reportProgress(media.videoId)}
+					onplay={(time) => {
+						appPlayer.paused = false;
+						media.events?.onplay?.(time);
+					}}
+					onpause={(time) => {
+						appPlayer.paused = true;
+						media.events?.onpause?.(time);
+					}}
+					onseeked={media.events?.onseeked}
+					ontimeupdate={media.events?.ontimeupdate}
+					onended={ended}
+					{silenced}
+				/>
+			{/if}
 		{/key}
 		{@render appPlayer.claim?.overlay?.()}
 		{#if mode === 'mini'}
@@ -152,7 +167,8 @@
 			channel={media.channel?.name}
 			href={media.href}
 			paused={appPlayer.paused}
-			ontoggle={() => appPlayer.toggle()}
+			muted={silenced}
+			ontoggle={media.problem ? undefined : () => appPlayer.toggle()}
 			closeLabel={appPlayer.claim?.closeLabel?.()}
 			onclose={() => appPlayer.close()}
 			class="app-player-bar"
@@ -173,6 +189,11 @@
 
 	.app-player[data-mode='hidden'] {
 		display: none;
+	}
+
+	.app-player[data-flush] :global([data-testid='player-message']),
+	.app-player[data-mode='mini'] :global([data-testid='player-message']) {
+		border-radius: 0;
 	}
 
 	.app-player[data-flush] :global(.oxi-player-frame) {

@@ -286,6 +286,7 @@
 	"player_pause": "Pausieren",
 	"mini_player_label": "Miniplayer",
 	"mini_player_expand": "Zurück zum Video",
+	"mini_player_muted": "Stumm, während du Shorts schaust",
 	"mini_player_close": "Player schließen",
 	"disclosure_altered": "Veränderte oder synthetische Inhalte",
 	"disclosure_learn_more": "Mehr dazu bei YouTube",
@@ -685,5 +686,9 @@
 	"party_elsewhere_title": "Die Party schaut gerade etwas anderes",
 	"party_elsewhere_playing": "Läuft gerade: {title}",
 	"party_elsewhere_empty": "In der Party läuft noch nichts.",
+	"party_play_now_hint": "Wechselt das Video für alle",
+	"party_queue_add": "Zur Warteschlange",
+	"party_queued": "In der Warteschlange",
+	"party_already_queued": "Schon in der Warteschlange",
 	"party_ok": "OK"
 }

@@ -3,9 +3,10 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
-	import { useVideo } from '#lib/api/video.js';
+	import { useManifest, useVideo } from '#lib/api/video.js';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
 	import { party, type PartyEnd } from '#lib/together/party.svelte.js';
@@ -16,6 +17,7 @@
 
 	const currentId = $derived(party.current?.video.id ?? null);
 	const video = useVideo(() => currentId);
+	const manifest = useManifest(() => currentId);
 	const settings = createSettingsQuery();
 	const settingsKnown = $derived(session.ready && (!session.user || !settings.isPending));
 
@@ -23,13 +25,28 @@
 		if (session.ready) untrack(() => party.restore(session.account !== null));
 	});
 
+	// Like the watch page: the video cannot play, so the player shows why instead.
+	const problem = $derived.by(() => {
+		if (!currentId) return null;
+		if (video.isError) return describeProblem(video.error);
+		if (video.data?.id === currentId && video.data.is_live) return liveProblem();
+		if (manifest.isError) return describeProblem(manifest.error);
+		return null;
+	});
+
+	function retry() {
+		if (video.isError) void video.refetch();
+		else void manifest.refetch();
+	}
+
 	$effect(() => {
 		const current = party.current;
 		const details = video.data?.id === current?.video.id ? video.data : undefined;
-		const ready = settingsKnown && (details !== undefined || video.isError);
+		const ready = settingsKnown && (details !== undefined || problem !== null);
 		const playback = settingsKnown ? playbackPreferences(settings.data) : undefined;
+		const failed = problem && { problem, onretry: problem.retry ? retry : undefined };
 		void party.room;
-		untrack(() => party.show(current, details, ready, playback));
+		untrack(() => party.show(current, details, ready, playback, failed));
 	});
 
 	$effect(() => {

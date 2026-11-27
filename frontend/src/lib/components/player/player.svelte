@@ -69,6 +69,7 @@
 		onpause,
 		onseeked,
 		externalRate = false,
+		silenced = false,
 		class: className
 	}: {
 		/** DASH manifest URL. */
@@ -113,6 +114,8 @@
 		 * neither applied nor overwritten, and the speed menu is hidden.
 		 */
 		externalRate?: boolean;
+		/** Muted without saving it, e.g. while a short plays over a watch party; undone after. */
+		silenced?: boolean;
 		class?: string;
 	} = $props();
 
@@ -138,6 +141,27 @@
 	let media: HTMLElement &
 		Pick<HTMLMediaElement, 'play' | 'pause' | 'paused' | 'readyState' | 'currentTime' | 'seeking'>;
 	let paused = $state(true);
+	let volumeReady = $state(false);
+	/** Whether it was muted before being silenced, until that is restored. */
+	let mutedBefore: boolean | null = null;
+	let unsilencing = false;
+
+	$effect(() => {
+		const on = silenced;
+		if (!volumeReady) return;
+		const volume = selectVolume(player.store.state);
+		if (!volume) return;
+		if (on && !unsilencing && mutedBefore === null) {
+			mutedBefore = volume.muted;
+			volume.setMuted(true);
+		} else if (on && unsilencing) {
+			unsilencing = false;
+			volume.setMuted(true);
+		} else if (!on && mutedBefore !== null && !unsilencing) {
+			unsilencing = true;
+			volume.setMuted(mutedBefore);
+		}
+	});
 
 	// Highlight and whole-video label are offered at the start only.
 	const INTRO_WINDOW = 10;
@@ -296,6 +320,7 @@
 			if (prefs.volume !== undefined) volume.setVolume(prefs.volume);
 			// After setVolume, which unmutes above zero.
 			if (prefs.muted) volume.setMuted(true);
+			volumeReady = true;
 		};
 
 		const restoreCaptions = () => {
@@ -323,7 +348,12 @@
 			const rate = selectPlaybackRate(store.state);
 			const tracks = selectTextTrack(store.state);
 			const next = { ...last };
-			if (restoredVolume && volume) {
+			// The silenced mute is not saved; the volume is again once it is undone.
+			if (unsilencing && volume?.muted === mutedBefore) {
+				unsilencing = false;
+				mutedBefore = null;
+			}
+			if (restoredVolume && volume && mutedBefore === null) {
 				next.volume = volume.volume;
 				next.muted = volume.muted;
 			}

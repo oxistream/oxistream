@@ -19,6 +19,7 @@
 
 <script lang="ts">
 	let queue = $state(mockRoomQueue);
+	let queued = $state<'added' | null>(null);
 </script>
 
 <Story name="Queue" asChild>
@@ -67,7 +68,25 @@
 
 <Story name="Party plays another video" asChild>
 	<div class="max-w-2xl">
-		<PartyElsewhere poster={mockVideos[1].thumbnailUrl} playing={mockVideos[0].title} />
+		<PartyElsewhere
+			poster={mockVideos[1].thumbnailUrl}
+			playing={mockVideos[0].title}
+			{queued}
+			onplaynow={() => {}}
+			onqueue={() => (queued = 'added')}
+		/>
+	</div>
+</Story>
+
+<Story name="Party video already queued" asChild>
+	<div class="max-w-2xl">
+		<PartyElsewhere
+			poster={mockVideos[1].thumbnailUrl}
+			playing={mockVideos[0].title}
+			queued="already"
+			onplaynow={() => {}}
+			onqueue={() => {}}
+		/>
 	</div>
 </Story>
 

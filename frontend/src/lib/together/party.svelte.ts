@@ -5,6 +5,7 @@ import { pickImage } from '#lib/api/mapping.js';
 import type { VideoDetails } from '#lib/api/video.js';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
+import type { WatchProblem } from '#lib/components/watch/errors.js';
 import { m } from '#lib/paraglide/messages.js';
 import { appPlayer, type ClaimOptions, type PlayerClaim } from '#lib/player/app-player.svelte.js';
 import {
@@ -80,7 +81,8 @@ export class Party {
 	/** `undefined` until the first state is shown. */
 	#entry: number | null | undefined = undefined;
 	#entryVideo: string | null = null;
-	#loaded = false;
+	/** What the player shows for the current entry: `video` or a problem's title. */
+	#shown: string | null = null;
 	#resume: JoinOptions['resume'] | null = null;
 	#silent = false;
 
@@ -183,15 +185,24 @@ export class Party {
 		this.send({ type: 'add', video_id: videoId });
 	}
 
+	/** Plays `videoId` for everyone, taking it from the queue if it is there. */
+	playNow(videoId: string) {
+		const queued = this.room?.queue.find((e) => e.video.id === videoId);
+		if (queued) this.send({ type: 'select', entry: queued.id });
+		else this.send({ type: 'add', video_id: videoId, play: true });
+	}
+
 	/**
 	 * Plays the current entry, called whenever it or its details change. Someone on the watch
-	 * page of the previous video follows to the new one; nobody else is navigated.
+	 * page of the previous video follows to the new one; nobody else is navigated. A video that
+	 * cannot play shows `problem` instead.
 	 */
 	show(
 		current: RoomQueueEntry | null,
 		details: VideoDetails | undefined,
 		ready: boolean,
-		playback: PlaybackPreferences | undefined
+		playback: PlaybackPreferences | undefined,
+		problem: { problem: WatchProblem; onretry?: () => void } | null = null
 	) {
 		const connection = this.connection;
 		const claim = this.#claim;
@@ -201,7 +212,7 @@ export class Party {
 			const previous = this.#entryVideo;
 			this.#entry = entry;
 			this.#entryVideo = current?.video.id ?? null;
-			this.#loaded = false;
+			this.#shown = null;
 			this.sync?.destroy();
 			this.sync = null;
 			if (!current) {
@@ -213,8 +224,27 @@ export class Party {
 				void goto(resolve(`/watch?v=${current.video.id}`), { replaceState: true });
 			}
 		}
-		if (!current || this.#loaded || !ready) return;
-		this.#loaded = true;
+		if (!current || !ready) return;
+		const video = current.video;
+		const media = {
+			videoId: video.id,
+			title: details?.title ?? video.title,
+			channel: details?.channel ?? video.channel,
+			poster: pickImage(details?.thumbnails ?? video.thumbnails, 1280),
+			href: `${resolve('/watch')}?v=${video.id}`,
+			trackProgress: false
+		};
+		if (problem) {
+			const shown = `problem:${problem.problem.title}`;
+			if (this.#shown === shown) return;
+			this.#shown = shown;
+			this.sync?.destroy();
+			this.sync = null;
+			claim.load({ ...media, autoplay: false, ...problem });
+			return;
+		}
+		if (this.#shown === 'video') return;
+		this.#shown = 'video';
 		const room = this.room;
 		const sync = new PartySync({
 			playback: { playing: room.playing, position: room.position, positionAt: room.position_at },
@@ -227,7 +257,6 @@ export class Party {
 			onended: () => connection.send({ type: 'ended', entry: current.id })
 		});
 		this.sync = sync;
-		const video = current.video;
 		const subtitles: PlayerSubtitle[] = (details?.subtitles ?? []).map((s) => ({
 			id: s.id,
 			lang: s.lang,
@@ -235,17 +264,12 @@ export class Party {
 			label: s.auto_generated ? m.player_auto_generated({ label: s.label }) : s.label
 		}));
 		claim.load({
-			videoId: video.id,
-			title: details?.title ?? video.title,
-			channel: details?.channel ?? video.channel,
-			poster: pickImage(details?.thumbnails ?? video.thumbnails, 1280),
+			...media,
 			subtitles,
 			storyboard: details?.storyboard_url ?? undefined,
 			startTime: sync.startTime,
 			autoplay: false,
 			playback,
-			href: `${resolve('/watch')}?v=${video.id}`,
-			trackProgress: false,
 			autoSkip: false,
 			externalRate: true,
 			events: sync.events
@@ -272,7 +296,7 @@ export class Party {
 		this.id = null;
 		this.#entry = undefined;
 		this.#entryVideo = null;
-		this.#loaded = false;
+		this.#shown = null;
 		this.#resume = null;
 		this.leaveOpen = false;
 		this.sheetOpen = false;
