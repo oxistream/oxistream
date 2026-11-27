@@ -5,7 +5,11 @@
 	import { mockChannels } from '#lib/mocks/videos.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import ChannelResult from './channel-result.svelte';
+	import type { SearchFilters as Filters } from '#lib/search-types.js';
+	import SearchFilters from './search-filters.svelte';
 	import SearchTabs from './search-tabs.svelte';
+
+	const filters: Filters = { upload_date: 'week', duration: 'long' };
 
 	const { Story } = defineMeta({
 		title: 'Search/SearchTabs',
@@ -27,6 +31,20 @@
 <Story name="All" />
 
 <Story name="Shorts" args={{ current: 'shorts' }} />
+
+<Story name="With filters" asChild>
+	<div class="flex max-w-5xl flex-col gap-3 p-6">
+		<SearchTabs query="forge" current="videos" {filters} />
+		<SearchFilters query="forge" type="videos" {filters} />
+	</div>
+</Story>
+
+<Story name="Filters narrow" asChild>
+	<div class="flex max-w-[375px] flex-col gap-3 p-4">
+		<SearchTabs query="forge" current="all" />
+		<SearchFilters query="forge" type="all" filters={{ sort: 'date' }} />
+	</div>
+</Story>
 
 <Story name="Narrow" asChild>
 	<div class="max-w-[375px] p-4"><SearchTabs query="forge" current="playlists" /></div>

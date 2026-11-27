@@ -8,6 +8,7 @@
 	import ChannelPlaylistGrid from '#lib/components/channel/channel-playlist-grid.svelte';
 	import ShortGrid from '#lib/components/channel/short-grid.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
+	import SearchFilters from '#lib/components/search/search-filters.svelte';
 	import SearchResults from '#lib/components/search/search-results.svelte';
 	import SearchTabs from '#lib/components/search/search-tabs.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -15,13 +16,15 @@
 	import InfiniteLoader from '#lib/components/state/infinite-loader.svelte';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { parseSearchType, type SearchType } from '#lib/search-types.js';
+	import { parseSearchFilters, parseSearchType, type SearchType } from '#lib/search-types.js';
 
 	const query = $derived((page.url.searchParams.get('search_query') ?? '').trim());
 	const type = $derived(parseSearchType(page.url.searchParams.get('type')));
+	const filters = $derived(parseSearchFilters(page.url.searchParams, type));
 	const search = createSearchQuery(
 		() => query,
-		() => type
+		() => type,
+		() => filters
 	);
 
 	const found = $derived(
@@ -62,7 +65,10 @@
 			description={m.search_prompt_body()}
 		/>
 	{:else}
-		<SearchTabs {query} current={type} />
+		<div class="flex flex-col gap-3">
+			<SearchTabs {query} current={type} {filters} />
+			<SearchFilters {query} {type} {filters} />
+		</div>
 		{#if search.isPending}
 			{#if type === 'shorts'}
 				<ShortGrid loading />

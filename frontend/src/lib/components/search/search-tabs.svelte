@@ -2,16 +2,24 @@
 	import { resolve } from '$app/paths';
 	import { tabLinkClass } from '#lib/components/tab-link.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { SEARCH_TYPES, searchParams, type SearchType } from '#lib/search-types.js';
+	import {
+		SEARCH_TYPES,
+		searchParams,
+		type SearchFilters,
+		type SearchType
+	} from '#lib/search-types.js';
 	import { cn } from '#lib/utils.js';
 
 	let {
 		query,
 		current,
+		filters = {},
 		class: className
 	}: {
 		query: string;
 		current: SearchType;
+		/** Carried over to the tabs that offer them. */
+		filters?: SearchFilters;
 		class?: string;
 	} = $props();
 
@@ -30,7 +38,7 @@
 			{#each SEARCH_TYPES as type (type)}
 				<li class="shrink-0">
 					<a
-						href={resolve(`/results?${searchParams(query, type)}`)}
+						href={resolve(`/results?${searchParams(query, type, filters)}`)}
 						aria-current={type === current ? 'page' : undefined}
 						data-sveltekit-noscroll
 						data-testid="search-tab-{type}"
