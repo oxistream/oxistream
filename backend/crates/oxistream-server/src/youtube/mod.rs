@@ -31,6 +31,9 @@ const PLAYER_EXPIRY_MARGIN: Duration = Duration::from_mins(30);
 const BOTGUARD_SNAPSHOT_FILE: &str = "oxistream-bg_snapshot.bin";
 const TRENDING_CACHE_CAPACITY: u64 = 200;
 const TRENDING_TTL: Duration = Duration::from_mins(30);
+const SUGGESTION_CACHE_CAPACITY: u64 = 10_000;
+const SUGGESTION_TTL: Duration = Duration::from_mins(10);
+const SUGGESTION_MAX_CHARS: usize = 100;
 
 /// Fetches player data in place of RustyPipe, e.g. to serve fixtures in tests.
 #[async_trait]
@@ -45,6 +48,7 @@ pub struct YouTube {
     player_source: Option<Arc<dyn PlayerSource>>,
     trending_region: Country,
     trending: Cache<(TrendingCategory, Language), Arc<Vec<VideoItem>>>,
+    suggestions: Cache<(String, Language), Arc<Vec<String>>>,
 }
 
 impl YouTube {
@@ -91,6 +95,7 @@ impl YouTube {
             player_source: None,
             trending_region: config.trending_region,
             trending,
+            suggestions: suggestion_cache(),
         })
     }
 
@@ -209,8 +214,13 @@ impl YouTube {
             .await?)
     }
 
-    pub async fn search_suggestions(&self, query: &str, lang: Language) -> Result<Vec<String>> {
-        Ok(self.query(lang).search_suggestion(query).await?)
+    /// Suggestions for a partial query, cached per normalized query and language.
+    /// Upstream errors yield no suggestions and are not cached.
+    pub async fn search_suggestions(&self, query: &str, lang: Language) -> Arc<Vec<String>> {
+        cached_suggestions(&self.suggestions, query, lang, |query| async move {
+            Ok(self.query(lang).search_suggestion(query).await?)
+        })
+        .await
     }
 
     pub async fn channel_videos(
@@ -407,6 +417,44 @@ pub fn check_playlist_id(playlist_id: &str) -> Result<()> {
     Ok(())
 }
 
+fn suggestion_cache() -> Cache<(String, Language), Arc<Vec<String>>> {
+    Cache::builder()
+        .max_capacity(SUGGESTION_CACHE_CAPACITY)
+        .time_to_live(SUGGESTION_TTL)
+        .build()
+}
+
+/// Lowercased with collapsed whitespace; `None` when empty or too long.
+fn normalize_suggestion_query(query: &str) -> Option<String> {
+    let query = query.split_whitespace().collect::<Vec<_>>().join(" ");
+    let len = query.chars().count();
+    (len > 0 && len <= SUGGESTION_MAX_CHARS).then(|| query.to_lowercase())
+}
+
+async fn cached_suggestions<F, Fut>(
+    cache: &Cache<(String, Language), Arc<Vec<String>>>,
+    query: &str,
+    lang: Language,
+    fetch: F,
+) -> Arc<Vec<String>>
+where
+    F: FnOnce(String) -> Fut,
+    Fut: Future<Output = Result<Vec<String>>>,
+{
+    let Some(query) = normalize_suggestion_query(query) else {
+        return Arc::default();
+    };
+    cache
+        .try_get_with((query.clone(), lang), async move {
+            fetch(query).await.map(Arc::new)
+        })
+        .await
+        .unwrap_or_else(|err| {
+            tracing::warn!(error = %err, "search suggestions failed");
+            Arc::default()
+        })
+}
+
 struct PlayerExpiry;
 
 impl Expiry<String, Arc<VideoPlayer>> for PlayerExpiry {
@@ -515,6 +563,57 @@ mod tests {
             youtube.playlist("RDdQw4w9WgXcQ", Language::En).await,
             Err(YouTubeError::Unavailable { reason, .. }) if reason == "mix"
         ));
+    }
+
+    #[test]
+    fn normalizes_suggestion_queries() {
+        assert_eq!(
+            normalize_suggestion_query("  Rust   Lang "),
+            Some("rust lang".into())
+        );
+        assert_eq!(normalize_suggestion_query("   "), None);
+        assert_eq!(normalize_suggestion_query(&"a".repeat(101)), None);
+        assert!(normalize_suggestion_query(&"ä".repeat(100)).is_some());
+    }
+
+    #[tokio::test]
+    async fn caches_suggestions_but_not_errors() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = suggestion_cache();
+        let calls = AtomicUsize::new(0);
+        let fetch = |query: String| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if query == "broken" {
+                    Err(YouTubeError::Upstream("down".into()))
+                } else {
+                    Ok(vec![format!("{query} tutorial")])
+                }
+            }
+        };
+
+        for input in ["Rust", " rust "] {
+            let got = cached_suggestions(&cache, input, Language::En, fetch).await;
+            assert_eq!(*got, ["rust tutorial"]);
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        for _ in 0..2 {
+            assert!(
+                cached_suggestions(&cache, "broken", Language::En, fetch)
+                    .await
+                    .is_empty()
+            );
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+
+        assert!(
+            cached_suggestions(&cache, "", Language::En, fetch)
+                .await
+                .is_empty()
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
     }
 
     #[test]

@@ -775,7 +775,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search suggestions for a partial query. */
+        /** Search suggestions for a partial query; empty when YouTube fails. */
         get: operations["search_suggestions"];
         put?: never;
         post?: never;
@@ -4866,24 +4866,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
-                };
-            };
-            /** @description YouTube request failed */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Rate limited by YouTube */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

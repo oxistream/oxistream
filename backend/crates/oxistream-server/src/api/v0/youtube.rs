@@ -344,7 +344,7 @@ struct SuggestionParams {
     q: Option<String>,
 }
 
-/// Search suggestions for a partial query.
+/// Search suggestions for a partial query; empty when YouTube fails.
 #[utoipa::path(
     get,
     path = "/search/suggestions",
@@ -353,21 +353,21 @@ struct SuggestionParams {
         SuggestionParams,
         ("Accept-Language" = Option<String>, Header, description = "Content language"),
     ),
-    responses(
-        (status = OK, body = Vec<String>),
-        (status = BAD_GATEWAY, description = "YouTube request failed", body = ErrorBody),
-        (status = SERVICE_UNAVAILABLE, description = "Rate limited by YouTube", body = ErrorBody),
-    )
+    responses((status = OK, body = Vec<String>))
 )]
 async fn search_suggestions(
     State(state): State<AppState>,
     Query(params): Query<SuggestionParams>,
     ContentLanguage(lang): ContentLanguage,
-) -> Result<Json<Vec<String>>, ApiError> {
-    let Some(query) = non_empty(params.q.as_deref()) else {
-        return Ok(Json(Vec::new()));
-    };
-    Ok(Json(state.youtube.search_suggestions(query, lang).await?))
+) -> Json<Vec<String>> {
+    let query = params.q.unwrap_or_default();
+    Json(
+        state
+            .youtube
+            .search_suggestions(&query, lang)
+            .await
+            .to_vec(),
+    )
 }
 
 /// Channel header and the first page of its videos.

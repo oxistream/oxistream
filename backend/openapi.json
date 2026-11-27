@@ -3929,7 +3929,7 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Search suggestions for a partial query.",
+        "summary": "Search suggestions for a partial query; empty when YouTube fails.",
         "operationId": "search_suggestions",
         "parameters": [
           {
@@ -3963,26 +3963,6 @@
                   "items": {
                     "type": "string"
                   }
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "YouTube request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Rate limited by YouTube",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
