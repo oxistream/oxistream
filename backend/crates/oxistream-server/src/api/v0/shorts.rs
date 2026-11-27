@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use super::blocks::{BlockedChannels, ChannelItem};
 use crate::AppState;
-use crate::api::dto::{Thumbnail, thumbnails};
+use crate::api::dto::{ContentDisclosure, Thumbnail, thumbnails};
 use crate::api::error::{ApiError, ErrorBody};
 use crate::api::lang::ContentLanguage;
 use crate::auth::OptionalUser;
@@ -73,6 +73,8 @@ pub struct ShortDetails {
     pub title: Option<String>,
     /// The full video the uploader linked to the short.
     pub linked_video: Option<LinkedVideo>,
+    /// YouTube's "How this was made" labels, e.g. altered or synthetic content.
+    pub content_disclosures: Vec<ContentDisclosure>,
 }
 
 impl From<RpShortDetails> for ShortDetails {
@@ -84,6 +86,7 @@ impl From<RpShortDetails> for ShortDetails {
                 id: v.id,
                 title: v.name,
             }),
+            content_disclosures: ContentDisclosure::from_rp(details.content_disclosures),
         }
     }
 }

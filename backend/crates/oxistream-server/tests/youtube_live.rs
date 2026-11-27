@@ -582,3 +582,48 @@ async fn short_details_link_the_full_video() {
     assert_eq!(status, StatusCode::OK, "{json}");
     assert!(json["linked_video"].is_null(), "{json}");
 }
+
+fn has_disclosure(json: &Value, kind: &str) -> bool {
+    json["content_disclosures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["kind"] == kind && d["text"].as_str().is_some_and(|t| !t.is_empty()))
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn shows_content_disclosures() {
+    let (status, json) = get_json("/api/v0/videos/-YrdcUHpNV4").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert!(has_disclosure(&json, "altered_or_synthetic"), "{json}");
+
+    let (status, json) = get_json("/api/v0/shorts/tTjXWrpXdW4").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert!(has_disclosure(&json, "altered_or_synthetic"), "{json}");
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn marks_auto_dubbed_audio_tracks() {
+    let id = "i8_Pz7sBp_M";
+    let (status, json) = get_json(&format!("/api/v0/videos/{id}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    let tracks = json["audio_tracks"].as_array().unwrap();
+    assert!(
+        tracks
+            .iter()
+            .any(|t| t["kind"] == "original" && t["is_default"] == true),
+        "{json}"
+    );
+    assert!(tracks.iter().any(|t| t["kind"] == "auto_dubbed"), "{json}");
+
+    let (status, mpd) = get(
+        app_without_db(),
+        &format!("/api/v0/videos/{id}/manifest.mpd"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(mpd.contains(r#"value="main""#), "{mpd}");
+    assert!(mpd.contains(r#"value="auto-dub""#), "{mpd}");
+}
