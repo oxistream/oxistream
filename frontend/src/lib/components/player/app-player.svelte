@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { MediaQuery } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import { createProgressReporter } from '#lib/api/history.js';
 	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
@@ -11,6 +12,7 @@
 	import PlayerMessage from '#lib/components/watch/player-message.svelte';
 	import UpNext from '#lib/components/queue/up-next.svelte';
 	import MiniPlayerBar from './mini-player-bar.svelte';
+	import MiniPlayerOverlay from './mini-player-overlay.svelte';
 	import Player from './player.svelte';
 
 	let { media }: { media: PlayerMedia } = $props();
@@ -90,6 +92,14 @@
 	let queueOpen = $state(false);
 	const queueShown = $derived(mode === 'mini' && queueOpen && queueCount > 0);
 
+	// Phones show a thumbnail-sized video, too small for controls on it.
+	const phone = new MediaQuery('width < 40rem');
+	const ontoggle = $derived(media.problem ? undefined : () => appPlayer.toggle());
+	const onnext = $derived(
+		!appPlayer.claim && appPlayer.hasNext ? () => appPlayer.next() : undefined
+	);
+	const onclose = () => appPlayer.close();
+
 	function ended() {
 		appPlayer.paused = true;
 		media.events?.onended?.();
@@ -156,7 +166,7 @@
 			{/if}
 		{/key}
 		{@render appPlayer.claim?.overlay?.()}
-		{#if mode === 'mini'}
+		{#if mode === 'mini' && phone.current}
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved by the watch page -->
 			<a
 				href={media.href}
@@ -165,6 +175,15 @@
 				data-testid="mini-player-expand"
 			></a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		{:else if mode === 'mini'}
+			<MiniPlayerOverlay
+				href={media.href}
+				paused={appPlayer.paused}
+				{ontoggle}
+				{onnext}
+				{onclose}
+				closeLabel={appPlayer.claim?.closeLabel?.()}
+			/>
 		{/if}
 	</div>
 	{#if mode === 'mini'}
@@ -174,13 +193,13 @@
 			href={media.href}
 			paused={appPlayer.paused}
 			muted={silenced}
-			ontoggle={media.problem ? undefined : () => appPlayer.toggle()}
-			onnext={!appPlayer.claim && appPlayer.hasNext ? () => appPlayer.next() : undefined}
+			ontoggle={phone.current ? ontoggle : undefined}
+			onnext={phone.current ? onnext : undefined}
 			{queueCount}
 			queueOpen={queueShown}
 			onqueuetoggle={() => (queueOpen = !queueShown)}
 			closeLabel={appPlayer.claim?.closeLabel?.()}
-			onclose={() => appPlayer.close()}
+			onclose={phone.current ? onclose : undefined}
 			class="app-player-bar"
 		/>
 		{#if queueShown}
@@ -256,7 +275,7 @@
 		border-color: transparent;
 	}
 
-	/* The mini player is a preview: no controls on the video, a click returns to the watch page. */
+	/* The mini player is a preview: its own controls replace the player's. */
 	.app-player[data-mode='mini'] :global(media-controls),
 	.app-player[data-mode='mini'] :global(.video-status-indicators),
 	.app-player[data-mode='mini'] :global(.oxi-segments-overlay),
