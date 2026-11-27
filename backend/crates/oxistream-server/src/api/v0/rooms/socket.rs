@@ -6,7 +6,7 @@ use axum::extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgr
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Uri};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{JoinOutcome, NewParticipant, RoomOp, RoomSnapshot, User, Uuid};
+use oxistream_db::{JoinOutcome, NewParticipant, OpOutcome, RoomOp, RoomSnapshot, User, Uuid};
 use rustypipe::param::Language;
 use rustypipe::validate;
 use sha2::{Digest, Sha256};
@@ -64,7 +64,7 @@ pub async fn connect(
 }
 
 /// Token buckets per connection: one for all messages, a stricter one for adding videos,
-/// which may ask YouTube.
+/// which may ask YouTube. A batch takes one, plus one per video not cached yet.
 struct Limits {
     messages: Bucket,
     adds: Bucket,
@@ -401,6 +401,19 @@ impl Connection {
             }
             RoomClientMessage::Select { entry } => RoomOp::Select { entry },
             RoomClientMessage::Remove { entry } => RoomOp::Remove { entry },
+            RoomClientMessage::Move {
+                entry,
+                to,
+                revision,
+            } => RoomOp::Move {
+                entry,
+                to,
+                revision,
+            },
+            RoomClientMessage::Shuffle => RoomOp::Shuffle,
+            RoomClientMessage::AddMany { video_ids } => {
+                return self.add_many(video_ids, name).await;
+            }
             RoomClientMessage::Kick { participant } => {
                 if !is_owner {
                     return self.reject(RoomErrorCode::Forbidden).await;
@@ -417,28 +430,15 @@ impl Connection {
                 RoomOp::Kick { participant }
             }
             RoomClientMessage::Add { video_id, play } => {
-                if validate::video_id(&video_id).is_err() {
-                    return self.reject(RoomErrorCode::Invalid).await;
-                }
-                if !self.limits.adds.take() {
-                    return self.reject(RoomErrorCode::RateLimited).await;
-                }
-                if Box::pin(ensure_cached(&self.state, &video_id, self.lang))
-                    .await
-                    .is_err()
-                {
-                    return self.reject(RoomErrorCode::VideoUnavailable).await;
-                }
-                RoomOp::Add {
-                    video_id,
-                    added_by: name.to_owned(),
-                    max_queue: MAX_QUEUE,
-                    play,
+                match self.add_op(video_id, play, name).await {
+                    Ok(op) => op,
+                    Err(code) => return self.reject(code).await,
                 }
             }
         };
         let result = self.state.rooms.repo().apply(&self.room_id, &op, now).await;
         match result {
+            Ok(OpOutcome::Stale) => self.reject(RoomErrorCode::Stale).await,
             Ok(_) => {}
             Err(oxistream_db::Error::LimitReached) => self.reject(RoomErrorCode::QueueFull).await,
             Err(err) => {
@@ -446,6 +446,84 @@ impl Connection {
                 self.reject(RoomErrorCode::Internal).await;
             }
         }
+    }
+
+    async fn add_op(
+        &mut self,
+        video_id: String,
+        play: bool,
+        name: &str,
+    ) -> Result<RoomOp, RoomErrorCode> {
+        if validate::video_id(&video_id).is_err() {
+            return Err(RoomErrorCode::Invalid);
+        }
+        if !self.limits.adds.take() {
+            return Err(RoomErrorCode::RateLimited);
+        }
+        if Box::pin(ensure_cached(&self.state, &video_id, self.lang))
+            .await
+            .is_err()
+        {
+            return Err(RoomErrorCode::VideoUnavailable);
+        }
+        Ok(RoomOp::Add {
+            video_id,
+            added_by: name.to_owned(),
+            max_queue: MAX_QUEUE,
+            play,
+        })
+    }
+
+    /// Queues what is cached or can still be fetched within the rate limit, and tells the
+    /// sender how many were skipped.
+    async fn add_many(&mut self, video_ids: Vec<String>, name: &str) {
+        let max = usize::try_from(MAX_QUEUE).unwrap_or(usize::MAX);
+        let valid = video_ids.iter().all(|id| validate::video_id(id).is_ok());
+        if video_ids.is_empty() || video_ids.len() > max || !valid {
+            return self.reject(RoomErrorCode::Invalid).await;
+        }
+        if !self.limits.adds.take() {
+            return self.reject(RoomErrorCode::RateLimited).await;
+        }
+        let requested = u32::try_from(video_ids.len()).unwrap_or(u32::MAX);
+        let mut available = Vec::with_capacity(video_ids.len());
+        for video_id in video_ids {
+            let cached = matches!(self.state.videos.get(&video_id).await, Ok(Some(_)));
+            let fetched = !cached
+                && self.limits.adds.take()
+                && Box::pin(ensure_cached(&self.state, &video_id, self.lang))
+                    .await
+                    .is_ok();
+            if cached || fetched {
+                available.push(video_id);
+            }
+        }
+        let added = if available.is_empty() {
+            0
+        } else {
+            let op = RoomOp::AddMany {
+                video_ids: available,
+                added_by: name.to_owned(),
+                max_queue: MAX_QUEUE,
+            };
+            let now = OffsetDateTime::now_utc();
+            match self.state.rooms.repo().apply(&self.room_id, &op, now).await {
+                Ok(OpOutcome::Added(added)) => added,
+                Ok(_) => 0,
+                Err(oxistream_db::Error::LimitReached) => {
+                    return self.reject(RoomErrorCode::QueueFull).await;
+                }
+                Err(err) => {
+                    tracing::warn!(error = ?err, "could not change watch room");
+                    return self.reject(RoomErrorCode::Internal).await;
+                }
+            }
+        };
+        self.send(&RoomServerMessage::Added {
+            added,
+            skipped: requested - added,
+        })
+        .await;
     }
 
     async fn reject(&mut self, code: RoomErrorCode) {

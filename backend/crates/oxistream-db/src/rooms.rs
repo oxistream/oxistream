@@ -56,7 +56,7 @@ pub struct NewParticipant {
     pub display_name: String,
 }
 
-/// A room with its queue (current entry first among the others, then by insertion) and
+/// A room with its queue (current entry first, then the others in order) and
 /// participants (by join time).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoomSnapshot {
@@ -113,9 +113,25 @@ pub enum RoomOp {
         max_queue: u32,
         play: bool,
     },
+    /// Queues cached videos in order, as many as fit; the first becomes current, paused, if
+    /// nothing is. Fails with [`Error::LimitReached`] only if none fit.
+    AddMany {
+        video_ids: Vec<String>,
+        added_by: String,
+        max_queue: u32,
+    },
     Remove {
         entry: i64,
     },
+    /// Moves an upcoming entry to index `to` among the upcoming entries (clamped), if the room
+    /// is still at `revision`.
+    Move {
+        entry: i64,
+        to: u32,
+        revision: i64,
+    },
+    /// Puts the upcoming entries in a random, different order.
+    Shuffle,
     /// Removes a participant's connections and bans their key.
     Kick {
         participant: Uuid,
@@ -128,6 +144,10 @@ pub enum OpOutcome {
     /// Valid, but nothing to do, e.g. a stale [`RoomOp::Advance`].
     Unchanged,
     NotFound,
+    /// The room changed since the revision the op was based on; nothing was done.
+    Stale,
+    /// [`RoomOp::AddMany`] queued this many videos; the rest did not fit.
+    Added(u32),
 }
 
 #[async_trait::async_trait]
@@ -164,8 +184,8 @@ pub trait RoomRepository: Send + Sync {
     /// Keeps participants and their rooms from being cleaned up.
     async fn heartbeat(&self, participants: &[Uuid], rooms: &[String]) -> Result<(), Error>;
 
-    /// Fails with [`Error::LimitReached`] when adding to a full queue. `now` becomes the
-    /// position's reference time.
+    /// Fails with [`Error::LimitReached`] when adding to a full queue. Changes bump the
+    /// revision. `now` becomes the position's reference time.
     async fn apply(
         &self,
         room_id: &str,
@@ -195,15 +215,17 @@ const ROOM_SELECT: &str = "SELECT r.id, r.owner_id, u.username AS owner, r.curre
 
 struct Locked {
     current: Option<i64>,
+    revision: i64,
 }
 
 async fn lock_room(tx: &mut sqlx::PgConnection, id: &str) -> Result<Option<Locked>, Error> {
-    let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT current_entry_id FROM watch_rooms WHERE id = $1 FOR UPDATE")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?;
-    Ok(row.map(|(current,)| Locked { current }))
+    let row: Option<(Option<i64>, i64)> = sqlx::query_as(
+        "SELECT current_entry_id, revision FROM watch_rooms WHERE id = $1 FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    Ok(row.map(|(current, revision)| Locked { current, revision }))
 }
 
 async fn bump(tx: &mut sqlx::PgConnection, id: &str) -> Result<(), Error> {
@@ -234,7 +256,7 @@ async fn set_current(
     Ok(())
 }
 
-/// Drops `from` and plays the oldest remaining entry, if any.
+/// Drops `from` and plays the first remaining entry, if any.
 async fn advance(
     tx: &mut sqlx::PgConnection,
     id: &str,
@@ -245,11 +267,12 @@ async fn advance(
         .bind(from)
         .execute(&mut *tx)
         .await?;
-    let next: Option<i64> =
-        sqlx::query_scalar("SELECT min(id) FROM watch_room_queue WHERE room_id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let next: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM watch_room_queue WHERE room_id = $1 ORDER BY position, id LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
     set_current(tx, id, next, true, now).await
 }
 
@@ -307,10 +330,7 @@ async fn add(
     (video_id, added_by, max_queue, play): (&str, &str, u32, bool),
     now: OffsetDateTime,
 ) -> Result<(), Error> {
-    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM watch_room_queue WHERE room_id = $1")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let count = queue_len(tx, id).await?;
     // Playing now drops the current entry, so the queue does not grow.
     let replaced = i64::from(play && current.is_some());
     if count - replaced >= i64::from(max_queue) {
@@ -337,6 +357,132 @@ async fn add(
         set_current(tx, id, Some(entry), false, now).await?;
     }
     Ok(())
+}
+
+async fn queue_len(tx: &mut sqlx::PgConnection, id: &str) -> Result<i64, Error> {
+    Ok(
+        sqlx::query_scalar("SELECT count(*) FROM watch_room_queue WHERE room_id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?,
+    )
+}
+
+async fn add_many(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    current: Option<i64>,
+    (video_ids, added_by, max_queue): (&[String], &str, u32),
+    now: OffsetDateTime,
+) -> Result<u32, Error> {
+    let free = i64::from(max_queue) - queue_len(tx, id).await?;
+    let take = usize::try_from(free.max(0)).unwrap_or(usize::MAX);
+    if take == 0 && !video_ids.is_empty() {
+        return Err(Error::LimitReached);
+    }
+    let mut first = None;
+    let mut added = 0;
+    // One by one, so positions follow the given order.
+    for video_id in video_ids.iter().take(take) {
+        let entry: i64 = sqlx::query_scalar(
+            "INSERT INTO watch_room_queue (room_id, video_id, added_by) VALUES ($1, $2, $3) \
+             RETURNING id",
+        )
+        .bind(id)
+        .bind(video_id)
+        .bind(added_by)
+        .fetch_one(&mut *tx)
+        .await?;
+        first.get_or_insert(entry);
+        added += 1;
+    }
+    if current.is_none() && first.is_some() {
+        set_current(tx, id, first, false, now).await?;
+    }
+    Ok(added)
+}
+
+/// The upcoming entries in order, with their positions.
+async fn upcoming(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    current: Option<i64>,
+) -> Result<Vec<(i64, i64)>, Error> {
+    Ok(sqlx::query_as(
+        "SELECT id, position FROM watch_room_queue \
+         WHERE room_id = $1 AND id IS DISTINCT FROM $2 ORDER BY position, id",
+    )
+    .bind(id)
+    .bind(current)
+    .fetch_all(&mut *tx)
+    .await?)
+}
+
+/// Gives the entries `order` the positions of `rows`, in turn.
+async fn reorder(
+    tx: &mut sqlx::PgConnection,
+    rows: &[(i64, i64)],
+    order: &[i64],
+) -> Result<(), Error> {
+    let positions: Vec<i64> = rows.iter().map(|(_, position)| *position).collect();
+    sqlx::query(
+        "UPDATE watch_room_queue q SET position = n.position \
+         FROM unnest($1::bigint[], $2::bigint[]) AS n (id, position) WHERE q.id = n.id",
+    )
+    .bind(order)
+    .bind(&positions)
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+async fn move_entry(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    current: Option<i64>,
+    entry: i64,
+    to: u32,
+) -> Result<bool, Error> {
+    let rows = upcoming(tx, id, current).await?;
+    let Some(from) = rows.iter().position(|(e, _)| *e == entry) else {
+        return Ok(false);
+    };
+    let to = usize::try_from(to)
+        .unwrap_or(usize::MAX)
+        .min(rows.len() - 1);
+    if from == to {
+        return Ok(false);
+    }
+    let mut order: Vec<i64> = rows.iter().map(|(e, _)| *e).collect();
+    let moved = order.remove(from);
+    order.insert(to, moved);
+    reorder(tx, &rows, &order).await?;
+    Ok(true)
+}
+
+async fn shuffle(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    current: Option<i64>,
+) -> Result<bool, Error> {
+    let rows = upcoming(tx, id, current).await?;
+    if rows.len() < 2 {
+        return Ok(false);
+    }
+    let ids: Vec<i64> = rows.iter().map(|(e, _)| *e).collect();
+    // Retried while it comes out unchanged, which is likely for short queues.
+    for _ in 0..8 {
+        let order: Vec<i64> =
+            sqlx::query_scalar("SELECT id FROM unnest($1::bigint[]) AS id ORDER BY random()")
+                .bind(&ids)
+                .fetch_all(&mut *tx)
+                .await?;
+        if order != ids {
+            reorder(tx, &rows, &order).await?;
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 async fn kick(tx: &mut sqlx::PgConnection, id: &str, participant: Uuid) -> Result<bool, Error> {
@@ -366,20 +512,28 @@ async fn kick(tx: &mut sqlx::PgConnection, id: &str, participant: Uuid) -> Resul
     Ok(true)
 }
 
-/// Returns whether anything changed.
+fn changed(applied: bool) -> OpOutcome {
+    if applied {
+        OpOutcome::Applied
+    } else {
+        OpOutcome::Unchanged
+    }
+}
+
 async fn apply_op(
     tx: &mut sqlx::PgConnection,
     id: &str,
-    current: Option<i64>,
+    locked: &Locked,
     op: &RoomOp,
     now: OffsetDateTime,
-) -> Result<bool, Error> {
-    match op {
+) -> Result<OpOutcome, Error> {
+    let current = locked.current;
+    Ok(match op {
         RoomOp::Play { position_ms }
         | RoomOp::Pause { position_ms }
         | RoomOp::Seek { position_ms } => {
             if current.is_none() {
-                return Ok(false);
+                return Ok(OpOutcome::Unchanged);
             }
             let playing = match op {
                 RoomOp::Play { .. } => Some(true),
@@ -387,16 +541,16 @@ async fn apply_op(
                 _ => None,
             };
             set_position(tx, id, playing, *position_ms, now).await?;
-            Ok(true)
+            OpOutcome::Applied
         }
         RoomOp::Advance { from } => {
             if current != Some(*from) {
-                return Ok(false);
+                return Ok(OpOutcome::Unchanged);
             }
             advance(tx, id, *from, now).await?;
-            Ok(true)
+            OpOutcome::Applied
         }
-        RoomOp::Select { entry } => select(tx, id, current, *entry, now).await,
+        RoomOp::Select { entry } => changed(select(tx, id, current, *entry, now).await?),
         RoomOp::Add {
             video_id,
             added_by,
@@ -411,12 +565,20 @@ async fn apply_op(
                 now,
             )
             .await?;
-            Ok(true)
+            OpOutcome::Applied
         }
+        RoomOp::AddMany {
+            video_ids,
+            added_by,
+            max_queue,
+        } => match add_many(tx, id, current, (video_ids, added_by, *max_queue), now).await? {
+            0 => OpOutcome::Unchanged,
+            added => OpOutcome::Added(added),
+        },
         RoomOp::Remove { entry } => {
             if current == Some(*entry) {
                 advance(tx, id, *entry, now).await?;
-                return Ok(true);
+                return Ok(OpOutcome::Applied);
             }
             let deleted =
                 sqlx::query("DELETE FROM watch_room_queue WHERE id = $1 AND room_id = $2")
@@ -424,10 +586,21 @@ async fn apply_op(
                     .bind(id)
                     .execute(&mut *tx)
                     .await?;
-            Ok(deleted.rows_affected() > 0)
+            changed(deleted.rows_affected() > 0)
         }
-        RoomOp::Kick { participant } => kick(tx, id, *participant).await,
-    }
+        RoomOp::Move {
+            entry,
+            to,
+            revision,
+        } => {
+            if *revision != locked.revision {
+                return Ok(OpOutcome::Stale);
+            }
+            changed(move_entry(tx, id, current, *entry, *to).await?)
+        }
+        RoomOp::Shuffle => changed(shuffle(tx, id, current).await?),
+        RoomOp::Kick { participant } => changed(kick(tx, id, *participant).await?),
+    })
 }
 
 #[async_trait::async_trait]
@@ -500,7 +673,7 @@ impl RoomRepository for PgRoomRepository {
             "SELECT q.id AS entry_id, q.added_by, q.added_at, v.id, v.title, v.channel_id, \
                 v.channel_name, v.duration_seconds, v.published_at, v.thumbnail_url, v.updated_at \
              FROM watch_room_queue q JOIN videos v ON v.id = q.video_id \
-             WHERE q.room_id = $1 ORDER BY (q.id = $2) IS TRUE DESC, q.id",
+             WHERE q.room_id = $1 ORDER BY (q.id = $2) IS TRUE DESC, q.position, q.id",
         )
         .bind(id)
         .bind(room.current_entry_id)
@@ -623,16 +796,15 @@ impl RoomRepository for PgRoomRepository {
         now: OffsetDateTime,
     ) -> Result<OpOutcome, Error> {
         let mut tx = self.pool.begin().await?;
-        let Some(Locked { current }) = lock_room(&mut tx, room_id).await? else {
+        let Some(locked) = lock_room(&mut tx, room_id).await? else {
             return Ok(OpOutcome::NotFound);
         };
-        let applied = apply_op(&mut tx, room_id, current, op, now).await?;
-        if !applied {
-            return Ok(OpOutcome::Unchanged);
+        let outcome = apply_op(&mut tx, room_id, &locked, op, now).await?;
+        if matches!(outcome, OpOutcome::Applied | OpOutcome::Added(_)) {
+            bump(&mut tx, room_id).await?;
+            tx.commit().await?;
         }
-        bump(&mut tx, room_id).await?;
-        tx.commit().await?;
-        Ok(OpOutcome::Applied)
+        Ok(outcome)
     }
 
     async fn cleanup(&self, stale_after: Duration, expire_after: Duration) -> Result<u64, Error> {
