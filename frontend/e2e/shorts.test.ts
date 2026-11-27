@@ -64,7 +64,7 @@ function details(id: string, channelId: string) {
 		channel: {
 			id: channelId,
 			name: channelId ? 'Hammer & Tongs' : '',
-			avatar: [],
+			avatar: channelId ? [{ url: '/proxy/image/avatar', width: 48, height: 48 }] : [],
 			subscriber_count: null,
 			verified: false
 		},
@@ -361,6 +361,53 @@ test('the shorts entry opens endless discovery with the linked full video', asyn
 	await page.goto(`/shorts/${shortId(1)}`);
 	await activeShort(page).getByTestId('short-linked-video').click();
 	await expect(page).toHaveURL(new RegExp(`/watch\\?v=${LINKED}$`));
+});
+
+test('discovery keeps moving in both directions across loaded pages', async ({ page }) => {
+	await mockApi(page);
+	await mockDiscovery(page);
+	// Three shorts per page, so the viewer loads more every few shorts.
+	await page.route('**/api/v0/shorts/discover*', (route) => {
+		const next = Number(new URL(route.request().url()).searchParams.get('continuation') ?? 0);
+		return json(route, {
+			items: [1, 2, 3].map((n) => discovered(next * 3 + n)),
+			continuation: next < 3 ? String(next + 1) : null
+		});
+	});
+	await page.goto('/shorts');
+
+	const stage = viewer(page).locator('.shorts-stage');
+	const expectShort = async (n: number) => {
+		await expect(page).toHaveURL(new RegExp(`/shorts/${shortId(n)}\\?feed=discover$`));
+		await expect(activeShort(page)).toHaveAttribute('data-short-id', shortId(n));
+		await expect(
+			activeShort(page).getByRole('heading', { name: `Forge short ${n}` })
+		).toBeVisible();
+		await expect.poll(() => offsetFromStage(page, shortId(n))).toBe(0);
+	};
+	const wheel = async (deltaY: number) => {
+		const box = (await stage.boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.wheel(0, deltaY);
+	};
+
+	await expectShort(1);
+	for (let n = 2; n <= 12; n++) {
+		await expect(page.getByTestId('shorts-next')).toBeEnabled();
+		if (n % 2) await wheel(120);
+		else await page.keyboard.press('ArrowDown');
+		await expectShort(n);
+	}
+	await expect(page.getByTestId('shorts-next')).toBeDisabled();
+
+	for (let n = 11; n >= 1; n--) {
+		// Each wheel flick ends before the next, so it moves one short.
+		await page.waitForTimeout(250);
+		if (n % 2) await wheel(-120);
+		else await page.keyboard.press('ArrowUp');
+		await expectShort(n);
+	}
+	await expect(page.getByTestId('shorts-previous')).toBeDisabled();
 });
 
 test('signed-in users switch between discovery and subscriptions', async ({ page }) => {
