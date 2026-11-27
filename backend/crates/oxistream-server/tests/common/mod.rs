@@ -20,6 +20,7 @@ use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, SponsorBlockConfig, YouTubeConfig};
 use oxistream_server::feed::Feed;
 use oxistream_server::proxy::Proxy;
+use oxistream_server::retention::Retention;
 use oxistream_server::rooms::Rooms;
 use oxistream_server::sponsorblock::SponsorBlock;
 use oxistream_server::youtube::YouTube;
@@ -117,6 +118,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         videos: Arc::new(PgVideoRepository::new(db.clone())),
         subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
         history: Arc::new(PgHistoryRepository::new(db.clone())),
+        history_max_retention: Retention::Forever,
         settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
         playlists: Arc::new(PgPlaylistRepository::new(db.clone())),
         follows: Arc::new(PgPlaylistFollowRepository::new(db.clone())),

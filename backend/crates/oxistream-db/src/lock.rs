@@ -7,6 +7,7 @@ use crate::Error;
 #[repr(i64)]
 pub enum LockKey {
     FeedWorker = 0x6f78_6973_0001,
+    HistoryRetention = 0x6f78_6973_0002,
 }
 
 /// A held transaction-level advisory lock. Dropping it rolls back the transaction, which

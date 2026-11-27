@@ -5,8 +5,9 @@ mod common;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
-use common::{app_with_pool, isolated_test_pool, unique_suffix};
+use common::{isolated_test_pool, state_with_pool, unique_suffix};
 use http_body_util::BodyExt;
+use oxistream_db::Uuid;
 use oxistream_db::{
     ChannelRepository, ChannelUpdate, ChannelVideoUpsert, HistoryRepository, NewSession, NewUser,
     PgChannelRepository, PgHistoryRepository, PgPool, PgSessionRepository,
@@ -14,8 +15,11 @@ use oxistream_db::{
     ProgressUpdate, SessionRepository, SubscriptionRepository, User, UserRepository,
     UserSettingsRepository, VideoRepository, VideoUpsert,
 };
+use oxistream_server::AppState;
 use oxistream_server::auth::cookie;
+use oxistream_server::retention::{self, Retention};
 use serde_json::{Value, json};
+use std::sync::Arc;
 use time::OffsetDateTime;
 use tower::ServiceExt;
 
@@ -99,7 +103,7 @@ async fn record_list_and_delete() {
             .unwrap()
     );
 
-    let list = history.list(alice.id, None, 2).await.unwrap();
+    let list = history.list(alice.id, None, None, 2).await.unwrap();
     let ids: Vec<_> = list.iter().map(|e| e.progress.video_id.as_str()).collect();
     assert_eq!(ids, [VIDEO_A, VIDEO_C]);
     assert_eq!(list[0].progress.position_seconds, 42.5);
@@ -108,7 +112,7 @@ async fn record_list_and_delete() {
     assert_eq!(list[1].title, None, "metadata not cached");
 
     let rest = history
-        .list(alice.id, Some(&list[1].cursor()), 2)
+        .list(alice.id, None, Some(&list[1].cursor()), 2)
         .await
         .unwrap();
     let ids: Vec<_> = rest.iter().map(|e| e.progress.video_id.as_str()).collect();
@@ -134,8 +138,8 @@ async fn record_list_and_delete() {
     assert!(history.delete(alice.id, VIDEO_A).await.unwrap());
     assert!(!history.delete(alice.id, VIDEO_A).await.unwrap());
     assert_eq!(history.clear(alice.id).await.unwrap(), 2);
-    assert_eq!(history.list(alice.id, None, 10).await.unwrap(), []);
-    assert_eq!(history.list(bob.id, None, 10).await.unwrap().len(), 1);
+    assert_eq!(history.list(alice.id, None, None, 10).await.unwrap(), []);
+    assert_eq!(history.list(bob.id, None, None, 10).await.unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -172,7 +176,7 @@ async fn paused_history_records_nothing() {
             .await
             .unwrap()
     );
-    let list = history.list(alice.id, None, 10).await.unwrap();
+    let list = history.list(alice.id, None, None, 10).await.unwrap();
     assert_eq!(list.len(), 1, "existing history stays");
     assert_eq!(list[0].progress.position_seconds, 30.0);
 
@@ -224,7 +228,7 @@ async fn entries_use_subscribed_channel_metadata() {
         .record(alice.id, &update(VIDEO_A, 30.0, false))
         .await
         .unwrap();
-    let list = history.list(alice.id, None, 10).await.unwrap();
+    let list = history.list(alice.id, None, None, 10).await.unwrap();
     assert_eq!(list[0].channel_name.as_deref(), Some("Alpha renamed"));
     assert_eq!(list[0].channel_avatar.len(), 1);
     assert!(list[0].channel_verified);
@@ -284,7 +288,7 @@ async fn known_shorts_are_neither_recorded_nor_continued() {
         .map(|e| e.progress.video_id.as_str())
         .collect();
     assert_eq!(ids, [VIDEO_A]);
-    let list = history.list(alice.id, None, 10).await.unwrap();
+    let list = history.list(alice.id, None, None, 10).await.unwrap();
     assert_eq!(list.len(), 2, "earlier history stays");
 }
 
@@ -319,7 +323,7 @@ async fn dismissed_videos_leave_continue_watching_until_watched_again() {
         [VIDEO_B]
     );
     assert_eq!(
-        history.list(alice.id, None, 10).await.unwrap().len(),
+        history.list(alice.id, None, None, 10).await.unwrap().len(),
         2,
         "history keeps it"
     );
@@ -348,10 +352,15 @@ async fn dismissed_videos_leave_continue_watching_until_watched_again() {
 struct Api {
     app: Router,
     token: String,
+    user_id: Uuid,
 }
 
 impl Api {
     async fn new(pool: &PgPool) -> Self {
+        Self::with_max_retention(pool, Retention::Forever).await
+    }
+
+    async fn with_max_retention(pool: &PgPool, max: Retention) -> Self {
         let user = user(pool).await;
         let (token, token_hash) = cookie::new_token();
         PgSessionRepository::new(pool.clone())
@@ -366,9 +375,17 @@ impl Api {
             })
             .await
             .unwrap();
+        let app = oxistream_server::app(AppState {
+            history: Arc::new(
+                PgHistoryRepository::new(pool.clone()).with_max_retention_days(max.days()),
+            ),
+            history_max_retention: max,
+            ..state_with_pool(pool.clone())
+        });
         Self {
-            app: app_with_pool(pool.clone()),
+            app,
             token,
+            user_id: user.id,
         }
     }
 
@@ -674,9 +691,225 @@ async fn api_rejects_bad_input() {
         .request(
             Method::PUT,
             "/api/v0/history/settings",
-            Some(("application/json", "{}".into())),
+            Some(("application/json", r#"{"paused":"yes"}"#.into())),
             true,
         )
         .await;
     assert!(status.is_client_error());
+    let long = "a".repeat(201);
+    let (status, _) = api
+        .send(Method::GET, &format!("/api/v0/history?q={long}"))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+/// Moves an entry `days` into the past.
+async fn age(pool: &PgPool, user_id: Uuid, video_id: &str, days: i32) {
+    sqlx::query(
+        "UPDATE watch_progress SET updated_at = now() - make_interval(days => $3) \
+         WHERE user_id = $1 AND video_id = $2",
+    )
+    .bind(user_id)
+    .bind(video_id)
+    .bind(days)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn cache_titled(pool: &PgPool, id: &str, title: &str, channel: &str) {
+    PgVideoRepository::new(pool.clone())
+        .upsert(&VideoUpsert {
+            id: id.to_owned(),
+            title: title.to_owned(),
+            channel_id: CHANNEL.into(),
+            channel_name: channel.to_owned(),
+            duration_seconds: Some(200),
+            published_at: None,
+            thumbnail_url: None,
+        })
+        .await
+        .unwrap();
+}
+
+fn entry_ids(entries: &[oxistream_db::HistoryEntry]) -> Vec<&str> {
+    entries
+        .iter()
+        .map(|e| e.progress.video_id.as_str())
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn searches_title_and_channel() {
+    let db = isolated_test_pool().await;
+    let history = PgHistoryRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    cache_titled(&db.pool, VIDEO_A, "Rust in 100 Seconds", "Fireship").await;
+    cache_titled(&db.pool, VIDEO_B, "Baking bread", "Kitchen 100%").await;
+    for id in [VIDEO_A, VIDEO_B, VIDEO_C] {
+        history
+            .record(alice.id, &update(id, 30.0, false))
+            .await
+            .unwrap();
+    }
+
+    let search = async |q: &str| {
+        entry_ids(&history.list(alice.id, Some(q), None, 10).await.unwrap())
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(search("rUST").await, [VIDEO_A]);
+    assert_eq!(search("kitchen").await, [VIDEO_B]);
+    assert_eq!(search("100").await, [VIDEO_B, VIDEO_A]);
+    assert_eq!(search("100%").await, [VIDEO_B], "wildcards are literal");
+    assert_eq!(search("_").await, Vec::<String>::new());
+    assert_eq!(search("nothing").await, Vec::<String>::new());
+
+    let first = history.list(alice.id, Some("100"), None, 1).await.unwrap();
+    let next = history
+        .list(alice.id, Some("100"), Some(&first[0].cursor()), 1)
+        .await
+        .unwrap();
+    assert_eq!(
+        entry_ids(&next),
+        [VIDEO_A],
+        "pages continue within the search"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn expired_entries_are_hidden_and_cleaned_up() {
+    let db = isolated_test_pool().await;
+    let settings = PgUserSettingsRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    let bob = user(&db.pool).await;
+    let carol = user(&db.pool).await;
+    let history = PgHistoryRepository::new(db.pool.clone());
+    for u in [&alice, &bob, &carol] {
+        for id in [VIDEO_A, VIDEO_B, VIDEO_C] {
+            history
+                .record(u.id, &update(id, 30.0, false))
+                .await
+                .unwrap();
+        }
+        age(&db.pool, u.id, VIDEO_B, 10).await;
+        age(&db.pool, u.id, VIDEO_C, 60).await;
+    }
+    settings
+        .set_history_retention(alice.id, Some(7))
+        .await
+        .unwrap();
+    settings
+        .set_history_retention(bob.id, Some(365))
+        .await
+        .unwrap();
+
+    // Bob keeps a year, but the operator allows 30 days; Carol keeps forever.
+    let capped = PgHistoryRepository::new(db.pool.clone()).with_max_retention_days(Some(30));
+    let listed = async |u: &User| {
+        entry_ids(&capped.list(u.id, None, None, 10).await.unwrap())
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(listed(&alice).await, [VIDEO_A]);
+    assert_eq!(listed(&bob).await, [VIDEO_A, VIDEO_B]);
+    assert_eq!(listed(&carol).await, [VIDEO_A, VIDEO_B]);
+    assert_eq!(
+        history.list(carol.id, None, None, 10).await.unwrap().len(),
+        3,
+        "without a maximum, forever keeps everything"
+    );
+    let all = [VIDEO_A, VIDEO_B, VIDEO_C].map(str::to_owned);
+    assert_eq!(capped.progress(alice.id, &all).await.unwrap().len(), 1);
+    assert_eq!(
+        capped.unfinished(alice.id, 10.0, 10).await.unwrap().len(),
+        1
+    );
+
+    assert_eq!(history.delete_expired().await.unwrap(), 2, "only Alice's");
+    assert_eq!(
+        retention::cleanup(&db.pool, &capped).await.unwrap(),
+        2,
+        "Bob's and Carol's 60-day-old entries"
+    );
+    assert_eq!(retention::cleanup(&db.pool, &capped).await.unwrap(), 0);
+    for u in [&alice, &bob, &carol] {
+        let left = history.list(u.id, None, None, 10).await.unwrap();
+        assert_eq!(left.len(), listed(u).await.len());
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_searches_history() {
+    let db = isolated_test_pool().await;
+    let api = Api::new(&db.pool).await;
+    cache_titled(&db.pool, VIDEO_A, "Rust in 100 Seconds", "Fireship").await;
+    cache_titled(&db.pool, VIDEO_B, "Baking bread", "Kitchen").await;
+    for id in [VIDEO_A, VIDEO_B] {
+        api.report("application/json", &report(id, 30.0, false))
+            .await;
+    }
+    let (status, page) = api.send(Method::GET, "/api/v0/history?q=%20fire%20").await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let items = page["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["video"]["id"], VIDEO_A);
+    let (_, page) = api.send(Method::GET, "/api/v0/history?q=").await;
+    assert_eq!(
+        page["items"].as_array().unwrap().len(),
+        2,
+        "empty q lists all"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_sets_retention_up_to_the_maximum() {
+    let db = isolated_test_pool().await;
+    let api = Api::with_max_retention(&db.pool, Retention::ThreeMonths).await;
+    let put = async |body: Value| {
+        api.request(
+            Method::PUT,
+            "/api/v0/history/settings",
+            Some(("application/json", body.to_string())),
+            true,
+        )
+        .await
+    };
+
+    let (_, instance) = api.send(Method::GET, "/api/v0/instance").await;
+    assert_eq!(instance["history_max_retention"], "90d");
+    let (_, settings) = api.send(Method::GET, "/api/v0/history/settings").await;
+    assert_eq!(settings, json!({ "paused": false, "retention": "90d" }));
+
+    let (status, settings) = put(json!({ "retention": "7d" })).await;
+    assert_eq!(status, StatusCode::OK, "{settings}");
+    assert_eq!(settings, json!({ "paused": false, "retention": "7d" }));
+    let (_, settings) = put(json!({ "paused": true })).await;
+    assert_eq!(
+        settings,
+        json!({ "paused": true, "retention": "7d" }),
+        "kept"
+    );
+
+    for value in ["180d", "forever"] {
+        let (status, body) = put(json!({ "retention": value })).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{value}");
+        assert_eq!(body["fields"]["retention"], "invalid");
+    }
+    let (status, _) = put(json!({ "retention": "1y" })).await;
+    assert!(status.is_client_error());
+
+    // A value stored under a higher maximum acts as the current one.
+    PgUserSettingsRepository::new(db.pool.clone())
+        .set_history_retention(api.user_id, Some(365))
+        .await
+        .unwrap();
+    let (_, settings) = api.send(Method::GET, "/api/v0/history/settings").await;
+    assert_eq!(settings["retention"], "90d");
 }

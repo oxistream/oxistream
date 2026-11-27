@@ -69,10 +69,12 @@ pub trait HistoryRepository: Send + Sync {
         video_ids: &[String],
     ) -> Result<Vec<WatchProgress>, Error>;
 
-    /// Watched videos, most recently watched first, starting after `after`.
+    /// Watched videos, most recently watched first, starting after `after`. With `search`, only
+    /// videos whose title or channel name contain it, ignoring case.
     async fn list(
         &self,
         user_id: Uuid,
+        search: Option<&str>,
         after: Option<&HistoryCursor>,
         limit: u32,
     ) -> Result<Vec<HistoryEntry>, Error>;
@@ -95,17 +97,53 @@ pub trait HistoryRepository: Send + Sync {
 
     /// Returns the number of deleted entries.
     async fn clear(&self, user_id: Uuid) -> Result<u64, Error>;
+
+    /// Deletes entries older than their user's retention, capped by the maximum. Returns the
+    /// number of deleted entries.
+    async fn delete_expired(&self) -> Result<u64, Error>;
 }
 
 #[derive(Debug, Clone)]
 pub struct PgHistoryRepository {
     pool: PgPool,
+    max_retention_days: Option<i32>,
 }
 
 impl PgHistoryRepository {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            max_retention_days: None,
+        }
     }
+
+    /// Caps every user's retention at `days`; `None` lets users keep entries forever.
+    #[must_use]
+    pub fn with_max_retention_days(mut self, days: Option<i32>) -> Self {
+        self.max_retention_days = days;
+        self
+    }
+}
+
+/// Hides entries the cleanup has not deleted yet. `LEAST` ignores NULL, so the cutoff is NULL
+/// only when both the user's retention and the maximum are forever. `$1` is the user, `$2` the
+/// maximum.
+const NOT_EXPIRED: &str = "p.updated_at >= COALESCE(now() - make_interval(days => LEAST(\
+        (SELECT s.history_retention_days FROM user_settings s WHERE s.user_id = $1), \
+        $2::integer)), '-infinity')";
+
+/// Escapes `LIKE` wildcards and wraps the term for a substring match.
+fn contains_pattern(term: &str) -> String {
+    let mut pattern = String::with_capacity(term.len() + 2);
+    pattern.push('%');
+    for c in term.chars() {
+        if matches!(c, '%' | '_' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    pattern.push('%');
+    pattern
 }
 
 const ENTRY_QUERY: &str = "SELECT p.video_id, p.position_seconds, p.duration_seconds, \
@@ -154,31 +192,41 @@ impl HistoryRepository for PgHistoryRepository {
         if video_ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(sqlx::query_as::<_, WatchProgress>(
-            "SELECT video_id, position_seconds, duration_seconds, finished, updated_at \
-             FROM watch_progress WHERE user_id = $1 AND video_id = ANY($2)",
+        Ok(
+            sqlx::query_as::<_, WatchProgress>(sqlx::AssertSqlSafe(format!(
+                "SELECT p.video_id, p.position_seconds, p.duration_seconds, p.finished, \
+                    p.updated_at \
+                 FROM watch_progress p \
+                 WHERE p.user_id = $1 AND p.video_id = ANY($3) AND {NOT_EXPIRED}"
+            )))
+            .bind(user_id)
+            .bind(self.max_retention_days)
+            .bind(video_ids)
+            .fetch_all(&self.pool)
+            .await?,
         )
-        .bind(user_id)
-        .bind(video_ids)
-        .fetch_all(&self.pool)
-        .await?)
     }
 
     async fn list(
         &self,
         user_id: Uuid,
+        search: Option<&str>,
         after: Option<&HistoryCursor>,
         limit: u32,
     ) -> Result<Vec<HistoryEntry>, Error> {
         Ok(
             sqlx::query_as::<_, HistoryEntry>(sqlx::AssertSqlSafe(format!(
                 "{ENTRY_QUERY} \
-             WHERE p.user_id = $1 \
-                AND ($2::timestamptz IS NULL OR (p.updated_at, p.video_id) < ($2, $3)) \
+             WHERE p.user_id = $1 AND {NOT_EXPIRED} \
+                AND ($3::text IS NULL OR v.title ILIKE $3 \
+                    OR COALESCE(c.name, v.channel_name) ILIKE $3) \
+                AND ($4::timestamptz IS NULL OR (p.updated_at, p.video_id) < ($4, $5)) \
              ORDER BY p.updated_at DESC, p.video_id DESC \
-             LIMIT $4"
+             LIMIT $6"
             )))
             .bind(user_id)
+            .bind(self.max_retention_days)
+            .bind(search.map(contains_pattern))
             .bind(after.map(|c| c.updated_at))
             .bind(after.map(|c| c.video_id.as_str()))
             .bind(i64::from(limit))
@@ -196,14 +244,16 @@ impl HistoryRepository for PgHistoryRepository {
         Ok(
             sqlx::query_as::<_, HistoryEntry>(sqlx::AssertSqlSafe(format!(
                 "{ENTRY_QUERY} \
-             WHERE p.user_id = $1 AND NOT p.finished AND NOT p.continue_dismissed \
-                AND p.position_seconds >= $2 \
+             WHERE p.user_id = $1 AND {NOT_EXPIRED} \
+                AND NOT p.finished AND NOT p.continue_dismissed \
+                AND p.position_seconds >= $3 \
                 AND NOT EXISTS (SELECT 1 FROM channel_videos cv \
                 WHERE cv.video_id = p.video_id AND cv.is_short) \
              ORDER BY p.updated_at DESC, p.video_id DESC \
-             LIMIT $3"
+             LIMIT $4"
             )))
             .bind(user_id)
+            .bind(self.max_retention_days)
             .bind(min_position)
             .bind(i64::from(limit))
             .fetch_all(&self.pool)
@@ -242,5 +292,30 @@ impl HistoryRepository for PgHistoryRepository {
             .execute(&self.pool)
             .await?
             .rows_affected())
+    }
+
+    async fn delete_expired(&self) -> Result<u64, Error> {
+        Ok(sqlx::query(
+            "DELETE FROM watch_progress p \
+             USING (SELECT u.id, LEAST(s.history_retention_days, $1::integer) AS days \
+                FROM users u LEFT JOIN user_settings s ON s.user_id = u.id) r \
+             WHERE p.user_id = r.id AND r.days IS NOT NULL \
+                AND p.updated_at < now() - make_interval(days => r.days)",
+        )
+        .bind(self.max_retention_days)
+        .execute(&self.pool)
+        .await?
+        .rows_affected())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::contains_pattern;
+
+    #[test]
+    fn escapes_like_wildcards() {
+        assert_eq!(contains_pattern("cat"), "%cat%");
+        assert_eq!(contains_pattern(r"50%_a\b"), r"%50\%\_a\\b%");
     }
 }
