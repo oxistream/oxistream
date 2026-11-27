@@ -27,6 +27,8 @@ const SECOND = 'fjordBBBBB4';
 /** Videos with `sync` in the ID play the 60 s clip. */
 const LONG = 'syncCCCCCC8';
 const LONG_TOO = 'syncDDDDDDw';
+/** Videos with `live` in the ID are livestreams, which cannot play. */
+const LIVE = 'liveEEEEEE0';
 const account = {
 	id: '0193a8e4-7f00-7000-8000-000000000001',
 	username: 'mara',
@@ -49,7 +51,8 @@ const TITLES: Record<string, string> = {
 	[FIRST]: 'Fjord drive one',
 	[SECOND]: 'Fjord drive two',
 	[LONG]: 'Test pattern',
-	[LONG_TOO]: 'Test pattern again'
+	[LONG_TOO]: 'Test pattern again',
+	[LIVE]: 'Live from the fjord'
 };
 const title = (id: string) => TITLES[id] ?? id;
 
@@ -64,7 +67,7 @@ function summary(id: string) {
 		viewers: null,
 		published_at: null,
 		published_text: null,
-		is_live: false,
+		is_live: id.startsWith('live'),
 		is_short: false,
 		is_upcoming: false,
 		description: null
@@ -78,6 +81,7 @@ type ClientMessage = {
 	position?: number;
 	at?: number;
 	video_id?: string;
+	play?: boolean;
 	entry?: number;
 };
 
@@ -96,9 +100,14 @@ class FakeRoom {
 		this.add(first, 'mara');
 	}
 
-	add(videoId: string, by: string) {
+	add(videoId: string, by: string, play = false) {
 		const id = this.nextEntry++;
 		this.queue.push({ id, video: summary(videoId), added_by: by });
+		if (play) {
+			this.queue = this.queue.filter((e) => e.id !== this.current);
+			this.current = id;
+			this.setPosition(0, true);
+		}
 		this.current ??= id;
 	}
 
@@ -156,7 +165,7 @@ class FakeRoom {
 				this.setPosition(message.position!, this.playing, message.at);
 				return this.broadcast();
 			case 'add':
-				this.add(message.video_id!, this.sockets.get(socket)!.name);
+				this.add(message.video_id!, this.sockets.get(socket)!.name, message.play);
 				return this.broadcast();
 			case 'select': {
 				if (!this.queue.some((e) => e.id === message.entry)) return;
@@ -585,6 +594,104 @@ test('scrubbing in a party moves everyone there', async ({ browser }) => {
 	await staysWithRoom(guest, room, 2);
 	await expect.poll(follows).toBeLessThan(0.1);
 	expect(room.playing).toBe(false);
+
+	await hostContext.close();
+	await guestContext.close();
+});
+
+test('another video can play now for everyone or join the queue', async ({ browser }) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom(LONG);
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	await expect.poll(() => isPaused(guest)).toBe(false);
+
+	// Another watch page offers both; the party video plays on in the mini player meanwhile.
+	await browseTo(host, LONG_TOO);
+	const elsewhere = host.getByTestId('party-elsewhere');
+	await expect(elsewhere).toContainText(title(LONG));
+	await expect(host.getByTestId('mini-player-title')).toHaveText(title(LONG));
+	await expect.poll(() => isPaused(host)).toBe(false);
+	await elsewhere.getByRole('button', { name: 'Add to queue' }).click();
+	await expect(host.getByTestId('party-queue-add')).toHaveText('Queued');
+	await expect.poll(() => room.state().queue.map((e) => e.video.id)).toEqual([LONG_TOO]);
+	await expect(guest).toHaveURL(watchUrl(LONG));
+	expect(room.state().current?.video.id).toBe(LONG);
+
+	// Back on its page later, it is still in the queue; "Play now" takes it from there.
+	await browseTo(host, SECOND);
+	await browseTo(host, LONG_TOO);
+	await expect(host.getByTestId('party-queue-add')).toHaveText('Already in the queue');
+	await host.getByTestId('party-play-now').click();
+	await expect(host.getByTestId('player-slot')).toBeVisible();
+	await expect(host.getByTestId('party-elsewhere')).toBeHidden();
+	// The guest was on the previous video's page, so follows.
+	await expect(guest).toHaveURL(watchUrl(LONG_TOO));
+	await expect(guest.getByTestId('mini-player-title')).toHaveCount(0);
+	expect(room.state().queue).toEqual([]);
+
+	// A video that is not queued yet plays right away, too.
+	await browseTo(guest, LONG);
+	await guest.getByTestId('party-play-now').click();
+	await expect(guest.getByTestId('player-slot')).toBeVisible();
+	await expect(host).toHaveURL(watchUrl(LONG));
+	await expect.poll(() => isPaused(host)).toBe(false);
+	expect(room.state().queue).toEqual([]);
+	expect(room.state().current?.added_by).toBe('Grace');
+
+	await hostContext.close();
+	await guestContext.close();
+});
+
+test('outside a party, another video plays right away', async ({ browser }) => {
+	const context = await browser.newContext();
+	await mockApi(context, new FakeRoom(), { signedIn: false });
+	const page = await context.newPage();
+	await page.goto(`/watch?v=${FIRST}`);
+	await expect(page.getByTestId('player-slot')).toBeVisible();
+	const manifest = page.waitForRequest(`**/api/v0/videos/${SECOND}/manifest.mpd`);
+	await browseTo(page, SECOND);
+	await manifest;
+	await expect(page.getByTestId('player-slot')).toBeVisible();
+	await expect(page.getByTestId('party-elsewhere')).toHaveCount(0);
+	await expect(page.getByTestId('party-play-now')).toHaveCount(0);
+	await context.close();
+});
+
+test('shorts mute the party video, and a video that cannot play says so', async ({ browser }) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom(LONG);
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	const muted = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => el.muted);
+
+	// On shorts, the party video goes on muted in the mini player.
+	await guest.getByRole('link', { name: 'Shorts' }).first().click();
+	await expect(guest).toHaveURL(/\/shorts/);
+	await expect(guest.getByTestId('mini-player-muted')).toBeVisible();
+	await expect.poll(() => muted(guest)).toBe(true);
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	expect(await muted(host)).toBe(false);
+	await guest.getByRole('link', { name: 'Home' }).first().click();
+	await expect(guest.getByTestId('mini-player-muted')).toHaveCount(0);
+	await expect.poll(() => muted(guest)).toBe(false);
+	// Not saved as the guest's preference.
+	const saved = await guest.evaluate(() => localStorage.getItem('oxistream:player'));
+	expect((JSON.parse(saved ?? '{}') as { muted?: boolean }).muted ?? false).toBe(false);
+
+	// A livestream cannot play: the player area and the mini player say so.
+	room.add(LIVE, 'mara', true);
+	room.broadcast();
+	await expect(host).toHaveURL(watchUrl(LIVE));
+	const message = host.getByTestId('app-player').getByTestId('player-message');
+	await expect(message).toHaveAttribute('data-kind', 'live');
+	await expect(message).toContainText('Livestreams are not supported yet');
+	await expect(guest.getByTestId('mini-player').getByTestId('player-message')).toBeVisible();
+	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LIVE));
+	await expect(guest.getByTestId('mini-player-toggle')).toHaveCount(0);
 
 	await hostContext.close();
 	await guestContext.close();
