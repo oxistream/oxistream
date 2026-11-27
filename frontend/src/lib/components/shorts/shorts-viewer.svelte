@@ -44,10 +44,11 @@
 
 	let {
 		openedId,
-		feed = 'discover'
+		feed
 	}: {
-		/** The short opened from outside; without one, the shorts come from `feed`. */
+		/** The short opened from outside; it plays first. */
 		openedId?: string;
+		/** Where the following shorts come from; without one, the opened short's list or channel. */
 		feed?: ShortsFeed;
 	} = $props();
 
@@ -55,8 +56,8 @@
 	// svelte-ignore state_referenced_locally
 	const opened = openedId;
 	// svelte-ignore state_referenced_locally
-	const source: ShortsFeed | undefined = opened ? undefined : feed;
-	const context = opened ? takeShortsList(opened) : undefined;
+	const source: ShortsFeed | undefined = feed ?? (opened ? undefined : 'discover');
+	const context = opened && !source ? takeShortsList(opened) : undefined;
 	const seenBefore = source === 'discover' ? seenShorts() : new Set<string>();
 
 	let currentId = $state(opened);
@@ -79,7 +80,7 @@
 	});
 
 	// Without a list to continue, the next shorts come from the opened short's channel.
-	const openedVideo = useVideo(() => (opened && !context ? opened : null));
+	const openedVideo = useVideo(() => (opened && !source && !context ? opened : null));
 	$effect(() => {
 		const details = openedVideo.data;
 		if (sourceChannel !== undefined || !details || details.id !== opened) return;
@@ -94,9 +95,14 @@
 	const blocks = createBlocksQuery();
 	const blocked = $derived(new Set(blocks.data?.map((c) => c.id)));
 	const listed = $derived(
-		opened
-			? buildQueue(opened, context, channelShorts.data?.pages.flatMap((p) => p.items) ?? [])
-			: feedItems
+		source
+			? opened
+				? [
+						feedItems.find((short) => short.id === opened) ?? shortStub(opened),
+						...feedItems.filter((short) => short.id !== opened)
+					]
+				: feedItems
+			: buildQueue(opened ?? '', context, channelShorts.data?.pages.flatMap((p) => p.items) ?? [])
 	);
 	const activeId = $derived(currentId ?? listed.find((s) => !blocked.has(s.channel.id))?.id);
 	// Shorts of blocked channels drop out, except the one on screen.
@@ -143,9 +149,18 @@
 	function show(target: VideoSummary | undefined) {
 		if (!target) return;
 		currentId = target.id;
-		// Replaces the entry, so going back leaves the shorts instead of stepping through them.
-		if (opened) void replaceState(resolve('/shorts/[id=videoid]', { id: target.id }), {});
 	}
+
+	// Replaces the entry, so going back leaves the shorts instead of stepping through them. The feed
+	// stays in the URL, so a reload continues it from the same short.
+	$effect(() => {
+		if (!activeId) return;
+		const search = source ? `?feed=${source}` : '';
+		const path = resolve('/shorts/[id=videoid]', { id: activeId });
+		if (location.pathname + location.search === path + search) return;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- path resolved above
+		void replaceState(`${path}${search}`, {});
+	});
 
 	function go(step: Step) {
 		show(step === 1 ? next : previous);
@@ -245,86 +260,88 @@
 <svelte:window {onkeydown} />
 
 <section class="shorts" aria-label={m.shorts_player_label()} data-testid="shorts-viewer">
-	<div class="shorts-stage" data-dragging={dragging ? '' : undefined} {@attach gestures}>
-		{#if source && session.user}
-			<nav class="shorts-feeds" aria-label={m.shorts_feed_label()} data-testid="shorts-feeds">
-				{#each feeds as item (item.kind)}
-					<a
-						href={item.href}
-						data-sveltekit-replacestate
-						aria-current={source === item.kind ? 'page' : undefined}
-					>
-						{item.label()}
-					</a>
-				{/each}
-			</nav>
-		{/if}
-		{#if !current}
-			<div class="shorts-placeholder" data-testid="shorts-feed-state">
-				{#if feedQuery?.isError}
-					<ErrorState onretry={() => void feedQuery.refetch()} class="m-4" />
-				{:else if emptyFeed}
-					<EmptyState
-						icon={ClapperboardIcon}
-						title={source === 'subscriptions'
-							? m.shorts_subscriptions_empty_title()
-							: m.shorts_discover_empty_title()}
-						description={source === 'subscriptions'
-							? m.shorts_subscriptions_empty_body()
-							: m.shorts_discover_empty_body()}
-						class="m-4 border-white/20 text-white [&_p]:text-white/70"
+	{#if source && session.user}
+		<nav class="shorts-feeds" aria-label={m.shorts_feed_label()} data-testid="shorts-feeds">
+			{#each feeds as item (item.kind)}
+				<a
+					href={item.href}
+					data-sveltekit-replacestate
+					aria-current={source === item.kind ? 'page' : undefined}
+				>
+					{item.label()}
+				</a>
+			{/each}
+		</nav>
+	{/if}
+	<div class="shorts-row">
+		<div class="shorts-stage" data-dragging={dragging ? '' : undefined} {@attach gestures}>
+			{#if !current}
+				<div class="shorts-placeholder" data-testid="shorts-feed-state">
+					{#if feedQuery?.isError}
+						<ErrorState onretry={() => void feedQuery.refetch()} class="m-4" />
+					{:else if emptyFeed}
+						<EmptyState
+							icon={ClapperboardIcon}
+							title={source === 'subscriptions'
+								? m.shorts_subscriptions_empty_title()
+								: m.shorts_discover_empty_title()}
+							description={source === 'subscriptions'
+								? m.shorts_subscriptions_empty_body()
+								: m.shorts_discover_empty_body()}
+							class="m-4 border-white/20 text-white [&_p]:text-white/70"
+						/>
+					{:else}
+						<Skeleton
+							class="size-full rounded-none bg-white/10"
+							role="status"
+							aria-label={m.shorts_loading()}
+						/>
+					{/if}
+				</div>
+			{/if}
+			{#each slots as slot (slot.short.id)}
+				<div
+					class="shorts-cell"
+					style:translate="0 calc({slot.offset} * (100% + var(--shorts-gap)) + {drag}px)"
+				>
+					<ShortSlot
+						short={slot.short}
+						active={slot.offset === 0}
+						preload={slot.preload}
+						onblocked={skipChannel}
 					/>
-				{:else}
-					<Skeleton
-						class="size-full rounded-none bg-white/10"
-						role="status"
-						aria-label={m.shorts_loading()}
-					/>
-				{/if}
-			</div>
-		{/if}
-		{#each slots as slot (slot.short.id)}
-			<div
-				class="shorts-cell"
-				style:translate="0 calc({slot.offset} * (100% + var(--shorts-gap)) + {drag}px)"
-			>
-				<ShortSlot
-					short={slot.short}
-					active={slot.offset === 0}
-					preload={slot.preload}
-					onblocked={skipChannel}
-				/>
-			</div>
-		{/each}
-	</div>
+				</div>
+			{/each}
+		</div>
 
-	<div class="shorts-nav">
-		<Button
-			variant="secondary"
-			size="icon-lg"
-			class="rounded-full"
-			disabled={!previous}
-			aria-label={m.shorts_previous()}
-			title={m.shorts_previous()}
-			aria-keyshortcuts="ArrowUp k"
-			onclick={() => go(-1)}
-			data-testid="shorts-previous"
-		>
-			<ChevronUpIcon />
-		</Button>
-		<Button
-			variant="secondary"
-			size="icon-lg"
-			class="rounded-full"
-			disabled={!next}
-			aria-label={m.shorts_next()}
-			title={m.shorts_next()}
-			aria-keyshortcuts="ArrowDown j"
-			onclick={() => go(1)}
-			data-testid="shorts-next"
-		>
-			<ChevronDownIcon />
-		</Button>
+		<div class="shorts-nav">
+			<Button
+				variant="secondary"
+				size="icon-lg"
+				class="rounded-full"
+				disabled={!previous}
+				aria-label={m.shorts_previous()}
+				title={m.shorts_previous()}
+				aria-keyshortcuts="ArrowUp k"
+				onclick={() => go(-1)}
+				data-testid="shorts-previous"
+			>
+				<ChevronUpIcon />
+			</Button>
+			<Button
+				variant="secondary"
+				size="icon-lg"
+				class="rounded-full"
+				disabled={!next}
+				aria-label={m.shorts_next()}
+				title={m.shorts_next()}
+				aria-keyshortcuts="ArrowDown j"
+				onclick={() => go(1)}
+				data-testid="shorts-next"
+			>
+				<ChevronDownIcon />
+			</Button>
+		</div>
 	</div>
 </section>
 
@@ -333,12 +350,19 @@
 		--shorts-height: calc(100svh - 3.5rem);
 		--shorts-gap: 0px;
 		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 1rem;
+		flex-direction: column;
 		height: var(--shorts-height);
 		overflow: hidden;
 		background: oklch(0.13 0.004 286);
+	}
+
+	.shorts-row {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
 	}
 
 	.shorts-stage {
@@ -369,19 +393,16 @@
 		color: white;
 	}
 
-	/* Over the video, like the overlay: light text on a frosted pill. */
+	/* Its own row above the shorts, so it never covers the video. */
 	.shorts-feeds {
-		position: absolute;
-		top: 0.75rem;
-		left: 50%;
-		z-index: 20;
-		translate: -50% 0;
+		align-self: center;
+		flex-shrink: 0;
+		margin-block: 0.5rem;
 		display: flex;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		border-radius: 999px;
-		background: rgb(0 0 0 / 35%);
-		backdrop-filter: blur(8px);
+		background: rgb(255 255 255 / 8%);
 	}
 
 	.shorts-feeds a {
@@ -448,6 +469,26 @@
 
 		.shorts-placeholder {
 			border-radius: var(--radius-xl, 0.75rem);
+		}
+
+		/* On the page surface, so it follows the theme instead of the dark mobile stage. */
+		.shorts-feeds {
+			margin-block: 0 0.75rem;
+			background: var(--color-muted);
+		}
+
+		.shorts-feeds a {
+			color: var(--color-muted-foreground);
+		}
+
+		.shorts-feeds a:hover {
+			color: var(--color-foreground);
+		}
+
+		.shorts-feeds a[aria-current='page'] {
+			background: var(--color-background);
+			color: var(--color-foreground);
+			box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
 		}
 	}
 </style>
