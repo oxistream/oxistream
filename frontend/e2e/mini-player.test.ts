@@ -108,6 +108,18 @@ test('playback carries on in the mini player and back on the watch page', async 
 	await mini.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect.poll(() => paused(media)).toBe(false);
 
+	// The controls sit on the video and show on hover and on keyboard focus.
+	const controls = mini.getByTestId('mini-player-overlay').locator('.mini-overlay-controls');
+	await page.mouse.move(0, 0);
+	await expect(controls).toHaveCSS('opacity', '0');
+	await mini.getByTestId('mini-player-overlay').hover();
+	await expect(controls).toHaveCSS('opacity', '1');
+	await page.mouse.move(0, 0);
+	await expect(controls).toHaveCSS('opacity', '0');
+	await mini.getByTestId('mini-player-title').focus();
+	await page.keyboard.press('Shift+Tab');
+	await expect(controls).toHaveCSS('opacity', '1');
+
 	const beforeReturn = await time(media);
 	await mini.getByTestId('mini-player-title').click();
 	await expect(page).toHaveURL(`/watch?v=${ID}`);
@@ -116,6 +128,11 @@ test('playback carries on in the mini player and back on the watch page', async 
 	await expect(page.getByTestId('player-slot')).toBeVisible();
 	expect(await sameMedia(media)).toBe(true);
 	expect(await time(media)).toBeGreaterThanOrEqual(beforeReturn);
+
+	await goHome(page);
+	await mini.getByRole('link', { name: 'Back to the video' }).click();
+	await expect(page).toHaveURL(`/watch?v=${ID}`);
+	await expect(mini).toHaveCount(0);
 
 	await goHome(page);
 	await expect(mini).toBeVisible();
