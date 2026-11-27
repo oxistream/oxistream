@@ -16,13 +16,13 @@
 			clearTimeout(timer);
 			timer = setTimeout(() => (copied = false), 2000);
 		} catch {
-			window.prompt(m.together_share_prompt(), url);
+			window.prompt(m.party_share_prompt(), url);
 		}
 	}
 </script>
 
-<Button variant="outline" size="sm" class={className} onclick={copy} data-testid="room-share">
+<Button variant="outline" size="sm" class={className} onclick={copy} data-testid="party-share">
 	{#if copied}<CheckIcon />{:else}<LinkIcon />{/if}
-	{copied ? m.together_share_copied() : m.together_share()}
+	{copied ? m.party_copied() : m.party_copy()}
 </Button>
-<span class="sr-only" aria-live="polite">{copied ? m.together_share_copied() : ''}</span>
+<span class="sr-only" aria-live="polite">{copied ? m.party_copied() : ''}</span>

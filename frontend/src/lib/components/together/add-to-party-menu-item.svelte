@@ -1,17 +1,19 @@
 <script lang="ts">
 	import ListPlusIcon from '@lucide/svelte/icons/list-plus';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { activeRoom, addToRoom } from '#lib/together/active-room.svelte.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { party } from '#lib/together/party.svelte.js';
 
 	let { videoId }: { videoId: string } = $props();
-
-	const room = $derived(activeRoom());
 </script>
 
-{#if room}
-	<DropdownMenu.Item onSelect={() => void addToRoom(room, videoId)} data-testid="add-to-room">
+{#if party.active}
+	<DropdownMenu.Item
+		disabled={party.status !== 'open'}
+		onSelect={() => party.add(videoId)}
+		data-testid="add-to-party"
+	>
 		<ListPlusIcon />
-		{m.together_add_to_room({ owner: room.owner })}
+		{m.party_add()}
 	</DropdownMenu.Item>
 {/if}

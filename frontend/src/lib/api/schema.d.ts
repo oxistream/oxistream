@@ -1516,7 +1516,7 @@ export interface components {
         RoomInfo: {
             /** Format: date-time */
             created_at: string;
-            /** @description Random ID, used in `/together/{id}`. */
+            /** @description Random ID, used in `/party/{id}`. */
             id: string;
             /** @description Whether the signed-in user created the room. */
             is_owner: boolean;

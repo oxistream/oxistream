@@ -3,6 +3,7 @@
 	import AppHeader from '#lib/components/app-header.svelte';
 	import { createSubscriptionsQuery } from '#lib/api/subscriptions.js';
 	import AppSidebar from '#lib/components/app-sidebar.svelte';
+	import PartyHost from '#lib/components/together/party-host.svelte';
 	import AppPlayer from '#lib/components/player/app-player.svelte';
 	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
@@ -22,6 +23,8 @@
 		return !document.cookie.split('; ').includes(`${SIDEBAR_COOKIE_NAME}=false`);
 	}
 </script>
+
+<PartyHost />
 
 <Sidebar.Provider bind:open>
 	<AppSidebar {user} channels={user ? subscriptions.data : undefined} />

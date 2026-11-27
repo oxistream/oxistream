@@ -7,10 +7,10 @@
 
 	const label = $derived(
 		status === 'open'
-			? m.together_status_open()
+			? m.party_status_open()
 			: status === 'reconnecting'
-				? m.together_status_reconnecting()
-				: m.together_status_connecting()
+				? m.party_status_reconnecting()
+				: m.party_status_connecting()
 	);
 </script>
 
@@ -21,7 +21,7 @@
 	)}
 	role="status"
 	data-status={status}
-	data-testid="room-status"
+	data-testid="party-status"
 >
 	<span
 		class={cn(
