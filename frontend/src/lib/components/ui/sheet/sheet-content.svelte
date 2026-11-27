@@ -18,6 +18,7 @@
 		class: className,
 		side = 'right',
 		showCloseButton = true,
+		showOverlay = true,
 		portalProps,
 		children,
 		...restProps
@@ -25,12 +26,14 @@
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof SheetPortal>>;
 		side?: Side;
 		showCloseButton?: boolean;
+		/** Without it, the page stays usable while the sheet is open. */
+		showOverlay?: boolean;
 		children: Snippet;
 	} = $props();
 </script>
 
 <SheetPortal {...portalProps}>
-	<SheetOverlay />
+	{#if showOverlay}<SheetOverlay />{/if}
 	<SheetPrimitive.Content
 		bind:ref
 		data-slot="sheet-content"

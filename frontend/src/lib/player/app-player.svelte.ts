@@ -1,3 +1,4 @@
+import type { Snippet } from 'svelte';
 import type { Attachment } from 'svelte/attachments';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
@@ -10,8 +11,10 @@ export type PlayerMedia = {
 	poster?: string;
 	subtitles?: PlayerSubtitle[];
 	storyboard?: string;
-	/** Seconds to start from. */
-	startTime?: number;
+	/** Seconds to start from; a function is read once the media can seek. */
+	startTime?: number | (() => number);
+	/** Default `true`. */
+	autoplay?: boolean;
 	playback?: PlaybackPreferences;
 	/** Where the mini player leads back to, e.g. the watch page with its playlist. */
 	href: string;
@@ -21,6 +24,16 @@ export type PlayerMedia = {
 	autoSkip?: boolean;
 	/** The speed is set with `setRate` instead of the saved preference, e.g. to stay in sync. */
 	externalRate?: boolean;
+	/** Media events for whoever loaded the video, e.g. to keep a party in sync. */
+	events?: PlayerEvents;
+};
+
+export type PlayerEvents = {
+	onplay?: (currentTime: number) => void;
+	onpause?: (currentTime: number) => void;
+	onseeked?: (currentTime: number) => void;
+	ontimeupdate?: (currentTime: number, duration: number) => void;
+	onended?: () => void;
 };
 
 /** What the page showing the player in its slot adds, read while the player sits there. */
@@ -57,6 +70,10 @@ export type PlayerClaim = {
 export type ClaimOptions = {
 	/** Replaces stopping when the mini player is closed, e.g. to confirm leaving the party. */
 	onclose?: () => void;
+	/** Label of the mini player's close button. */
+	closeLabel?: () => string;
+	/** Drawn over the video, e.g. a party's sync readout. */
+	overlay?: Snippet;
 };
 
 /**
@@ -72,6 +89,10 @@ export class AppPlayer {
 	paused = $state(true);
 	claim = $state.raw<(PlayerClaim & ClaimOptions) | null>(null);
 	controls: PlayerControls | undefined;
+	/** The element around the player, wherever it is shown. */
+	element = $state.raw<HTMLElement | null>(null);
+	/** Width a panel covers at the end of the viewport, which the mini player keeps clear of. */
+	endInset = $state('0px');
 
 	/** Whether a page shows the player in its slot. */
 	get inline() {
