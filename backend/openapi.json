@@ -1485,6 +1485,48 @@
         ]
       }
     },
+    "/api/v0/feed/atom/{token}": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "The newest videos of a user's subscriptions as Atom. The token from\n`POST /settings/feed-token` authenticates; no session is needed.",
+        "operationId": "atom_feed",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Feed token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Atom feed",
+            "content": {
+              "application/atom+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or revoked token, or disabled user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/history": {
       "get": {
         "tags": [
@@ -4057,6 +4099,121 @@
         ]
       }
     },
+    "/api/v0/settings/feed-token": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Whether the signed-in user has a feed URL.",
+        "operationId": "get_feed_token",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedTokenStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Create a personal Atom feed URL of the subscription feed; an existing one stops working.",
+        "operationId": "create_feed_token",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedFeedToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Revoke the signed-in user's feed URL.",
+        "operationId": "delete_feed_token",
+        "responses": {
+          "204": {
+            "description": "Revoked, or there was none"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/settings/sponsorblock": {
       "get": {
         "tags": [
@@ -5631,6 +5788,23 @@
           }
         }
       },
+      "CreatedFeedToken": {
+        "type": "object",
+        "required": [
+          "url",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "description": "The Atom feed URL. Only the token's hash is stored, so it is shown only once."
+          }
+        }
+      },
       "Credentials": {
         "type": "object",
         "required": [
@@ -5750,6 +5924,22 @@
               "$ref": "#/components/schemas/VideoSummary"
             },
             "description": "Newest first; `channel` is always set."
+          }
+        }
+      },
+      "FeedTokenStatus": {
+        "type": "object",
+        "required": [
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the current feed URL was created; `null` without one."
           }
         }
       },

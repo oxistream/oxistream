@@ -17,10 +17,11 @@ use oxistream_db::{
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
 use tower_http::compression::predicate::{DefaultPredicate, NotForContentType, Predicate};
-use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
 pub mod api;
+mod atom;
 pub mod auth;
 pub mod config;
 pub mod feed;
@@ -100,7 +101,7 @@ pub fn app(state: AppState) -> Router {
         .layer(CompressionLayer::new().compress_when(compress))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .make_span_with(telemetry::make_span)
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
         )
         .with_state(state)
