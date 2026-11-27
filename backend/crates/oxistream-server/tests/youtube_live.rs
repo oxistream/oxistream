@@ -9,7 +9,7 @@ use axum::http::{Request, StatusCode, header};
 use common::{app_without_db, get, state_without_db};
 use http_body_util::BodyExt;
 use oxistream_server::config::YouTubeConfig;
-use oxistream_server::youtube::YouTube;
+use oxistream_server::youtube::{YouTube, YouTubeError};
 use rustypipe::param::{Country, Language, TrendingCategory};
 use serde_json::Value;
 use tower::ServiceExt;
@@ -607,8 +607,10 @@ async fn shows_content_disclosures() {
 #[ignore = "network"]
 async fn marks_auto_dubbed_audio_tracks() {
     let id = "i8_Pz7sBp_M";
-    if let Err(err) = state_without_db().youtube.player(id).await {
-        panic!("player of {id}: {err:?}");
+    // YouTube asks CI runners to sign in for some videos.
+    if let Err(YouTubeError::RateLimited(detail)) = state_without_db().youtube.player(id).await {
+        eprintln!("skipped, player of {id} is rate limited: {detail}");
+        return;
     }
     let (status, json) = get_json(&format!("/api/v0/videos/{id}")).await;
     assert_eq!(status, StatusCode::OK, "{json}");
