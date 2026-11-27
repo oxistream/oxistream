@@ -3,6 +3,7 @@ import type { Attachment } from 'svelte/attachments';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import type { WatchProblem } from '#lib/components/watch/errors.js';
+import { UpNextQueue, type QueueVideo } from './queue.svelte.js';
 
 /** A video loaded into the app-wide player. */
 export type PlayerMedia = {
@@ -44,8 +45,10 @@ export type PlayerEvents = {
 export type SlotOptions = {
 	theater?: boolean;
 	ontheatertoggle?: () => void;
-	/** Only called while the player is in this slot, e.g. to play the next playlist video. */
-	onended?: () => void;
+	/** Where to go after this video once the queue is empty, e.g. the next playlist video. */
+	next?: string;
+	/** Where "previous" leads, e.g. the playlist video before this one. */
+	previous?: string;
 };
 
 /** The calls the mounted player component offers. */
@@ -78,7 +81,14 @@ export type ClaimOptions = {
 	closeLabel?: () => string;
 	/** Drawn over the video, e.g. a party's sync readout. */
 	overlay?: Snippet;
+	/** Replace the up-next queue for `next()` and `previous()` while held. */
+	onnext?: () => void;
+	onprevious?: () => void;
 };
+
+/** Going back further than this into a video restarts it instead. */
+const RESTART_SECONDS = 3;
+const MAX_HISTORY = 50;
 
 /**
  * The one player of the app. The root layout renders it; a page shows it in place with
@@ -91,10 +101,31 @@ export class AppPlayer {
 	slotElement = $state.raw<HTMLElement | null>(null);
 	slotOptions = $state.raw<() => SlotOptions>(() => ({}));
 	paused = $state(true);
+	/** The video played to its end and nothing followed. */
+	ended = $state(false);
 	claim = $state.raw<(PlayerClaim & ClaimOptions) | null>(null);
 	controls: PlayerControls | undefined;
 	/** The element around the player, wherever it is shown. */
 	element = $state.raw<HTMLElement | null>(null);
+	readonly queue: UpNextQueue;
+	/** A queued video to load outside the watch page; the host fetches its details. */
+	pending = $state.raw<QueueVideo | null>(null);
+	/** Opens a page, e.g. the watch page of the next video; set by the host. */
+	navigate: (href: string) => void = () => {};
+	/** Builds the watch page link of a video; set by the host. */
+	watchHref: (videoId: string) => string = (id) => `/watch?v=${id}`;
+
+	/** Where to go once the queue is empty, e.g. back to the playlist it interrupted. */
+	#resume = $state.raw<string | null>(null);
+	/** The video `next()` or `previous()` asked for, so its load keeps `#resume`. */
+	#expect: string | null = null;
+	#history: QueueVideo[] = [];
+	#last: QueueVideo | null = null;
+	#back = false;
+
+	constructor(queue = new UpNextQueue()) {
+		this.queue = queue;
+	}
 
 	/** Whether a page shows the player in its slot. */
 	get inline() {
@@ -104,13 +135,30 @@ export class AppPlayer {
 	/** Loads a video unless the player is claimed. Returns whether it did. */
 	load(media: PlayerMedia): boolean {
 		if (this.claim) return false;
+		if (media.videoId !== this.#expect) this.#resume = null;
+		this.#expect = null;
+		this.pending = null;
 		this.#load(media);
 		return true;
 	}
 
 	#load(media: PlayerMedia) {
+		if (!this.claim) {
+			const last = this.#last;
+			if (last && last.id !== media.videoId && !this.#back) {
+				this.#history = [...this.#history, last].slice(-MAX_HISTORY);
+			}
+			this.#back = false;
+			this.#last = {
+				id: media.videoId,
+				title: media.title,
+				channel: media.channel,
+				thumbnailUrl: media.poster
+			};
+		}
 		this.media = media;
 		this.paused = true;
+		this.ended = false;
 		this.generation++;
 	}
 
@@ -123,8 +171,106 @@ export class AppPlayer {
 
 	/** The mini player's close button. */
 	close() {
-		if (this.claim?.onclose) this.claim.onclose();
-		else this.stop();
+		if (this.claim?.onclose) return this.claim.onclose();
+		this.stop();
+		this.pending = null;
+		this.#resume = null;
+		this.#last = null;
+	}
+
+	/** Whether `next()` has somewhere to go. */
+	get hasNext(): boolean {
+		if (this.claim) return this.claim.onnext !== undefined;
+		if (this.queue.length > 0) return true;
+		return this.inline && (this.slotOptions().next ?? this.#resume) != null;
+	}
+
+	/** Whether `previous()` does anything; it can always restart the current video. */
+	get hasPrevious(): boolean {
+		if (this.claim) return this.claim.onprevious !== undefined;
+		return this.media !== null;
+	}
+
+	/**
+	 * Plays what comes next: the queue first, then where the page continues (the next playlist
+	 * video), but only while the player is shown on that page. Returns whether it went anywhere.
+	 */
+	next(): boolean {
+		if (this.claim) {
+			this.claim.onnext?.();
+			return this.claim.onnext !== undefined;
+		}
+		const after = this.inline ? this.slotOptions().next : undefined;
+		const entry = this.queue.shift();
+		if (entry) {
+			if (after) this.#resume = after;
+			this.#open(entry);
+			return true;
+		}
+		const href = after ?? (this.inline ? this.#resume : null);
+		if (!href) return false;
+		this.#resume = null;
+		this.#expect = null;
+		this.navigate(href);
+		return true;
+	}
+
+	/**
+	 * Restarts the video once it has played a few seconds, else goes back: to the page's
+	 * previous video (in a playlist), or to the one played before, queueing the current one next.
+	 */
+	previous(): boolean {
+		if (this.claim) {
+			this.claim.onprevious?.();
+			return this.claim.onprevious !== undefined;
+		}
+		if (!this.media) return false;
+		if (this.position() > RESTART_SECONDS) {
+			this.seek(0);
+			return true;
+		}
+		const before = this.inline ? this.slotOptions().previous : undefined;
+		if (before) {
+			this.navigate(before);
+			return true;
+		}
+		const last = this.#history.at(-1);
+		if (!last) {
+			this.seek(0);
+			return true;
+		}
+		this.#history = this.#history.slice(0, -1);
+		if (this.#last) this.queue.addNext(this.#last);
+		this.#back = true;
+		this.#open(last);
+		return true;
+	}
+
+	/** Queues a video, at the front with `next`. Plays it right away when nothing plays. */
+	enqueue(video: QueueVideo, { next = false } = {}) {
+		if (next) this.queue.addNext(video);
+		else this.queue.add(video);
+		if ((!this.media || this.ended) && !this.claim && !this.pending) this.next();
+	}
+
+	/** Plays a queued entry now, taking it off the queue. */
+	playEntry(key: string) {
+		if (this.claim) return;
+		const entry = this.queue.take(key);
+		if (!entry) return;
+		const after = this.inline ? this.slotOptions().next : undefined;
+		if (after) this.#resume = after;
+		this.#open(entry);
+	}
+
+	/** On the watch page, opens that page for the video; elsewhere loads it in the mini player. */
+	#open(video: QueueVideo) {
+		this.#expect = video.id;
+		if (this.inline) {
+			this.navigate(this.watchHref(video.id));
+		} else {
+			this.pending = video;
+		}
 	}
 
 	/** Takes the player for `owner`. Fails while someone else holds it. */

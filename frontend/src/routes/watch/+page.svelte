@@ -1,10 +1,9 @@
 <script lang="ts">
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { ApiError, pickImage } from '#lib/api/mapping.js';
+	import { ApiError } from '#lib/api/mapping.js';
 	import { createVideoProgressQuery } from '#lib/api/history.js';
 	import { createLikedVideosQuery, mergeLikedVideos } from '#lib/api/likes.js';
 	import {
@@ -17,7 +16,6 @@
 	import { createPlaylistQuery, useLastPlayed } from '#lib/api/playlists.js';
 	import { useManifest, useVideo } from '#lib/api/video.js';
 	import { createYouTubePlaylistQuery, mergeYouTubePlaylist } from '#lib/api/youtube-playlists.js';
-	import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 	import { playlistWatchHref } from '#lib/components/playlist/links.js';
 	import {
 		likedPlayback,
@@ -41,6 +39,8 @@
 	import RelatedVideos from '#lib/components/watch/related-videos.svelte';
 	import VideoDetailsSkeleton from '#lib/components/watch/video-details-skeleton.svelte';
 	import VideoDetails from '#lib/components/watch/video-details.svelte';
+	import { videoPoster, watchMedia } from '#lib/components/watch/watch-media.js';
+	import UpNext from '#lib/components/queue/up-next.svelte';
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -75,15 +75,7 @@
 		if (manifest.isError) return describeProblem(manifest.error);
 		return null;
 	});
-	const poster = $derived(details ? pickImage(details.thumbnails, 1280) : undefined);
-	const subtitles = $derived<PlayerSubtitle[]>(
-		(details?.subtitles ?? []).map((s) => ({
-			id: s.id,
-			lang: s.lang,
-			url: s.url,
-			label: s.auto_generated ? m.player_auto_generated({ label: s.label }) : s.label
-		}))
-	);
+	const poster = $derived(details ? videoPoster(details) : undefined);
 	const related = $derived(details ? playableRelated(details.related) : []);
 	const title = $derived(
 		details
@@ -133,10 +125,17 @@
 		if (list.lastVideoId !== videoId) void rememberLastPlayed(list.id, videoId);
 	});
 
-	function playNext() {
-		const next = playlistPosition.next;
-		if (next && playback) void goto(playlistWatchHref(next.id, playback.id));
-	}
+	// Where the player continues on this page once the queue is empty, and goes back to.
+	const playlistNext = $derived(
+		playlistPosition.next && playback && !party.active
+			? playlistWatchHref(playlistPosition.next.id, playback.id)
+			: undefined
+	);
+	const playlistPrevious = $derived(
+		playlistPosition.previous && playback && !party.active
+			? playlistWatchHref(playlistPosition.previous.id, playback.id)
+			: undefined
+	);
 
 	const explicitStart = $derived(parseStartTime(timeParam));
 	const savedProgress = createVideoProgressQuery(() => (explicitStart === null ? videoId : null));
@@ -222,17 +221,13 @@
 		// Another video stops right away instead of playing on while this one loads.
 		if (appPlayer.media) appPlayer.stop();
 		if (!ready || !details) return;
-		appPlayer.load({
-			videoId,
-			title: details.title,
-			channel: details.channel,
-			poster,
-			subtitles,
-			storyboard: details.storyboard_url ?? undefined,
-			startTime,
-			playback: playbackPreferences(settings.data),
-			href: watchHref(page.url.searchParams)
-		});
+		appPlayer.load(
+			watchMedia(details, {
+				startTime,
+				playback: playbackPreferences(settings.data),
+				href: watchHref(page.url.searchParams)
+			})
+		);
 	});
 
 	/** This page without `t`, so coming back from the mini player keeps the position. */
@@ -310,7 +305,8 @@
 						{@attach appPlayer.slot(() => ({
 							theater,
 							ontheatertoggle: toggleTheater,
-							onended: playlistPosition.next && !party.active ? playNext : undefined
+							next: playlistNext,
+							previous: playlistPrevious
 						}))}
 					></div>
 				{:else if partyElsewhere}
@@ -356,9 +352,14 @@
 				/>
 			{/if}
 
-			{#if details || video.isPending}
-				<RelatedVideos videos={related} loading={video.isPending} class="watch-related" />
-			{/if}
+			<div class="watch-side">
+				{#if !party.active && appPlayer.queue.length > 0}
+					<UpNext />
+				{/if}
+				{#if details || video.isPending}
+					<RelatedVideos videos={related} loading={video.isPending} />
+				{/if}
+			</div>
 		</div>
 	</div>
 {/if}
@@ -389,8 +390,11 @@
 		min-width: 0;
 	}
 
-	.watch :global(.watch-related) {
+	.watch-side {
 		grid-area: related;
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
 		min-width: 0;
 		margin-top: 0.5rem;
 	}
@@ -416,7 +420,7 @@
 			grid-template-areas: 'player related' 'meta related';
 		}
 
-		.watch :global(.watch-related) {
+		.watch-side {
 			margin-top: 0;
 		}
 

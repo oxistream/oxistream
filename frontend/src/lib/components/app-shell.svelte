@@ -3,6 +3,7 @@
 	import AppHeader from '#lib/components/app-header.svelte';
 	import { createSubscriptionsQuery } from '#lib/api/subscriptions.js';
 	import AppSidebar from '#lib/components/app-sidebar.svelte';
+	import QueueHost from '#lib/components/queue/queue-host.svelte';
 	import PartyHost from '#lib/components/together/party-host.svelte';
 	import PartySidebar from '#lib/components/together/party-sidebar.svelte';
 	import AppPlayer from '#lib/components/player/app-player.svelte';
@@ -32,6 +33,7 @@
 </script>
 
 <PartyHost />
+<QueueHost />
 
 <Sidebar.Provider
 	bind:open

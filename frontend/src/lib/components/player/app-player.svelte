@@ -9,6 +9,7 @@
 	import { session } from '#lib/session.svelte.js';
 	import { resolveSegments } from '#lib/sponsorblock/skip.js';
 	import PlayerMessage from '#lib/components/watch/player-message.svelte';
+	import UpNext from '#lib/components/queue/up-next.svelte';
 	import MiniPlayerBar from './mini-player-bar.svelte';
 	import Player from './player.svelte';
 
@@ -84,10 +85,15 @@
 		appPlayer.controls = instance;
 	});
 
+	// A party brings its own queue.
+	const queueCount = $derived(appPlayer.claim ? 0 : appPlayer.queue.length);
+	let queueOpen = $state(false);
+	const queueShown = $derived(mode === 'mini' && queueOpen && queueCount > 0);
+
 	function ended() {
 		appPlayer.paused = true;
 		media.events?.onended?.();
-		if (appPlayer.inline) appPlayer.slotOptions().onended?.();
+		if (!appPlayer.claim) appPlayer.ended = !appPlayer.next();
 	}
 </script>
 
@@ -135,6 +141,7 @@
 					onprogress={media.trackProgress === false ? undefined : reportProgress(media.videoId)}
 					onplay={(time) => {
 						appPlayer.paused = false;
+						appPlayer.ended = false;
 						media.events?.onplay?.(time);
 					}}
 					onpause={(time) => {
@@ -168,10 +175,20 @@
 			paused={appPlayer.paused}
 			muted={silenced}
 			ontoggle={media.problem ? undefined : () => appPlayer.toggle()}
+			onnext={!appPlayer.claim && appPlayer.hasNext ? () => appPlayer.next() : undefined}
+			{queueCount}
+			queueOpen={queueShown}
+			onqueuetoggle={() => (queueOpen = !queueShown)}
 			closeLabel={appPlayer.claim?.closeLabel?.()}
 			onclose={() => appPlayer.close()}
 			class="app-player-bar"
 		/>
+		{#if queueShown}
+			<UpNext
+				class="app-player-queue rounded-none border-0 border-t bg-transparent"
+				listClass="max-h-[min(18rem,50svh)]"
+			/>
+		{/if}
 	{/if}
 </div>
 
@@ -276,6 +293,14 @@
 
 		.app-player[data-mode='mini'] :global(.app-player-bar) {
 			flex: 1;
+		}
+
+		.app-player[data-mode='mini'] {
+			flex-wrap: wrap;
+		}
+
+		.app-player[data-mode='mini'] :global(.app-player-queue) {
+			flex-basis: 100%;
 		}
 	}
 </style>
