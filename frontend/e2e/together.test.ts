@@ -723,9 +723,10 @@ test('the party sidebar sits next to the content and stays open across visits', 
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect.poll(async () => right(await box(card))).toBeLessThan(viewport.width - 300);
 	const aside = page.locator('#party-panel');
+	// Both move during the width transition, so they are measured together.
 	await expect
-		.poll(async () => (await box(aside)).x)
-		.toBeGreaterThanOrEqual(right(await box(card)) - 1);
+		.poll(async () => (await box(aside)).x - right(await box(card)))
+		.toBeGreaterThanOrEqual(-1);
 	await expect.poll(async () => right(await box(aside))).toBeLessThanOrEqual(viewport.width + 1);
 
 	// The mini player stays inside the body card.
