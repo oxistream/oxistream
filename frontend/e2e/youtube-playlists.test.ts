@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 test.use({ locale: 'en-US' });
 
@@ -277,18 +277,29 @@ test('anonymous users are not offered following or copying', async ({ page }) =>
 	await expect(page.getByTestId('copy-playlist')).toHaveCount(0);
 });
 
+/** Distinct vertical positions, so one entry means the controls share a row. */
+async function tops(locators: Locator[]) {
+	const boxes = await Promise.all(locators.map((l) => l.boundingBox()));
+	return [...new Set(boxes.map((b) => Math.round(b?.y ?? -1)))];
+}
+
 test('a YouTube playlist can be followed and saved as a copy', async ({ page }) => {
 	await mockApi(page, { signedIn: true });
 	await page.goto(`/playlist?list=${LIST}`);
 
-	const follow = page.getByTestId('follow-button');
-	await expect(follow).toHaveText('Follow');
+	const follow = page.getByRole('button', { name: 'Follow' });
+	await expect(follow).toHaveAttribute('aria-pressed', 'false');
+	const actions = [page.getByRole('link', { name: 'Play all' }), follow];
+	actions.push(page.getByRole('button', { name: 'Save as copy' }));
+	await expect.poll(() => tops(actions)).toHaveLength(1);
+
+	await follow.hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Follow');
 	await follow.click();
-	await expect(follow).toHaveText('Following');
 	await expect(follow).toHaveAttribute('aria-pressed', 'true');
 	await expect.poll(() => calls).toEqual(['PUT follow']);
 	await follow.click();
-	await expect(follow).toHaveText('Follow');
+	await expect(follow).toHaveAttribute('aria-pressed', 'false');
 	await expect.poll(() => calls).toEqual(['PUT follow', 'DELETE follow']);
 
 	await page.getByRole('button', { name: 'Save as copy' }).click();
@@ -307,6 +318,6 @@ test('followed playlists show in the library and opening one marks it seen', asy
 
 	await section.getByRole('link', { name: /Coastal roads/ }).click();
 	await expect(page).toHaveURL(`/playlist?list=${LIST}`);
-	await expect(page.getByTestId('follow-button')).toHaveText('Following');
+	await expect(page.getByTestId('follow-button')).toHaveAttribute('aria-pressed', 'true');
 	await expect.poll(() => calls).toEqual(['PUT seen']);
 });

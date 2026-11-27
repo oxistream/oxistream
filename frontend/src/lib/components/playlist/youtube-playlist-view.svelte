@@ -1,5 +1,6 @@
 <script lang="ts">
-	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import { goto } from '$app/navigation';
@@ -28,6 +29,7 @@
 	import { session } from '#lib/session.svelte.js';
 	import CourseBadge from './course-badge.svelte';
 	import FollowToggle from './follow-toggle.svelte';
+	import IconAction from './icon-action.svelte';
 	import { playlistHref, playlistWatchHref } from './links';
 	import PlaylistCover from './playlist-cover.svelte';
 	import PlaylistItems from './playlist-items.svelte';
@@ -149,7 +151,7 @@
 					</p>
 				{/if}
 			</div>
-			<div class="flex flex-wrap gap-2">
+			<div class="flex items-center gap-2">
 				{#if start}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
 					<Button href={playlistWatchHref(start.id, data.id)}>
@@ -163,16 +165,19 @@
 						loading={followState.isPending}
 						onclick={() => followMutation.mutate({ playlistId: data.id, follow: !following })}
 					/>
-					<Button
-						variant="outline"
+					<IconAction
+						label={importMutation.isPending ? m.playlist_copying() : m.playlist_copy()}
 						disabled={importMutation.isPending}
 						aria-busy={importMutation.isPending || undefined}
 						data-testid="copy-playlist"
 						onclick={saveCopy}
 					>
-						<CopyPlusIcon />
-						{importMutation.isPending ? m.playlist_copying() : m.playlist_copy()}
-					</Button>
+						{#if importMutation.isPending}
+							<LoaderCircleIcon class="animate-spin" />
+						{:else}
+							<CopyIcon />
+						{/if}
+					</IconAction>
 				{/if}
 			</div>
 			{#if importMutation.isError}

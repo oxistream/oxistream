@@ -24,6 +24,7 @@
 	import { playlistHref, playlistWatchHref } from '#lib/components/playlist/links.js';
 	import LikedVideosView from '#lib/components/like/liked-videos-view.svelte';
 	import PlaylistCover from '#lib/components/playlist/playlist-cover.svelte';
+	import IconAction from '#lib/components/playlist/icon-action.svelte';
 	import PlaylistFormDialog from '#lib/components/playlist/playlist-form-dialog.svelte';
 	import PlaylistItems from '#lib/components/playlist/playlist-items.svelte';
 	import PlaylistLayout from '#lib/components/playlist/playlist-layout.svelte';
@@ -162,51 +163,44 @@
 						</p>
 					{/if}
 				</div>
-				<div class="flex flex-wrap gap-2">
+				<div class="flex items-center gap-2">
 					{#if continuing && resume}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
 						<Button href={playlistWatchHref(resume.id, data.id)} data-testid="playlist-continue">
 							<PlayIcon class="fill-current" />
 							{m.playlist_continue()}
 						</Button>
-					{/if}
-					{#if start}
+						{#if start}
+							<IconAction
+								href={playlistWatchHref(start.id, data.id)}
+								label={m.playlist_play_from_start()}
+							>
+								<RotateCcwIcon />
+							</IconAction>
+						{/if}
+					{:else if start}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
-						<Button
-							href={playlistWatchHref(start.id, data.id)}
-							variant={continuing ? 'outline' : 'default'}
-						>
-							{#if continuing}<RotateCcwIcon />{:else}<PlayIcon class="fill-current" />{/if}
-							{continuing ? m.playlist_play_from_start() : m.playlist_play_all()}
+						<Button href={playlistWatchHref(start.id, data.id)}>
+							<PlayIcon class="fill-current" />
+							{m.playlist_play_all()}
 						</Button>
 					{/if}
 					{#if data.visibility === 'unlisted'}
-						<Button variant="outline" onclick={share}>
+						<IconAction
+							label={m.playlist_share()}
+							tooltip={copied ? m.playlist_share_copied() : m.playlist_share()}
+							onclick={share}
+						>
 							{#if copied}<CheckIcon />{:else}<Share2Icon />{/if}
-							{copied ? m.playlist_share_copied() : m.playlist_share()}
-						</Button>
+						</IconAction>
 					{/if}
 					{#if data.isOwner}
-						<span class="flex gap-2">
-							<Button
-								variant="outline"
-								size="icon"
-								onclick={() => (editOpen = true)}
-								aria-label={m.playlist_edit()}
-								title={m.playlist_edit()}
-							>
-								<PencilIcon />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								onclick={() => (deleteOpen = true)}
-								aria-label={m.playlist_delete()}
-								title={m.playlist_delete()}
-							>
-								<Trash2Icon />
-							</Button>
-						</span>
+						<IconAction label={m.playlist_edit()} onclick={() => (editOpen = true)}>
+							<PencilIcon />
+						</IconAction>
+						<IconAction label={m.playlist_delete()} onclick={() => (deleteOpen = true)}>
+							<Trash2Icon />
+						</IconAction>
 					{/if}
 				</div>
 				<p class="sr-only" aria-live="polite">{copied ? m.playlist_share_copied() : ''}</p>
