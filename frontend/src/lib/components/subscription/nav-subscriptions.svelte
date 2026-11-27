@@ -1,23 +1,47 @@
 <script lang="ts">
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { SubscribedChannel } from '#lib/api/subscription-list.js';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import { isActive } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 
 	let { channels, limit = 7 }: { channels: SubscribedChannel[]; limit?: number } = $props();
 
-	const shown = $derived(channels.slice(0, limit));
+	const sidebar = useSidebar();
+	// The label is hidden while the sidebar shows icons only.
+	const labelHidden = $derived(sidebar.state === 'collapsed' && !sidebar.isMobile);
+	let expanded = $state(false);
+	const shown = $derived(expanded ? channels : channels.slice(0, limit));
+	const hidden = $derived(channels.length - Math.min(channels.length, limit));
 	const manageHref = resolve('/feed/channels');
 </script>
 
 {#if channels.length > 0}
 	<Sidebar.Group>
-		<Sidebar.GroupLabel>{m.nav_channels()}</Sidebar.GroupLabel>
+		<Sidebar.GroupLabel>
+			{#snippet child({ props })}
+				<a
+					href={manageHref}
+					{...props}
+					class="{props.class} group/label hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+					aria-current={isActive(page.url.pathname, manageHref) ? 'page' : undefined}
+					tabindex={labelHidden ? -1 : undefined}
+					aria-hidden={labelHidden || undefined}
+				>
+					{m.nav_channels()}
+					<ChevronRightIcon
+						class="ms-0.5 opacity-0 transition-opacity group-hover/label:opacity-100 group-focus-visible/label:opacity-100"
+					/>
+				</a>
+			{/snippet}
+		</Sidebar.GroupLabel>
 		<Sidebar.Menu>
 			{#each shown as channel (channel.id)}
 				{@const href = resolve('/channel/[id]', { id: channel.id })}
@@ -49,26 +73,26 @@
 					</Sidebar.MenuButton>
 				</Sidebar.MenuItem>
 			{/each}
-			<Sidebar.MenuItem>
-				<Sidebar.MenuButton
-					isActive={isActive(page.url.pathname, manageHref)}
-					class="text-sidebar-foreground/70"
-					tooltipContent={channels.length > shown.length
-						? m.nav_channels_all({ count: channels.length })
-						: m.nav_channels_manage()}
-				>
-					{#snippet child({ props })}
-						<a href={manageHref} {...props}>
-							<ChevronRightIcon />
-							<span>
-								{channels.length > shown.length
-									? m.nav_channels_all({ count: channels.length })
-									: m.nav_channels_manage()}
-							</span>
-						</a>
-					{/snippet}
-				</Sidebar.MenuButton>
-			</Sidebar.MenuItem>
+			{#if hidden > 0}
+				<Sidebar.MenuItem>
+					<Sidebar.MenuButton
+						class="text-sidebar-foreground/70"
+						aria-expanded={expanded}
+						tooltipContent={expanded
+							? m.nav_channels_less()
+							: m.nav_channels_more({ count: hidden })}
+						onclick={() => (expanded = !expanded)}
+					>
+						{#if expanded}
+							<ChevronUpIcon />
+							<span>{m.nav_channels_less()}</span>
+						{:else}
+							<ChevronDownIcon />
+							<span>{m.nav_channels_more({ count: hidden })}</span>
+						{/if}
+					</Sidebar.MenuButton>
+				</Sidebar.MenuItem>
+			{/if}
 		</Sidebar.Menu>
 	</Sidebar.Group>
 {/if}
