@@ -2,12 +2,15 @@
 // never sees the MPD's audio adaptation sets. This bridge lists them as media audio tracks and
 // switches dash.js when one is picked. Remove it once the adapter does this itself.
 
+import { m } from '#lib/paraglide/messages.js';
+import { audioKind, type TrackRole } from './playback';
+
 /** The parts of a dash.js `MediaInfo` this bridge reads. */
 type DashTrack = {
 	id: string | null;
 	lang: string | null;
 	labels?: { text: string; lang?: string }[];
-	roles?: { value: string }[];
+	roles?: TrackRole[];
 	mimeType?: string | null;
 	codec?: string | null;
 };
@@ -50,12 +53,13 @@ export function groupAudioTracks(tracks: DashTrack[]): AudioTrackGroup[] {
 	const groups = new Map<string, AudioTrackGroup>();
 	for (const track of tracks) {
 		const language = track.lang ?? '';
-		const label = track.labels?.[0]?.text ?? language;
-		const key = `${language}|${label}`;
+		const name = track.labels?.[0]?.text ?? language;
+		const key = `${language}|${name}`;
 		let group = groups.get(key);
 		if (!group) {
-			const main = track.roles?.some((role) => role.value === 'main') ?? false;
-			group = { key, label, language, main, tracks: [] };
+			const kind = audioKind(track.roles);
+			const label = kind === 'auto-dubbed' ? m.player_audio_auto_dubbed({ label: name }) : name;
+			group = { key, label, language, main: kind === 'original', tracks: [] };
 			groups.set(key, group);
 		}
 		group.tracks.push(track);

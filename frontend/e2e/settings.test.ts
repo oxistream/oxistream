@@ -28,7 +28,8 @@ async function mockApi(
 		video_codecs: [],
 		max_quality: null,
 		default_quality: null,
-		home_sections: null
+		home_sections: null,
+		audio_language: null
 	};
 	let paused = false;
 	await page.route('**/api/v0/**', (route) => json(route, { code: 'not_found', message: '' }, 404));
@@ -94,29 +95,46 @@ async function mockApi(
 	return calls;
 }
 
-test('guests only get appearance settings and a sign-in prompt', async ({ page }) => {
+test('guests get browser-only settings and a sign-in prompt', async ({ page }) => {
 	await mockApi(page, { signedIn: false });
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
 	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
-	await expect(overview.getByRole('link')).toHaveText([/Appearance/]);
+	await expect(overview.getByRole('link')).toHaveText([/Playback/, /Appearance/]);
 
 	// Open on settings routes.
 	const nav = page.locator('[data-slot="sidebar"]');
 	await expect(nav.getByRole('list', { name: 'Settings sections' }).getByRole('link')).toHaveText([
+		'Playback',
 		'Appearance'
 	]);
 
 	await page.goto('/settings/playback');
-	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
 	await expect(page.getByRole('combobox', { name: 'Maximum quality' })).toHaveCount(0);
+	const audio = page.getByRole('combobox', { name: 'Default audio track' });
+	await expect(audio).toHaveText('Original');
+	await audio.click();
+	await page.getByRole('option', { name: 'German' }).click();
+	await expect(audio).toHaveText('German');
+	expect(await page.evaluate(() => localStorage.getItem('oxistream:audio-language'))).toBe('"de"');
+});
+
+test('signed-in users store the audio track preference', async ({ page }) => {
+	const calls = await mockApi(page);
+	await page.goto('/settings/playback');
+	const audio = page.getByRole('combobox', { name: 'Default audio track' });
+	await expect(audio).toHaveText('Original');
+	await audio.click();
+	await page.getByRole('option', { name: 'Interface language (English)' }).click();
+	await expect(audio).toHaveText('Interface language (English)');
+	expect(calls.patches).toContainEqual({ audio_language: 'interface' });
 });
 
 test('sponsorblock has its own section when the server offers it', async ({ page }) => {
 	await mockApi(page, { signedIn: false, sponsorblock: true });
 	await page.goto('/settings');
 	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
-	await expect(overview.getByRole('link')).toHaveText([/SponsorBlock/, /Appearance/]);
+	await expect(overview.getByRole('link')).toHaveText([/Playback/, /SponsorBlock/, /Appearance/]);
 
 	await page.locator('[data-slot="sidebar"]').getByRole('link', { name: 'SponsorBlock' }).click();
 	await expect(page).toHaveURL(/\/settings\/sponsorblock$/);
