@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ShortCard from '#lib/components/channel/short-card.svelte';
+	import RowScroller from '#lib/components/row-scroller.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { rememberShortsList } from '#lib/shorts/queue.js';
@@ -34,13 +35,17 @@
 			{/each}
 		</div>
 	{:else}
-		<ul class="short-row" aria-label={label}>
-			{#each shorts as short (short.id)}
-				<li class="min-w-0">
-					<ShortCard {short} onopen={() => rememberShortsList(shorts)} />
-				</li>
-			{/each}
-		</ul>
+		<RowScroller>
+			{#snippet children(scroller)}
+				<ul class="short-row" aria-label={label} {@attach scroller}>
+					{#each shorts as short (short.id)}
+						<li class="min-w-0">
+							<ShortCard {short} onopen={() => rememberShortsList(shorts)} />
+						</li>
+					{/each}
+				</ul>
+			{/snippet}
+		</RowScroller>
 	{/if}
 </div>
 
@@ -53,10 +58,14 @@
 		overflow-x: auto;
 		scroll-snap-type: x mandatory;
 		scroll-padding-inline: var(--page-gutter);
-		scrollbar-width: thin;
+		scrollbar-width: none;
 		margin-inline: calc(var(--page-gutter) * -1);
 		margin-block-start: -0.375rem;
 		padding: 0.375rem var(--page-gutter) 0.75rem;
+	}
+
+	.short-row::-webkit-scrollbar {
+		display: none;
 	}
 
 	.short-row > :global(*) {

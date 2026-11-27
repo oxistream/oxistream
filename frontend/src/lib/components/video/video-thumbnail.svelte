@@ -26,6 +26,7 @@
 <div
 	class={cn('relative aspect-video overflow-hidden rounded-lg bg-muted', className)}
 	aria-hidden="true"
+	data-thumbnail
 >
 	{#if src}
 		<img

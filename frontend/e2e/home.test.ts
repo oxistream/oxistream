@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 test.use({ locale: 'en-US' });
 
@@ -128,6 +128,40 @@ test('guests see trending rows and empty or failing ones are hidden', async ({ p
 	await expect(page.getByRole('heading', { level: 2 })).toHaveText(['News']);
 	await expect(page.getByRole('heading', { name: 'What do you want to watch?' })).toHaveCount(0);
 });
+
+test('rows hide their scrollbar and page with arrow buttons', async ({ page }) => {
+	await mockApi(page, { trending: { news: 12 } });
+	await page.goto('/');
+
+	const news = page.getByRole('list', { name: 'News' });
+	await expect(news.getByRole('listitem')).toHaveCount(12);
+	await expect(news).toHaveCSS('scrollbar-width', 'none');
+
+	const region = page.getByRole('region', { name: 'News' });
+	const previous = region.getByRole('button', { name: 'Previous' });
+	const next = region.getByRole('button', { name: 'Next' });
+	await expect(previous).toBeHidden();
+	await expect(next).toBeVisible();
+
+	const firstOffscreen = news.getByRole('listitem').nth(await visibleCount(news));
+	await next.click();
+	await expect(previous).toBeVisible();
+	await expect(firstOffscreen).toBeInViewport({ ratio: 1 });
+
+	await next.focus();
+	await news.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+	await expect(next).toBeHidden();
+	await expect(previous).toBeFocused();
+	await previous.click();
+	await expect(next).toBeVisible();
+});
+
+async function visibleCount(list: Locator) {
+	return list.evaluate((el) => {
+		const end = el.getBoundingClientRect().right;
+		return [...el.children].filter((item) => item.getBoundingClientRect().right <= end).length;
+	});
+}
 
 test('rows follow the default order', async ({ page }) => {
 	await mockApi(page, { trending: { news: 1, gaming: 2, podcasts: 1 } });
