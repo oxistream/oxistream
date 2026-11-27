@@ -72,7 +72,7 @@ impl AppState {
         self.proxy.stream_url(video_id, itag, track)
     }
 
-    /// Signed proxy URL of a subtitle, see [`proxy::subtitle_id`].
+    /// Signed proxy URL of a subtitle, see [`proxy::subtitle_ids`].
     pub fn subtitle_url(&self, video_id: &str, id: &str) -> String {
         self.proxy.subtitle_url(video_id, id)
     }

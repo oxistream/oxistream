@@ -1733,7 +1733,10 @@ export interface components {
         };
         Subtitle: {
             auto_generated: boolean;
-            /** @description Unique per video: the language code, prefixed with `a.` if auto-generated. */
+            /**
+             * @description Unique per video: the language code, prefixed with `a.` if auto-generated, suffixed with
+             *     `.2`, `.3`… for further tracks of the same language and kind.
+             */
             id: string;
             /** @description Human-readable language name. */
             label: string;

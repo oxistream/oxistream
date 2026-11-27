@@ -116,6 +116,31 @@ test('watch page renders details, player and related videos', async ({ page }) =
 	);
 });
 
+test('subtitle tracks sharing an id do not break the player', async ({ page }) => {
+	const errors: Error[] = [];
+	page.on('pageerror', (error) => errors.push(error));
+	const english = (label: string) => ({
+		id: 'en',
+		lang: 'en',
+		label,
+		auto_generated: false,
+		url: `/proxy/subtitle/${ID}/en`
+	});
+	await mockApi(page, {
+		details: {
+			status: 200,
+			body: { ...video, subtitles: [english('English - en'), english('English - English')] }
+		}
+	});
+	await page.goto(`/watch?v=${ID}`);
+
+	await expect(page.getByRole('heading', { level: 1, name: video.title })).toBeVisible();
+	const tracks = page.locator('dash-video > track[kind="subtitles"]');
+	await expect(tracks).toHaveCount(2);
+	await expect(tracks.nth(1)).toHaveAttribute('label', 'English - English');
+	expect(errors.filter((e) => /each_key_duplicate/.test(e.message))).toEqual([]);
+});
+
 test('description expands and links timestamps and URLs', async ({ page }) => {
 	await mockApi(page);
 	await page.setViewportSize({ width: 900, height: 900 });

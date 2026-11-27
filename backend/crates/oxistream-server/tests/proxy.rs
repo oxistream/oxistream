@@ -362,6 +362,11 @@ async fn proxies_subtitles_as_vtt() {
     let query = h.seen.last().0.query().unwrap().to_owned();
     assert_eq!(query, format!("v={VIDEO_ID}&lang=en&fmt=vtt"));
 
+    let response = h.get(&h.state.subtitle_url(VIDEO_ID, "en.2"), &[]).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let query = h.seen.last().0.query().unwrap().to_owned();
+    assert_eq!(query, format!("v={VIDEO_ID}&lang=en&name=English&fmt=vtt"));
+
     let response = h.get(&h.state.subtitle_url(VIDEO_ID, "fr"), &[]).await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

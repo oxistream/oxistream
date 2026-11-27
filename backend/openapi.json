@@ -7294,7 +7294,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Unique per video: the language code, prefixed with `a.` if auto-generated."
+            "description": "Unique per video: the language code, prefixed with `a.` if auto-generated, suffixed with\n`.2`, `.3`… for further tracks of the same language and kind."
           },
           "label": {
             "type": "string",
