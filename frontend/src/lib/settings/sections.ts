@@ -42,9 +42,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'playback',
 		title: m.settings_playback,
-		description: m.settings_playback_hint,
+		description: () =>
+			session.user ? m.settings_playback_hint() : m.settings_playback_hint_guest(),
 		icon: PlayIcon,
-		account: true,
+		account: false,
 		component: PlaybackSection
 	},
 	{

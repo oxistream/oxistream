@@ -52,6 +52,16 @@
 	</SettingsSection>
 </Story>
 
+<Story name="Playback, guest" asChild>
+	<SettingsSection id="playback" title="Playback" class="max-w-3xl">
+		<PlaybackSettings
+			settings={{ ...DEFAULT_SETTINGS, audio_language: 'interface' }}
+			guest
+			onchange={() => {}}
+		/>
+	</SettingsSection>
+</Story>
+
 <Story name="Home page" asChild>
 	<SettingsSection id="home" title="Home page" class="max-w-3xl">
 		<HomeSettings sections={settings.home_sections} onchange={update} />

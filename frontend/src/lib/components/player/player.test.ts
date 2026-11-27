@@ -111,4 +111,14 @@ describe('groupAudioTracks', () => {
 		expect(pickTrack(german, tracks[1]).id).toBe('6');
 		expect(pickTrack(german, null).id).toBe('5');
 	});
+
+	it('marks auto-dubbed languages', () => {
+		const auto = {
+			...track('7', 'fr', 'French', 'audio/mp4'),
+			roles: [{ value: 'dub' }, { schemeIdUri: 'urn:oxistream:dash:role:2026', value: 'auto-dub' }]
+		};
+		const [french] = groupAudioTracks([auto]);
+		expect(french.label).toBe('French (auto-dubbed)');
+		expect(french.main).toBe(false);
+	});
 });

@@ -1,6 +1,7 @@
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import { session, type ApiError as ErrorBody } from '#lib/session.svelte.js';
+import { guestAudioLanguage, resolveAudioLanguage } from '#lib/settings/audio-language.svelte.js';
 import { api } from './client';
 import { unwrap } from './mapping';
 import type { components } from './schema';
@@ -19,7 +20,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	video_codecs: [],
 	max_quality: null,
 	default_quality: null,
-	home_sections: null
+	home_sections: null,
+	audio_language: null
 };
 
 /** The signed-in user's settings; idle for guests, who always get the defaults. */
@@ -61,7 +63,10 @@ export function playbackPreferences(settings: Settings | undefined): PlaybackPre
 	return {
 		codecs: settings?.video_codecs ?? [],
 		maxQuality: settings?.max_quality ?? null,
-		defaultQuality: settings?.default_quality ?? null
+		defaultQuality: settings?.default_quality ?? null,
+		audioLanguage: resolveAudioLanguage(
+			session.user ? settings?.audio_language : guestAudioLanguage.current
+		)
 	};
 }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	applyPlaybackPreferences,
+	audioKind,
 	codecFamily,
 	pickRendition,
 	qualityFilter,
+	selectAudio,
 	trackSelector
 } from './playback';
 
@@ -36,15 +38,60 @@ describe('track selection', () => {
 		expect(trackSelector(['av1'])([avc, vp9Sdr]), 'unlisted codecs tie').toEqual([vp9Sdr]);
 	});
 
-	it('keeps the default track for audio', () => {
-		const dubbed = { type: 'audio', selectionPriority: 1, roles: [{ value: 'dub' }] };
-		const original = { type: 'audio', selectionPriority: 2, roles: [{ value: 'main' }] };
-		const originalOpus = { ...original, codec: 'opus' };
-		expect(trackSelector(['av1'])([dubbed, original, originalOpus])).toEqual([
+	it('picks the most efficient video track without a codec order', () => {
+		const avc = {
+			...video('avc1.64001F'),
+			bitrateList: [{ bandwidth: 4000, width: 10, height: 10 }]
+		};
+		const vp9 = {
+			...video('vp09.00.51.08'),
+			bitrateList: [{ bandwidth: 2000, width: 10, height: 10 }]
+		};
+		expect(trackSelector([])([avc, vp9])).toEqual([vp9]);
+	});
+
+	const AUTO_DUB = { schemeIdUri: 'urn:oxistream:dash:role:2026', value: 'auto-dub' };
+	const audio = (lang: string, role: string, auto = false, bandwidth = 128) => ({
+		type: 'audio',
+		lang,
+		selectionPriority: role === 'main' ? 2 : 1,
+		roles: [{ schemeIdUri: 'urn:mpeg:dash:role:2011', value: role }, ...(auto ? [AUTO_DUB] : [])],
+		bitrateList: [{ bandwidth }]
+	});
+
+	it('classifies audio tracks by their roles', () => {
+		expect(audioKind(audio('en', 'main').roles)).toBe('original');
+		expect(audioKind(audio('de', 'dub').roles)).toBe('dubbed');
+		expect(audioKind(audio('de', 'dub', true).roles)).toBe('auto-dubbed');
+		expect(audioKind([{ value: 'main' }]), 'scheme defaults to DASH').toBe('original');
+		expect(audioKind(null)).toBe('other');
+	});
+
+	it('starts with the original audio unless a language is preferred', () => {
+		const original = audio('en-US', 'main');
+		const originalOpus = audio('en-US', 'main', false, 120);
+		const dubbed = audio('fr', 'dub');
+		const autoDe = audio('de-DE', 'dub', true);
+		const tracks = [autoDe, dubbed, original, originalOpus];
+		expect(selectAudio(tracks, null)).toEqual([original, originalOpus]);
+		expect(trackSelector([])(tracks), 'most efficient codec').toEqual([originalOpus]);
+		expect(selectAudio(tracks, 'fr'), 'human dub').toEqual([dubbed]);
+		expect(selectAudio(tracks, 'de'), 'never an auto-dub over the original').toEqual([
 			original,
 			originalOpus
 		]);
-		expect(trackSelector(['av1'])([dubbed])).toEqual([dubbed]);
+		expect(selectAudio(tracks, 'en'), 'original in the language').toEqual([original, originalOpus]);
+	});
+
+	it('prefers the exact region, and falls back without an original', () => {
+		const pt = audio('pt', 'dub');
+		const ptBr = audio('pt-BR', 'dub');
+		const autoDe = audio('de', 'dub', true);
+		const autoEs = audio('es', 'dub', true);
+		expect(selectAudio([pt, ptBr], 'pt-BR')).toEqual([ptBr]);
+		expect(selectAudio([pt, ptBr], 'pt-PT')).toEqual([pt, ptBr]);
+		expect(selectAudio([autoEs, pt], 'de'), 'any track that is not auto-dubbed').toEqual([pt]);
+		expect(selectAudio([autoEs, autoDe], 'de'), 'only auto-dubs').toEqual([autoDe]);
 	});
 });
 
@@ -82,7 +129,7 @@ describe('engine hooks', () => {
 		const e = engine();
 		const cleanup = applyPlaybackPreferences(
 			{ engine: e },
-			{ codecs: ['av1'], maxQuality: 720, defaultQuality: null }
+			{ codecs: ['av1'], maxQuality: 720, defaultQuality: null, audioLanguage: null }
 		);
 		expect(e.setCustomInitialTrackSelectionFunction).toHaveBeenCalledOnce();
 		expect(e.registerCustomCapabilitiesFilter).toHaveBeenCalledOnce();
@@ -95,9 +142,9 @@ describe('engine hooks', () => {
 		const idle = engine();
 		applyPlaybackPreferences(
 			{ engine: idle },
-			{ codecs: [], maxQuality: null, defaultQuality: 720 }
+			{ codecs: [], maxQuality: null, defaultQuality: 720, audioLanguage: null }
 		)();
-		expect(idle.setCustomInitialTrackSelectionFunction).not.toHaveBeenCalled();
+		expect(idle.setCustomInitialTrackSelectionFunction, 'audio always').toHaveBeenCalledOnce();
 		expect(idle.registerCustomCapabilitiesFilter).not.toHaveBeenCalled();
 		expect(() => applyPlaybackPreferences({}, undefined)()).not.toThrow();
 	});
