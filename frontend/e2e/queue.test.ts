@@ -133,7 +133,66 @@ class FakeRoom {
 	}
 }
 
-async function mockApi(context: BrowserContext, { room }: { room?: FakeRoom } = {}) {
+type ServerEntry = { key: string; video: ReturnType<typeof summary> };
+
+/** The signed-in user's queue on the server, with its rules: changes go by key. */
+class FakeQueue {
+	revision = 0;
+	entries: ServerEntry[] = [];
+	requests: string[] = [];
+
+	body() {
+		return { revision: this.revision, entries: this.entries };
+	}
+
+	change(next: ServerEntry[]) {
+		if (JSON.stringify(next) === JSON.stringify(this.entries)) return;
+		this.entries = next;
+		this.revision++;
+	}
+
+	async route(context: BrowserContext) {
+		await context.route(/\/api\/v0\/queue(\/.*)?$/, (route) => {
+			const request = route.request();
+			const path = new URL(request.url()).pathname.replace('/api/v0/queue', '');
+			const method = request.method();
+			this.requests.push(`${method} ${path || '/'}`);
+			const key = decodeURIComponent(path.split('/')[2] ?? '');
+			if (method === 'POST' && path === '/entries') {
+				const body = request.postDataJSON() as {
+					entries: { key: string; video_id: string; title: string }[];
+					position?: 'start' | 'end';
+					skip_queued?: boolean;
+				};
+				const added = body.entries
+					.filter((e) => !this.entries.some((q) => q.key === e.key))
+					.filter((e) => !(body.skip_queued && this.entries.some((q) => q.video.id === e.video_id)))
+					.map((e) => ({ key: e.key, video: summary(e.video_id) }));
+				this.change(
+					body.position === 'start' ? [...added, ...this.entries] : [...this.entries, ...added]
+				);
+			} else if (method === 'DELETE' && path.startsWith('/entries/')) {
+				this.change(this.entries.filter((e) => e.key !== key));
+			} else if (method === 'PUT' && path.endsWith('/position')) {
+				const { index } = request.postDataJSON() as { index: number };
+				const entry = this.entries.find((e) => e.key === key);
+				if (entry) {
+					const rest = this.entries.filter((e) => e !== entry);
+					rest.splice(Math.min(index, rest.length), 0, entry);
+					this.change(rest);
+				}
+			} else if (method === 'DELETE') {
+				this.change([]);
+			}
+			return json(route, this.body());
+		});
+	}
+}
+
+async function mockApi(
+	context: BrowserContext,
+	{ room, queue }: { room?: FakeRoom; queue?: FakeQueue } = {}
+) {
 	await context.route('**/proxy/**', (route) => route.fulfill({ status: 404, body: '' }));
 	await context.route('**/proxy/stream/**', (route) => {
 		const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers()['range'] ?? '');
@@ -151,8 +210,11 @@ async function mockApi(context: BrowserContext, { room }: { room?: FakeRoom } = 
 		json(route, { code: 'not_found', message: '' }, 404)
 	);
 	await context.route('**/api/v0/auth/me', (route) =>
-		room ? json(route, account) : json(route, { code: 'unauthorized', message: '' }, 401)
+		room || queue ? json(route, account) : json(route, { code: 'unauthorized', message: '' }, 401)
 	);
+	await queue?.route(context);
+	if (queue)
+		await context.route('**/api/v0/progress/*', (route) => json(route, { progress: null }));
 	await context.route('**/api/v0/subscriptions*', (route) => json(route, []));
 	await context.route('**/api/v0/videos/*/manifest.mpd', (route) => {
 		const id = new URL(route.request().url()).pathname.split('/').at(-2)!;
@@ -236,7 +298,7 @@ test('queued videos play in order after the current one', async ({ context, page
 	await expect(page).toHaveURL(watchUrl(CANYON));
 });
 
-test('the queue can be reordered, trimmed and cleared, and lasts the tab', async ({
+test('the queue can be reordered, trimmed and cleared, and lasts a reload', async ({
 	context,
 	page
 }) => {
@@ -358,7 +420,138 @@ test('a party keeps its own queue', async ({ context, page }) => {
 	room.broadcast();
 	await expect(page).toHaveURL(watchUrl(CANYON), { timeout: 20_000 });
 	await expect.poll(() => room.current).toBe(2);
-	const stored = await page.evaluate(() => sessionStorage.getItem('oxistream:queue'));
-	const entries = JSON.parse(stored ?? '[]') as { id: string }[];
+	const stored = await page.evaluate(() => localStorage.getItem('oxistream:queue'));
+	const { entries } = JSON.parse(stored ?? '{}') as { entries: { id: string }[] };
 	expect(entries.map((e) => e.id)).toEqual([DELTA]);
+});
+
+async function watchPaused(page: Page, id = ALPINE) {
+	await page.goto(`/watch?v=${id}`);
+	await expect(page.getByRole('heading', { level: 1, name: title(id) })).toBeVisible();
+	await expect
+		.poll(() => media(page).evaluate((el: HTMLMediaElement) => el.readyState))
+		.toBeGreaterThanOrEqual(1);
+	await media(page).evaluate((el: HTMLMediaElement) => el.pause());
+}
+
+async function dragEntry(list: Locator, id: string, onto: string) {
+	const page = list.page();
+	const handle = list.getByRole('button', { name: `Reorder ${title(id)}` });
+	const target = list.getByTestId('queue-entry').filter({ hasText: title(onto) });
+	const from = (await handle.boundingBox())!;
+	const to = (await target.boundingBox())!;
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2, to.y + 4, { steps: 8 });
+	await page.mouse.up();
+}
+
+test('queue entries can be dragged and moved with the keyboard', async ({ context, page }) => {
+	await mockApi(context);
+	await watchPaused(page);
+	for (const id of [BEACH, CANYON, DELTA]) await queueVideo(page, id, 'Add to queue');
+	const upNext = page.getByTestId('up-next');
+	await expect.poll(() => titles(upNext)).toEqual([title(BEACH), title(CANYON), title(DELTA)]);
+
+	await dragEntry(upNext, DELTA, BEACH);
+	await expect.poll(() => titles(upNext)).toEqual([title(DELTA), title(BEACH), title(CANYON)]);
+	await expect(upNext.getByText(`Moved ${title(DELTA)} to position 1 of 3`)).toBeAttached();
+
+	const handle = upNext.getByRole('button', { name: `Reorder ${title(BEACH)}` });
+	await handle.focus();
+	await page.keyboard.press('End');
+	await expect.poll(() => titles(upNext)).toEqual([title(DELTA), title(CANYON), title(BEACH)]);
+	await expect(handle).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(() => titles(upNext)).toEqual([title(DELTA), title(BEACH), title(CANYON)]);
+
+	// The mini player's list takes drags, too.
+	await page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true }).click();
+	const mini = page.getByRole('region', { name: 'Mini player' });
+	await mini.getByRole('button', { name: 'Show queue' }).click();
+	const list = mini.getByTestId('up-next');
+	await dragEntry(list, CANYON, DELTA);
+	await expect.poll(() => titles(list)).toEqual([title(CANYON), title(DELTA), title(BEACH)]);
+
+	await page.reload();
+	await watchPaused(page);
+	await expect
+		.poll(() => titles(page.getByTestId('up-next')))
+		.toEqual([title(CANYON), title(DELTA), title(BEACH)]);
+});
+
+test('tabs share one queue and each entry plays in one tab only', async ({ context, page }) => {
+	await mockApi(context);
+	await watchPaused(page);
+	const other = await context.newPage();
+	await watchPaused(other, BEACH);
+
+	await queueVideo(page, CANYON, 'Add to queue');
+	await queueVideo(page, DELTA, 'Add to queue');
+	await expect
+		.poll(() => titles(other.getByTestId('up-next')))
+		.toEqual([title(CANYON), title(DELTA)]);
+	await dragEntry(other.getByTestId('up-next'), DELTA, CANYON);
+	await expect
+		.poll(() => titles(page.getByTestId('up-next')))
+		.toEqual([title(DELTA), title(CANYON)]);
+
+	// The other tab plays one; this tab then sees it gone.
+	await other
+		.getByTestId('up-next')
+		.getByRole('button', { name: title(DELTA), exact: true })
+		.click();
+	await expect(other).toHaveURL(watchUrl(DELTA));
+	await expect.poll(() => titles(page.getByTestId('up-next'))).toEqual([title(CANYON)]);
+	await page
+		.getByTestId('up-next')
+		.getByRole('button', { name: title(CANYON), exact: true })
+		.click();
+	await expect(page).toHaveURL(watchUrl(CANYON));
+	await expect(other.getByTestId('up-next')).toHaveCount(0);
+	await other.close();
+});
+
+test('signed in, the queue lives on the server and takes in the guest queue', async ({
+	context,
+	page
+}) => {
+	const queue = new FakeQueue();
+	queue.entries = [{ key: 'server-1', video: summary(BEACH) }];
+	queue.revision = 5;
+	await context.addInitScript(
+		([canyon, beach]) => {
+			if (localStorage.getItem('oxistream:queue')) return;
+			const entries = [
+				{ key: 'guest-1', id: canyon, title: 'Canyon rim' },
+				{ key: 'guest-2', id: beach, title: 'Beach walk' }
+			];
+			localStorage.setItem(
+				'oxistream:queue',
+				JSON.stringify({ owner: null, revision: 0, entries })
+			);
+		},
+		[CANYON, BEACH]
+	);
+	await mockApi(context, { queue });
+	await watchPaused(page);
+	const upNext = page.getByTestId('up-next');
+	await expect.poll(() => titles(upNext)).toEqual([title(BEACH), title(CANYON)]);
+	expect(queue.entries.map((e) => e.video.id)).toEqual([BEACH, CANYON]);
+	expect(queue.requests.filter((r) => r.startsWith('POST'))).toHaveLength(1);
+
+	await queueVideo(page, DELTA, 'Play next');
+	await expect.poll(() => queue.entries.map((e) => e.video.id)).toEqual([DELTA, BEACH, CANYON]);
+	await dragEntry(upNext, CANYON, DELTA);
+	await expect.poll(() => queue.entries.map((e) => e.video.id)).toEqual([CANYON, DELTA, BEACH]);
+
+	// Another device changes the queue; it shows once this tab is back in focus.
+	queue.change(queue.entries.filter((e) => e.video.id !== DELTA));
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+	await expect.poll(() => titles(upNext)).toEqual([title(CANYON), title(BEACH)]);
+
+	await page.reload();
+	await watchPaused(page);
+	await expect.poll(() => titles(upNext)).toEqual([title(CANYON), title(BEACH)]);
+	expect(queue.requests.filter((r) => r.startsWith('POST'))).toHaveLength(2);
 });
