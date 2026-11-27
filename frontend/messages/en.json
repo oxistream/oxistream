@@ -716,5 +716,15 @@
 	"party_queue_add": "Add to queue",
 	"party_queued": "Queued",
 	"party_already_queued": "Already in the queue",
-	"party_ok": "OK"
+	"party_ok": "OK",
+	"queue_heading": "Up next",
+	"queue_play_next": "Play next",
+	"queue_add": "Add to queue",
+	"queue_play_now": "Play now",
+	"queue_remove": "Remove from queue",
+	"queue_clear": "Clear queue",
+	"queue_item_actions": "Actions for {title}",
+	"queue_next": "Next video",
+	"queue_show": "Show queue",
+	"queue_hide": "Hide queue"
 }

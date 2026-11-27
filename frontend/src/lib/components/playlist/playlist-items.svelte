@@ -10,6 +10,7 @@
 	import { createProgressLookup } from '#lib/api/history.js';
 	import { dropIndex, moveItem } from '#lib/api/playlist-order.js';
 	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
+	import QueueMenuItems from '#lib/components/queue/queue-menu-items.svelte';
 	import AddToPartyMenuItem from '#lib/components/together/add-to-party-menu-item.svelte';
 	import type { VideoSummary } from '#lib/video.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
@@ -201,6 +202,7 @@
 						<EllipsisVerticalIcon />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-52">
+						<QueueMenuItems {video} />
 						<AddToPartyMenuItem videoId={video.id} />
 						{#if reorderable}
 							<DropdownMenu.Item disabled={index === 0} onSelect={() => move(video, index, 0)}>
@@ -239,7 +241,7 @@
 			{:else if video.channel.id}
 				<ChannelActionsMenu
 					channel={video.channel}
-					videoId={video.id}
+					{video}
 					label={m.block_video_actions({ title: video.title })}
 					class={menuClass}
 				/>

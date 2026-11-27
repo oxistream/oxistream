@@ -716,5 +716,15 @@
 	"party_queue_add": "Zur Warteschlange",
 	"party_queued": "In der Warteschlange",
 	"party_already_queued": "Schon in der Warteschlange",
-	"party_ok": "OK"
+	"party_ok": "OK",
+	"queue_heading": "Als Nächstes",
+	"queue_play_next": "Als Nächstes abspielen",
+	"queue_add": "Zur Warteschlange hinzufügen",
+	"queue_play_now": "Jetzt abspielen",
+	"queue_remove": "Aus der Warteschlange entfernen",
+	"queue_clear": "Warteschlange leeren",
+	"queue_item_actions": "Aktionen für {title}",
+	"queue_next": "Nächstes Video",
+	"queue_show": "Warteschlange anzeigen",
+	"queue_hide": "Warteschlange ausblenden"
 }

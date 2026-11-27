@@ -5,7 +5,9 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
+	import QueueMenuItems from '#lib/components/queue/queue-menu-items.svelte';
 	import AddToPartyMenuItem from '#lib/components/together/add-to-party-menu-item.svelte';
+	import type { QueueVideo } from '#lib/player/queue.svelte.js';
 	import BlockMenuItem from './block-menu-item.svelte';
 
 	let {
@@ -13,7 +15,7 @@
 		label = m.block_more_actions(),
 		variant = 'default',
 		size = 'icon-sm',
-		videoId,
+		video,
 		onblocked,
 		class: className
 	}: {
@@ -22,8 +24,8 @@
 		/** `overlay` sits over video, as in the shorts player. */
 		variant?: 'default' | 'overlay';
 		size?: 'icon-sm' | 'icon' | 'icon-lg';
-		/** Offers adding this video to the party this tab is in. */
-		videoId?: string;
+		/** Offers queueing this video, or adding it to the party this tab is in. */
+		video?: QueueVideo;
 		onblocked?: () => void;
 		class?: string;
 	} = $props();
@@ -45,7 +47,10 @@
 		<EllipsisVerticalIcon />
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="min-w-52">
-		{#if videoId}<AddToPartyMenuItem {videoId} />{/if}
+		{#if video}
+			<QueueMenuItems {video} />
+			<AddToPartyMenuItem videoId={video.id} />
+		{/if}
 		<BlockMenuItem {channel} {onblocked} />
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
