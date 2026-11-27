@@ -117,7 +117,9 @@
 			<PlaylistCover src={data.thumbnailUrl} count={data.videoCount} class="max-w-md" />
 			<div class="flex min-w-0 flex-col gap-1.5">
 				{#if data.isCourse}<CourseBadge />{/if}
-				<h1 class="text-xl font-semibold tracking-tight text-pretty break-words">{data.title}</h1>
+				<h1 class="text-xl font-semibold tracking-tight text-pretty break-words sm:text-2xl">
+					{data.title}
+				</h1>
 				<p class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
 					{#if data.channel}
 						<a

@@ -54,7 +54,7 @@
 				class="max-w-md"
 			/>
 			<div class="flex min-w-0 flex-col gap-1.5">
-				<h1 class="text-xl font-semibold tracking-tight text-pretty break-words">
+				<h1 class="text-xl font-semibold tracking-tight text-pretty break-words sm:text-2xl">
 					{m.liked_title()}
 				</h1>
 				<p class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
@@ -79,16 +79,10 @@
 					</Button>
 				</div>
 			{/if}
-			<p class="text-xs text-muted-foreground">{m.liked_private_hint()}</p>
 		{/snippet}
 
 		{#if data.items.length === 0 && !query.hasNextPage}
-			<EmptyState
-				icon={ThumbsUpIcon}
-				title={m.liked_empty_title()}
-				description={m.liked_empty_body()}
-				headingLevel={2}
-			/>
+			<EmptyState icon={ThumbsUpIcon} title={m.liked_empty_title()} headingLevel={2} />
 		{:else}
 			<PlaylistItems
 				playlistId={LIKED_LIST_ID}
