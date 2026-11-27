@@ -190,12 +190,7 @@
 
 	<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2">
 		{#if party.active}
-			<PartyNowPlaying
-				current={party.current}
-				playing={party.room?.playing ?? false}
-				class="px-2"
-				onskip={(entry) => party.send({ type: 'skip', entry: entry.id })}
-			/>
+			<PartyNowPlaying current={party.current} class="px-2" />
 
 			{#if errorMessage}
 				<p class="px-2 text-sm font-medium text-destructive" role="alert">{errorMessage}</p>

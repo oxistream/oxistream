@@ -37,19 +37,13 @@
 
 <Story name="Now playing" asChild>
 	<div class="max-w-xs">
-		<PartyNowPlaying current={mockRoomCurrent} playing onskip={() => {}} />
-	</div>
-</Story>
-
-<Story name="Now paused" asChild>
-	<div class="max-w-xs">
-		<PartyNowPlaying current={mockRoomCurrent} playing={false} />
+		<PartyNowPlaying current={mockRoomCurrent} />
 	</div>
 </Story>
 
 <Story name="Nothing playing" asChild>
 	<div class="max-w-xs">
-		<PartyNowPlaying current={null} playing={false} />
+		<PartyNowPlaying current={null} />
 	</div>
 </Story>
 
