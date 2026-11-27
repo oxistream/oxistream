@@ -1,9 +1,11 @@
 <script lang="ts">
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { ApiError, pickImage } from '#lib/api/mapping.js';
-	import { createProgressReporter, createVideoProgressQuery } from '#lib/api/history.js';
+	import { createVideoProgressQuery } from '#lib/api/history.js';
 	import { createLikedVideosQuery, mergeLikedVideos } from '#lib/api/likes.js';
 	import {
 		isLikedListId,
@@ -13,10 +15,9 @@
 		neighbors
 	} from '#lib/api/playlist-order.js';
 	import { createPlaylistQuery, useLastPlayed } from '#lib/api/playlists.js';
-	import { useSegments, useSponsorBlockSettings } from '#lib/api/sponsorblock.svelte.js';
-	import { manifestUrl, useManifest, useVideo } from '#lib/api/video.js';
+	import { useManifest, useVideo } from '#lib/api/video.js';
 	import { createYouTubePlaylistQuery, mergeYouTubePlaylist } from '#lib/api/youtube-playlists.js';
-	import Player, { type PlayerSubtitle } from '#lib/components/player/player.svelte';
+	import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 	import { playlistWatchHref } from '#lib/components/playlist/links.js';
 	import {
 		likedPlayback,
@@ -29,7 +30,6 @@
 	import StartRoomButton from '#lib/components/together/start-room-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
-	import SponsorBlockDialog from '#lib/components/sponsorblock/sponsorblock-dialog.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { describeProblem, liveProblem } from '#lib/components/watch/errors.js';
@@ -42,8 +42,8 @@
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import { session } from '#lib/session.svelte.js';
-	import { resolveSegments } from '#lib/sponsorblock/skip.js';
 
 	const THEATER_KEY = 'oxistream:theater';
 	// Enough to find a video anywhere in YouTube's largest playlists (5,000 videos).
@@ -60,24 +60,9 @@
 	const likedVideos = createLikedVideosQuery(() => isLikedListId(listId));
 	const rememberLastPlayed = useLastPlayed();
 	const manifest = useManifest(() => videoId);
-	const segmentsQuery = useSegments(() => videoId);
-	const sponsorBlock = useSponsorBlockSettings();
-	const segments = $derived(
-		sponsorBlock.ready && segmentsQuery.data
-			? resolveSegments(segmentsQuery.data, sponsorBlock.current)
-			: []
-	);
-	let sponsorBlockOpen = $state(false);
-
-	async function openSponsorBlock() {
-		// The dialog cannot show above a fullscreen player.
-		if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
-		sponsorBlockOpen = true;
-	}
 	const settings = createSettingsQuery();
 
 	let theater = $state(readJson(THEATER_KEY, (v): v is boolean => typeof v === 'boolean') ?? false);
-	let player = $state<ReturnType<typeof Player>>();
 	let descriptionExpanded = $state(false);
 
 	const details = $derived(video.data);
@@ -152,7 +137,6 @@
 
 	const explicitStart = $derived(parseStartTime(timeParam));
 	const savedProgress = createVideoProgressQuery(() => (explicitStart === null ? videoId : null));
-	const reportProgress = createProgressReporter();
 	// The player reads the start time once, so it waits until the saved position is known.
 	const startKnown = $derived(
 		explicitStart !== null ||
@@ -175,7 +159,7 @@
 		const t = timeParam;
 		if (lastTime !== null && t !== lastTime) {
 			const seconds = parseStartTime(t);
-			if (seconds !== null) player?.seek(seconds);
+			if (seconds !== null) appPlayer.seek(seconds);
 		}
 		lastTime = t ?? '';
 	});
@@ -185,13 +169,48 @@
 		descriptionExpanded = false;
 	});
 
+	// The app-wide player keeps playing across pages; this page only loads it for a new video.
+	const playing = $derived(videoId !== null && appPlayer.media?.videoId === videoId);
+	const ready = $derived(
+		videoId !== null && !problem && details?.id === videoId && startKnown && settingsKnown
+	);
+
+	$effect(() => {
+		if (!videoId || playing || appPlayer.claim) return;
+		// Another video stops right away instead of playing on while this one loads.
+		if (appPlayer.media) appPlayer.stop();
+		if (!ready || !details) return;
+		appPlayer.load({
+			videoId,
+			title: details.title,
+			channel: details.channel,
+			poster,
+			subtitles,
+			storyboard: details.storyboard_url ?? undefined,
+			startTime,
+			playback: playbackPreferences(settings.data),
+			href: watchHref(page.url.searchParams)
+		});
+	});
+
+	/** This page without `t`, so coming back from the mini player keeps the position. */
+	function watchHref(params: Iterable<[string, string]>) {
+		const query = [...params].filter(([key]) => key !== 't');
+		return `${resolve('/watch')}?${new URLSearchParams(query)}`;
+	}
+
+	// Back on the page of the video that is already playing: only an explicit ?t= moves it.
+	onMount(() => {
+		if (playing && explicitStart !== null) appPlayer.seek(explicitStart);
+	});
+
 	function toggleTheater() {
 		theater = !theater;
 		writeJson(THEATER_KEY, theater);
 	}
 
 	function seek(seconds: number) {
-		player?.seek(seconds);
+		appPlayer.seek(seconds);
 		document.getElementById('player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 	}
 
@@ -216,8 +235,6 @@
 </svelte:head>
 
 <svelte:window {onkeydown} />
-
-<SponsorBlockDialog bind:open={sponsorBlockOpen} />
 
 {#if !videoId}
 	<div class="px-(--page-gutter) py-6">
@@ -244,26 +261,16 @@
 						onretry={problem.retry ? retry : undefined}
 						class="watch-frame"
 					/>
-				{:else if details && startKnown && settingsKnown}
-					{#key videoId}
-						<Player
-							bind:this={player}
-							src={manifestUrl(videoId)}
-							{poster}
-							{subtitles}
-							storyboard={details.storyboard_url ?? undefined}
-							{startTime}
-							playback={playbackPreferences(settings.data)}
-							{theater}
-							autoplay
-							{segments}
-							onsponsorblocksettings={session.sponsorblock ? openSponsorBlock : undefined}
-							ontheatertoggle={toggleTheater}
-							onprogress={reportProgress(videoId)}
-							onended={playlistPosition.next ? playNext : undefined}
-							class="watch-frame"
-						/>
-					{/key}
+				{:else if playing}
+					<div
+						class="watch-frame watch-slot"
+						data-testid="player-slot"
+						{@attach appPlayer.slot(() => ({
+							theater,
+							ontheatertoggle: toggleTheater,
+							onended: playlistPosition.next ? playNext : undefined
+						}))}
+					></div>
 				{:else}
 					<div class="watch-frame" role="status" aria-label={m.watch_loading()}>
 						<Skeleton class="aspect-video w-full rounded-xl" />
@@ -318,6 +325,10 @@
 	.watch-player {
 		grid-area: player;
 		scroll-margin-top: 4.5rem;
+	}
+
+	.watch-slot {
+		aspect-ratio: 16 / 9;
 	}
 
 	.watch-meta {
@@ -388,12 +399,9 @@
 			background: oklch(0.13 0.004 286);
 		}
 
-		.watch :global(.watch-frame .oxi-player-frame) {
-			--media-video-border-radius: 0;
-		}
-
-		.watch :global(.watch-frame .oxi-player-frame)::after {
-			border-color: transparent;
+		/* Read by the app player, which draws over this slot. */
+		.watch .watch-slot {
+			--oxi-slot-flush: 1;
 		}
 
 		.watch :global(.watch-frame [data-slot='skeleton']),
