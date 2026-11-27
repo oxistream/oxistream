@@ -6,6 +6,7 @@
 	import PartyElsewhere from './party-elsewhere.svelte';
 	import PartyMembers from './party-members.svelte';
 	import PartyNowPlaying from './party-now-playing.svelte';
+	import PartyPick from './party-pick.svelte';
 	import PartyQueue from './party-queue.svelte';
 	import PartyStatus from './party-status.svelte';
 	import ShareButton from './share-button.svelte';
@@ -25,13 +26,28 @@
 
 <Story name="Queue" asChild>
 	<div class="max-w-sm">
-		<PartyQueue {queue} onremove={(entry) => (queue = queue.filter((e) => e.id !== entry.id))} />
+		<PartyQueue
+			{queue}
+			onremove={(entry) => (queue = queue.filter((e) => e.id !== entry.id))}
+			onmove={(entry, to) => {
+				const rest = queue.filter((e) => e.id !== entry.id);
+				queue = [...rest.slice(0, to), entry, ...rest.slice(to)];
+			}}
+		/>
 	</div>
 </Story>
 
 <Story name="Queue empty" asChild>
 	<div class="max-w-sm">
 		<PartyQueue queue={[]} />
+	</div>
+</Story>
+
+<Story name="Pick to queue" asChild>
+	<div class="flex max-w-xs flex-col">
+		{#each mockVideos.slice(0, 3) as video, i (video.id)}
+			<PartyPick {video} queued={i === 1} onpick={() => {}} />
+		{/each}
 	</div>
 </Story>
 

@@ -1676,10 +1676,26 @@ export interface components {
             type: "add";
             video_id: string;
         } | {
+            /** @enum {string} */
+            type: "add_many";
+            video_ids: string[];
+        } | {
             /** Format: int64 */
             entry: number;
             /** @enum {string} */
             type: "remove";
+        } | {
+            /** Format: int64 */
+            entry: number;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int32 */
+            to: number;
+            /** @enum {string} */
+            type: "move";
+        } | {
+            /** @enum {string} */
+            type: "shuffle";
         } | {
             /** Format: uuid */
             participant: string;
@@ -1687,7 +1703,7 @@ export interface components {
             type: "kick";
         };
         /** @enum {string} */
-        RoomErrorCode: "not_found" | "room_full" | "queue_full" | "invalid" | "video_unavailable" | "forbidden" | "rate_limited" | "internal";
+        RoomErrorCode: "not_found" | "room_full" | "queue_full" | "invalid" | "video_unavailable" | "forbidden" | "rate_limited" | "stale" | "internal";
         /** @description A watch together room. */
         RoomInfo: {
             /** Format: date-time */
@@ -1761,6 +1777,13 @@ export interface components {
             code: components["schemas"]["RoomErrorCode"];
             /** @enum {string} */
             type: "error";
+        } | {
+            /** Format: int32 */
+            added: number;
+            /** Format: int32 */
+            skipped: number;
+            /** @enum {string} */
+            type: "added";
         } | {
             /** @enum {string} */
             type: "kicked";

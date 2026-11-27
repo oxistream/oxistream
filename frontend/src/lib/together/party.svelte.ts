@@ -227,6 +227,21 @@ export class Party {
 		this.send({ type: 'add', video_id: videoId });
 	}
 
+	/** Queues videos in order, as many as fit; the answer lands in `connection.lastAdded`. */
+	addMany(videoIds: string[]) {
+		this.connection?.addMany(videoIds);
+	}
+
+	/** Moves an upcoming entry to index `to` of the queue, unless the room changed meanwhile. */
+	move(entry: number, to: number) {
+		const room = this.room;
+		if (room) this.send({ type: 'move', entry, to, revision: room.revision });
+	}
+
+	shuffle() {
+		this.send({ type: 'shuffle' });
+	}
+
 	/** Plays `videoId` for everyone, taking it from the queue if it is there. */
 	playNow(videoId: string) {
 		const queued = this.room?.queue.find((e) => e.video.id === videoId);
