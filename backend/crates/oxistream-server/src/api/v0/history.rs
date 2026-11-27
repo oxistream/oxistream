@@ -34,6 +34,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(history, clear_history))
         .routes(routes!(delete_entry))
         .routes(routes!(continue_watching))
+        .routes(routes!(dismiss_continue))
         .routes(routes!(history_settings, update_history_settings))
 }
 
@@ -421,6 +422,31 @@ async fn continue_watching(
     Ok(Json(
         entries.into_iter().map(|e| history_item(e, &img)).collect(),
     ))
+}
+
+/// Hide a video from "Continue watching" until it is watched again. It stays in the history
+/// and keeps its resume point. Succeeds if it is not in the history, too.
+#[utoipa::path(
+    delete,
+    path = "/history/continue/{video_id}",
+    tag = "history",
+    security(("session" = [])),
+    params(("video_id" = String, Path, description = "YouTube video ID")),
+    responses(
+        (status = NO_CONTENT, description = "Not in \"Continue watching\" anymore"),
+        (status = BAD_REQUEST, description = "Invalid video ID", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+    )
+)]
+async fn dismiss_continue(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(video_id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    check_video_id(&video_id)?;
+    state.history.dismiss_continue(user.id, &video_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Whether the watch history is paused.

@@ -288,6 +288,63 @@ async fn known_shorts_are_neither_recorded_nor_continued() {
     assert_eq!(list.len(), 2, "earlier history stays");
 }
 
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn dismissed_videos_leave_continue_watching_until_watched_again() {
+    let db = isolated_test_pool().await;
+    let history = PgHistoryRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    let bob = user(&db.pool).await;
+    for id in [VIDEO_A, VIDEO_B] {
+        history
+            .record(alice.id, &update(id, 30.0, false))
+            .await
+            .unwrap();
+    }
+    history
+        .record(bob.id, &update(VIDEO_A, 30.0, false))
+        .await
+        .unwrap();
+
+    assert!(history.dismiss_continue(alice.id, VIDEO_A).await.unwrap());
+    assert!(!history.dismiss_continue(alice.id, VIDEO_C).await.unwrap());
+    let ids = |entries: Vec<oxistream_db::HistoryEntry>| {
+        entries
+            .into_iter()
+            .map(|e| e.progress.video_id)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        ids(history.unfinished(alice.id, 10.0, 10).await.unwrap()),
+        [VIDEO_B]
+    );
+    assert_eq!(
+        history.list(alice.id, None, 10).await.unwrap().len(),
+        2,
+        "history keeps it"
+    );
+    let resume = history
+        .progress(alice.id, &[VIDEO_A.to_owned()])
+        .await
+        .unwrap();
+    assert_eq!(resume[0].position_seconds, 30.0, "resume point stays");
+    assert_eq!(
+        ids(history.unfinished(bob.id, 10.0, 10).await.unwrap()),
+        [VIDEO_A],
+        "other users are unaffected"
+    );
+
+    history
+        .record(alice.id, &update(VIDEO_A, 40.0, false))
+        .await
+        .unwrap();
+    assert_eq!(
+        ids(history.unfinished(alice.id, 10.0, 10).await.unwrap()),
+        [VIDEO_A, VIDEO_B],
+        "watching again brings it back"
+    );
+}
+
 struct Api {
     app: Router,
     token: String,
@@ -382,6 +439,7 @@ async fn api_requires_login() {
     let db = isolated_test_pool().await;
     let api = Api::new(&db.pool).await;
     let entry = format!("/api/v0/history/{VIDEO_A}");
+    let dismiss = format!("/api/v0/history/continue/{VIDEO_A}");
     let one = format!("/api/v0/progress/{VIDEO_A}");
     let batch = format!("/api/v0/progress?ids={VIDEO_A}");
     for (method, uri) in [
@@ -392,6 +450,7 @@ async fn api_requires_login() {
         (Method::DELETE, "/api/v0/history"),
         (Method::DELETE, entry.as_str()),
         (Method::GET, "/api/v0/history/continue"),
+        (Method::DELETE, dismiss.as_str()),
         (Method::GET, "/api/v0/history/settings"),
         (Method::PUT, "/api/v0/history/settings"),
     ] {
@@ -497,6 +556,50 @@ async fn api_records_and_serves_history() {
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (_, page) = api.send(Method::GET, "/api/v0/history").await;
     assert_eq!(page["items"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn api_dismisses_from_continue_watching() {
+    let db = isolated_test_pool().await;
+    let api = Api::new(&db.pool).await;
+    for id in [VIDEO_A, VIDEO_B] {
+        assert_eq!(
+            api.report("application/json", &report(id, 30.0, false))
+                .await,
+            StatusCode::NO_CONTENT
+        );
+    }
+
+    let (status, _) = api
+        .send(
+            Method::DELETE,
+            &format!("/api/v0/history/continue/{VIDEO_A}"),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, list) = api.send(Method::GET, "/api/v0/history/continue").await;
+    let list = list.as_array().unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["progress"]["video_id"], VIDEO_B);
+    let (_, page) = api.send(Method::GET, "/api/v0/history").await;
+    assert_eq!(
+        page["items"].as_array().unwrap().len(),
+        2,
+        "history keeps it"
+    );
+
+    let (status, _) = api
+        .send(
+            Method::DELETE,
+            &format!("/api/v0/history/continue/{VIDEO_C}"),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "unknown videos succeed too");
+    let (status, _) = api
+        .send(Method::DELETE, "/api/v0/history/continue/nope")
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
