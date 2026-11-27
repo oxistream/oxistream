@@ -39,7 +39,8 @@
 		queueCount?: number;
 		queueOpen?: boolean;
 		onqueuetoggle?: () => void;
-		onclose: () => void;
+		/** Shows the close button when set. */
+		onclose?: () => void;
 		/** Defaults to closing the player. */
 		closeLabel?: string;
 		class?: string;
@@ -117,14 +118,16 @@
 			</span>
 		</Button>
 	{/if}
-	<Button
-		variant="ghost"
-		size="icon-sm"
-		aria-label={closeLabel ?? m.mini_player_close()}
-		title={closeLabel}
-		data-testid="mini-player-close"
-		onclick={onclose}
-	>
-		<XIcon />
-	</Button>
+	{#if onclose}
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			aria-label={closeLabel ?? m.mini_player_close()}
+			title={closeLabel}
+			data-testid="mini-player-close"
+			onclick={onclose}
+		>
+			<XIcon />
+		</Button>
+	{/if}
 </div>
