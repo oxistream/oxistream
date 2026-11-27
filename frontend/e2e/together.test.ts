@@ -389,7 +389,7 @@ test('players stay within a few frames of each other', async ({ browser }) => {
 
 test('the room search lists more videos and other tabs add to the room', async ({ browser }) => {
 	const room = new FakeRoom(LONG);
-	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room);
+	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room, '?debug=sync');
 	const video = (id: string, extra = {}) => ({ type: 'video', ...summary(id), ...extra });
 	await guest.route('**/api/v0/search?*', (route) => {
 		const url = new URL(route.request().url());
@@ -438,6 +438,79 @@ test('the room search lists more videos and other tabs add to the room', async (
 	await other.reload();
 	await expect(other.getByRole('heading', { name: title(LONG_TOO) })).toBeVisible();
 	await expect(other.getByTestId('add-to-room')).toHaveCount(0);
+
+	await hostContext.close();
+	await guestContext.close();
+});
+
+const currentTime = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => el.currentTime);
+
+/** Drags the time slider from where playback is to `fraction` of its width. */
+async function scrub(page: Page, fraction: number) {
+	const player = page.getByTestId('room-player');
+	await player.hover();
+	const slider = player.locator('media-time-slider');
+	await expect(slider).toBeVisible();
+	const box = (await slider.boundingBox())!;
+	const y = box.y + box.height / 2;
+	const from = box.x + box.width * ((await currentTime(page)) / 60);
+	const to = box.x + box.width * fraction;
+	await page.mouse.move(from, y);
+	await page.mouse.down();
+	for (let i = 1; i <= 5; i++) {
+		await page.mouse.move(from + ((to - from) * i) / 5, y);
+		await page.waitForTimeout(100);
+	}
+	await page.mouse.up();
+}
+
+/** Where the room is now. */
+const live = (room: FakeRoom) =>
+	room.position + (room.playing ? (Date.now() - room.positionAt) / 1000 : 0);
+
+/** The player stays with the room instead of snapping back to where it was before. */
+async function staysWithRoom(page: Page, room: FakeRoom, seconds: number) {
+	for (let i = 0; i < seconds * 4; i++) {
+		expect(Math.abs((await currentTime(page)) - live(room))).toBeLessThan(3);
+		await page.waitForTimeout(250);
+	}
+}
+
+test('scrubbing in a room moves everyone there', async ({ browser }) => {
+	test.setTimeout(90_000);
+	const room = new FakeRoom(LONG);
+	const { host, guest, hostContext, guestContext } = await joinRoom(browser, room);
+
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	await expect.poll(() => currentTime(guest)).toBeGreaterThan(1);
+	const follows = async () => Math.abs((await currentTime(host)) - live(room));
+
+	// While playing, with the time slider.
+	await scrub(guest, 0.7);
+	await expect.poll(() => room.position).toBeGreaterThan(38);
+	expect(room.position).toBeLessThan(46);
+	await staysWithRoom(guest, room, 2);
+	await expect.poll(follows).toBeLessThan(0.5);
+
+	// With the keyboard, a second per step.
+	const before = await currentTime(guest);
+	await guest.getByTestId('room-player').locator('media-time-slider').focus();
+	for (let i = 0; i < 5; i++) await guest.keyboard.press('ArrowLeft');
+	await expect.poll(() => room.position).toBeLessThan(before - 2);
+	await staysWithRoom(guest, room, 2);
+	await expect.poll(follows).toBeLessThan(0.5);
+
+	// While paused.
+	await media(guest).evaluate((el: HTMLMediaElement) => el.pause());
+	await expect.poll(() => isPaused(host)).toBe(true);
+	await scrub(guest, 0.2);
+	await expect.poll(() => room.position).toBeLessThan(16);
+	expect(room.position).toBeGreaterThan(8);
+	await staysWithRoom(guest, room, 2);
+	await expect.poll(follows).toBeLessThan(0.1);
+	expect(room.playing).toBe(false);
 
 	await hostContext.close();
 	await guestContext.close();

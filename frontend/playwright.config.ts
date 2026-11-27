@@ -8,5 +8,14 @@ export default defineConfig({
 		reuseExistingServer: !process.env.CI
 	},
 	use: { baseURL: 'http://localhost:4173' },
-	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }]
+	projects: [
+		{ name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+		// WebKit plays media differently enough that room sync is checked there too.
+		{
+			name: 'webkit',
+			use: { ...devices['Desktop Safari'] },
+			testMatch: 'together.test.ts',
+			grep: /few frames|scrubbing/
+		}
+	]
 });
