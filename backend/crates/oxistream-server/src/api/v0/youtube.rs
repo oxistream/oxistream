@@ -68,8 +68,7 @@ async fn trending(
     ContentLanguage(lang): ContentLanguage,
     blocked: BlockedChannels,
 ) -> Result<Json<TrendingVideos>, ApiError> {
-    let Query(params) = params
-        .map_err(|_| ApiError::bad_request("`category` must be `podcasts`, `gaming` or `news`"))?;
+    let Query(params) = params.map_err(|_| ApiError::bad_request("unknown trending `category`"))?;
     let category = params.category.unwrap_or_default();
     let videos = state.youtube.trending(category.into(), lang).await?;
     let mut trending =

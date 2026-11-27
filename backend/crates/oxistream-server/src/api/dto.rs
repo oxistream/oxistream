@@ -246,6 +246,13 @@ pub enum TrendingCategory {
     Gaming,
     /// Top news stories.
     News,
+    Music,
+    Sports,
+    Learning,
+    /// Fashion and beauty.
+    Fashion,
+    /// Current, recent and upcoming livestreams.
+    Live,
 }
 
 impl From<TrendingCategory> for rustypipe::param::TrendingCategory {
@@ -254,6 +261,11 @@ impl From<TrendingCategory> for rustypipe::param::TrendingCategory {
             TrendingCategory::Podcasts => Self::Podcasts,
             TrendingCategory::Gaming => Self::Gaming,
             TrendingCategory::News => Self::News,
+            TrendingCategory::Music => Self::Music,
+            TrendingCategory::Sports => Self::Sports,
+            TrendingCategory::Learning => Self::Learning,
+            TrendingCategory::Fashion => Self::Fashion,
+            TrendingCategory::Live => Self::Live,
         }
     }
 }
