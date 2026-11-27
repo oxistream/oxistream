@@ -30,10 +30,8 @@
 		sponsorBlockOpen = true;
 	}
 
-	// Shorts and watch rooms bring their own player, so this one waits out of sight.
-	const elsewhere = $derived(
-		page.route.id?.startsWith('/shorts') === true || page.route.id === '/together/[room]'
-	);
+	// Shorts bring their own player, so this one waits out of sight, unless a party holds it.
+	const elsewhere = $derived(!appPlayer.claim && page.route.id?.startsWith('/shorts') === true);
 	const mode = $derived(appPlayer.inline ? 'inline' : elsewhere ? 'hidden' : 'mini');
 	const options = $derived(appPlayer.inline ? appPlayer.slotOptions() : {});
 
@@ -42,6 +40,13 @@
 	});
 
 	let host = $state<HTMLElement>();
+	$effect(() => {
+		const el = host ?? null;
+		appPlayer.element = el;
+		return () => {
+			if (appPlayer.element === el) appPlayer.element = null;
+		};
+	});
 	let rect = $state<{ top: number; left: number; width: number } | null>(null);
 	// The slot asks for square corners where the player runs edge to edge.
 	let flush = $state(false);
@@ -77,6 +82,7 @@
 
 	function ended() {
 		appPlayer.paused = true;
+		media.events?.onended?.();
 		if (appPlayer.inline) appPlayer.slotOptions().onended?.();
 	}
 </script>
@@ -95,6 +101,7 @@
 	style:top={mode === 'inline' && rect ? `${rect.top}px` : undefined}
 	style:left={mode === 'inline' && rect ? `${rect.left}px` : undefined}
 	style:width={mode === 'inline' && rect ? `${rect.width}px` : undefined}
+	style:--app-player-end-inset={appPlayer.endInset}
 >
 	<div class="app-player-video">
 		{#key appPlayer.generation}
@@ -108,17 +115,26 @@
 				playback={media.playback}
 				theater={options.theater ?? false}
 				globalHotkeys={mode === 'inline'}
-				autoplay
+				autoplay={media.autoplay ?? true}
 				{segments}
 				externalRate={media.externalRate}
 				onsponsorblocksettings={session.sponsorblock ? openSponsorBlock : undefined}
 				ontheatertoggle={options.ontheatertoggle}
 				onprogress={media.trackProgress === false ? undefined : reportProgress(media.videoId)}
-				onplay={() => (appPlayer.paused = false)}
-				onpause={() => (appPlayer.paused = true)}
+				onplay={(time) => {
+					appPlayer.paused = false;
+					media.events?.onplay?.(time);
+				}}
+				onpause={(time) => {
+					appPlayer.paused = true;
+					media.events?.onpause?.(time);
+				}}
+				onseeked={media.events?.onseeked}
+				ontimeupdate={media.events?.ontimeupdate}
 				onended={ended}
 			/>
 		{/key}
+		{@render appPlayer.claim?.overlay?.()}
 		{#if mode === 'mini'}
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved by the watch page -->
 			<a
@@ -137,6 +153,7 @@
 			href={media.href}
 			paused={appPlayer.paused}
 			ontoggle={() => appPlayer.toggle()}
+			closeLabel={appPlayer.claim?.closeLabel?.()}
 			onclose={() => appPlayer.close()}
 			class="app-player-bar"
 		/>
@@ -168,9 +185,10 @@
 
 	.app-player[data-mode='mini'] {
 		position: fixed;
-		inset-inline-end: 1rem;
+		inset-inline-end: calc(1rem + var(--app-player-end-inset, 0px));
 		bottom: calc(1rem + env(safe-area-inset-bottom));
 		z-index: 40;
+		transition: inset-inline-end 200ms ease-in-out;
 		width: 22rem;
 		overflow: hidden;
 		border: 1px solid var(--border);

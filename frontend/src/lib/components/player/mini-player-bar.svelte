@@ -13,6 +13,7 @@
 		paused,
 		ontoggle,
 		onclose,
+		closeLabel,
 		class: className
 	}: {
 		title: string;
@@ -22,6 +23,8 @@
 		paused: boolean;
 		ontoggle: () => void;
 		onclose: () => void;
+		/** Defaults to closing the player. */
+		closeLabel?: string;
 		class?: string;
 	} = $props();
 </script>
@@ -57,7 +60,8 @@
 	<Button
 		variant="ghost"
 		size="icon-sm"
-		aria-label={m.mini_player_close()}
+		aria-label={closeLabel ?? m.mini_player_close()}
+		title={closeLabel}
 		data-testid="mini-player-close"
 		onclick={onclose}
 	>
