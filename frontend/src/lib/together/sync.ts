@@ -96,6 +96,8 @@ const COSTLY_RATE_CHANGE = 0.08;
 const MAX_RATE_COST = 1.5;
 /** A rate change's cost is measured this long after it, in ms, if the rate held. */
 const COST_WINDOW = 1500;
+/** The cost is the least of this many recent measurements. */
+const COST_SAMPLES = 3;
 /** With costly rate changes, a phase starts beyond this drift and lasts at least this long. */
 const COSTLY_DEADBAND = 0.08;
 const MIN_PHASE_MS = 1000;
@@ -121,9 +123,11 @@ export class DriftController {
 	/** When the current or the last phase started or ended. */
 	#phaseAt = -Infinity;
 	#lastAt: number | null = null;
+	#costs: number[];
 
 	constructor(rateCost = 0) {
 		this.rateCost = Math.min(MAX_RATE_COST, Math.max(0, rateCost));
+		this.#costs = this.rateCost > 0 ? [this.rateCost, this.rateCost] : [];
 	}
 
 	get costly(): boolean {
@@ -209,7 +213,9 @@ export class DriftController {
 		this.#change = null;
 		const expected = change.drift + ((change.rate - 1) * (now - change.at)) / 1000;
 		const lost = Math.min(MAX_RATE_COST, Math.max(0, expected - drift));
-		this.rateCost += 0.5 * (lost - this.rateCost);
+		this.#costs = [...this.#costs, lost].slice(-COST_SAMPLES);
+		// A freeze that happens on every change counts; a stall that came by once does not.
+		this.rateCost = this.#costs.length < 2 ? 0 : Math.min(...this.#costs);
 	}
 }
 

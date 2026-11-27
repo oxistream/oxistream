@@ -11,7 +11,14 @@ import {
 
 test.use({
 	locale: 'en-US',
-	launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] }
+	// Only Chromium knows this flag; WebKit on Linux refuses to start with it.
+	launchOptions: [
+		async ({ browserName }, use) =>
+			use(
+				browserName === 'chromium' ? { args: ['--autoplay-policy=no-user-gesture-required'] } : {}
+			),
+		{ scope: 'worker' }
+	]
 });
 
 const ROOM = 'Qm9vbS1vbmUtMTIzNDU2Nw';
@@ -320,6 +327,7 @@ async function worstGap(a: Page, b: Page, seconds: number): Promise<number> {
 	return worst;
 }
 
+/** Each player may sit up to 30 ms off the room before it corrects, in opposite directions. */
 const SETTLED_GAP = 0.05;
 
 async function joinRoom(browser: Browser, room: FakeRoom, query = '') {
@@ -360,7 +368,7 @@ test('players stay within a few frames of each other', async ({ browser }) => {
 		.toBeLessThan(1);
 	await expect
 		.poll(async () => Math.abs(await gap(host, guest)), { timeout: 20_000 })
-		.toBeLessThan(0.03);
+		.toBeLessThan(SETTLED_GAP);
 	const caughtUp = await worstGap(host, guest, 3);
 	console.log(`gap after catching up: ${(caughtUp * 1000).toFixed(1)} ms`);
 	expect(caughtUp).toBeLessThan(SETTLED_GAP);
@@ -373,7 +381,7 @@ test('players stay within a few frames of each other', async ({ browser }) => {
 	await expect.poll(() => room.position).toBeGreaterThan(29);
 	await expect
 		.poll(async () => Math.abs(await gap(host, guest)), { timeout: 15_000 })
-		.toBeLessThan(0.03);
+		.toBeLessThan(SETTLED_GAP);
 	const afterSeek = await worstGap(host, guest, 3);
 	console.log(`gap after a seek: ${(afterSeek * 1000).toFixed(1)} ms`);
 	expect(afterSeek).toBeLessThan(SETTLED_GAP);
@@ -496,9 +504,18 @@ test('scrubbing in a room moves everyone there', async ({ browser }) => {
 
 	// With the keyboard, a second per step.
 	const before = await currentTime(guest);
+	const dragged = room.position;
 	await guest.getByTestId('room-player').locator('media-time-slider').focus();
-	for (let i = 0; i < 5; i++) await guest.keyboard.press('ArrowLeft');
-	await expect.poll(() => room.position).toBeLessThan(before - 2);
+	// Paced like a person: the slider steps from the time it last showed.
+	for (let i = 0; i < 5; i++) {
+		await guest.keyboard.press('ArrowLeft');
+		await guest.waitForTimeout(150);
+	}
+	// The room was already a little behind `before` after the drag; wait for the steps.
+	await expect.poll(() => room.position !== dragged && room.position < before - 2).toBe(true);
+	await expect
+		.poll(async () => Math.abs((await currentTime(guest)) - live(room)))
+		.toBeLessThan(0.5);
 	await staysWithRoom(guest, room, 2);
 	await expect.poll(follows).toBeLessThan(0.5);
 

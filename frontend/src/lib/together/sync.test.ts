@@ -169,9 +169,20 @@ describe('DriftController with costly rate changes', () => {
 	it('learns what a rate change costs from how drift moved after it', () => {
 		const control = new DriftController();
 		expect(control.costly).toBe(false);
-		simulate(control, -0.4, 4, 0.3);
-		expect(control.rateCost).toBeGreaterThan(0.1);
+		simulate(control, -0.4, 60, 0.3);
+		expect(control.rateCost).toBeGreaterThan(0.2);
 		expect(control.costly).toBe(true);
+	});
+
+	it('is not fooled by a stall that happens once after a change', () => {
+		const control = new DriftController();
+		expect(control.update(-0.08, 0)).toBeGreaterThan(1);
+		// Played on at the new rate, but lost 750 ms to a hiccup.
+		control.update(-0.08 - 0.75, 1500);
+		expect(control.costly).toBe(false);
+		const run = simulate(control, -0.4, 30, 0);
+		expect(control.costly).toBe(false);
+		expect(Math.abs(run.drift)).toBeLessThan(0.03);
 	});
 
 	it('stays fine-grained when rate changes are free', () => {
