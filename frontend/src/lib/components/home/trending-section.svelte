@@ -11,7 +11,12 @@
 	const titles: Record<TrendingCategory, () => string> = {
 		news: m.home_trending_news,
 		gaming: m.home_trending_gaming,
-		podcasts: m.home_trending_podcasts
+		podcasts: m.home_trending_podcasts,
+		music: m.home_trending_music,
+		sports: m.home_trending_sports,
+		learning: m.home_trending_learning,
+		fashion: m.home_trending_fashion,
+		live: m.home_trending_live
 	};
 
 	// Categories can list hundreds of videos; a row only needs a screenful or two.

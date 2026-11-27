@@ -1805,7 +1805,7 @@ export interface components {
          * @description YouTube has no general trending list anymore, only these destination pages.
          * @enum {string}
          */
-        TrendingCategory: "podcasts" | "gaming" | "news";
+        TrendingCategory: "podcasts" | "gaming" | "news" | "music" | "sports" | "learning" | "fashion" | "live";
         TrendingVideos: {
             category: components["schemas"]["TrendingCategory"];
             items: components["schemas"]["VideoSummary"][];
@@ -5358,7 +5358,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Defaults to `podcasts`. */
-                category?: "podcasts" | "gaming" | "news";
+                category?: "podcasts" | "gaming" | "news" | "music" | "sports" | "learning" | "fashion" | "live";
             };
             header?: {
                 /** @description Content language */

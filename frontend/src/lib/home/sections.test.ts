@@ -46,7 +46,12 @@ describe('home sections', () => {
 			['subscriptions', false],
 			['subscription-shorts', false],
 			['trending-news', false],
-			['trending-podcasts', false]
+			['trending-podcasts', false],
+			['trending-music', false],
+			['trending-sports', false],
+			['trending-learning', false],
+			['trending-fashion', false],
+			['trending-live', false]
 		]);
 		expect(enabledSections(sections)).toEqual(['trending-gaming', 'continue-watching']);
 		expect(enabledSections(editableSections())).toEqual(homeSections('user'));
@@ -54,6 +59,7 @@ describe('home sections', () => {
 
 	it('maps trending sections to their category', () => {
 		expect(trendingCategory('trending-gaming')).toBe('gaming');
+		expect(trendingCategory('trending-fashion')).toBe('fashion');
 		expect(trendingCategory('subscriptions')).toBeUndefined();
 	});
 });
