@@ -173,6 +173,11 @@
 	body {
 		@apply bg-sidebar text-foreground;
 	}
+	/* Tailwind 4 no longer gives buttons a pointer cursor. */
+	button:not(:disabled),
+	[role='button']:not([aria-disabled='true']) {
+		cursor: pointer;
+	}
 	::selection {
 		background: color-mix(in oklch, var(--primary) 28%, transparent);
 	}
