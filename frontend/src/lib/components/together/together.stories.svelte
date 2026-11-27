@@ -5,6 +5,7 @@
 	import JoinForm from './join-form.svelte';
 	import PartyElsewhere from './party-elsewhere.svelte';
 	import PartyMembers from './party-members.svelte';
+	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyQueue from './party-queue.svelte';
 	import PartyStatus from './party-status.svelte';
 	import ShareButton from './share-button.svelte';
@@ -13,7 +14,7 @@
 	const { Story } = defineMeta({
 		title: 'Together/PartyQueue',
 		component: PartyQueue,
-		args: { current: mockRoomCurrent, queue: mockRoomQueue }
+		args: { queue: mockRoomQueue }
 	});
 </script>
 
@@ -24,17 +25,31 @@
 
 <Story name="Queue" asChild>
 	<div class="max-w-sm">
-		<PartyQueue
-			current={mockRoomCurrent}
-			{queue}
-			onremove={(entry) => (queue = queue.filter((e) => e.id !== entry.id))}
-		/>
+		<PartyQueue {queue} onremove={(entry) => (queue = queue.filter((e) => e.id !== entry.id))} />
 	</div>
 </Story>
 
 <Story name="Queue empty" asChild>
 	<div class="max-w-sm">
-		<PartyQueue current={null} queue={[]} />
+		<PartyQueue queue={[]} />
+	</div>
+</Story>
+
+<Story name="Now playing" asChild>
+	<div class="max-w-xs">
+		<PartyNowPlaying current={mockRoomCurrent} playing onskip={() => {}} />
+	</div>
+</Story>
+
+<Story name="Now paused" asChild>
+	<div class="max-w-xs">
+		<PartyNowPlaying current={mockRoomCurrent} playing={false} />
+	</div>
+</Story>
+
+<Story name="Nothing playing" asChild>
+	<div class="max-w-xs">
+		<PartyNowPlaying current={null} playing={false} />
 	</div>
 </Story>
 

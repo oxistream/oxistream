@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DoorClosedIcon from '@lucide/svelte/icons/door-closed';
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -12,23 +13,29 @@
 	} from '#lib/api/rooms.js';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
+	import * as Avatar from '#lib/components/ui/avatar/index.js';
 	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
-	import { Input } from '#lib/components/ui/input/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { formatNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import { session } from '#lib/session.svelte.js';
 	import { party } from '#lib/together/party.svelte.js';
+	import { cn } from '#lib/utils.js';
+	import { initials } from '#lib/video.js';
 	import { addErrorMessage } from './errors.js';
 	import PartyMembers from './party-members.svelte';
+	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyQueue from './party-queue.svelte';
 	import PartyStatus from './party-status.svelte';
 	import ShareButton from './share-button.svelte';
 
 	const ERROR_VISIBLE_MS = 6000;
+	const AVATARS_SHOWN = 4;
 
 	let {
 		open,
@@ -47,11 +54,18 @@
 	const create = createCreateRoomMutation();
 	const closeRoom = createCloseRoomMutation();
 	let endOpen = $state(false);
+	let tab = $state<'queue' | 'members'>('queue');
 	let now = $state(Date.now());
 
 	$effect(() => {
 		if (open && !party.active && session.user) void rooms.refetch();
 	});
+
+	const queue = $derived(party.room?.queue ?? []);
+	const participants = $derived(party.participants);
+	const shown = $derived(
+		participants.length > AVATARS_SHOWN ? participants.slice(0, AVATARS_SHOWN - 1) : participants
+	);
 
 	const lastError = $derived(party.connection?.lastError);
 	const errorMessage = $derived(
@@ -88,91 +102,144 @@
 	}
 </script>
 
-{#snippet title(text: string, className?: string)}
-	{#if dialog}
-		<Sheet.Title class={className}>{text}</Sheet.Title>
-	{:else}
-		<h2 class={['font-medium text-foreground', className]}>{text}</h2>
-	{/if}
-{/snippet}
-
-{#snippet description(text: string)}
-	{#if dialog}
-		<Sheet.Description>{text}</Sheet.Description>
-	{:else}
-		<p class="text-sm text-muted-foreground">{text}</p>
-	{/if}
+{#snippet count(value: number)}
+	<span class="text-xs text-muted-foreground tabular-nums">{formatNumber(value, locale)}</span>
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col" data-testid="party-panel">
-	<header class="relative flex flex-col gap-1.5 border-b border-sidebar-border p-4 pe-12">
-		{#if party.active}
-			<div class="flex min-w-0 items-center gap-2">
-				{@render title(
-					party.owner ? m.party_owner_title({ owner: party.owner }) : m.party_title(),
-					'truncate'
-				)}
-				<PartyStatus status={party.status} class="shrink-0" />
-			</div>
-			{#if session.account}
-				{@render description(m.party_history_hint())}
-			{/if}
+	<!-- The sheet's own close button sits in the top corner, so the row ends before it. -->
+	<header class={cn('flex h-16 shrink-0 items-center gap-1 p-2 ps-4', dialog && 'pe-13')}>
+		{#if dialog}
+			<Sheet.Title class="text-base font-semibold">{m.party_heading()}</Sheet.Title>
 		{:else}
-			{@render title(m.party_title())}
-			{@render description(m.party_intro())}
+			<h2 class="text-base font-semibold text-foreground">{m.party_heading()}</h2>
 		{/if}
-		{#if !dialog}
-			<Button variant="ghost" size="icon-sm" class="absolute end-3 top-3" onclick={onclose}>
-				<XIcon />
-				<span class="sr-only">{m.close()}</span>
-			</Button>
+		{#if party.active}
+			<PartyStatus status={party.status} class="ms-1" />
 		{/if}
+		<div class="ms-auto flex items-center gap-1">
+			{#if party.active}
+				<button
+					type="button"
+					class="me-1 flex rounded-full outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+					aria-label="{m.party_show_members()} ({formatNumber(participants.length, locale)})"
+					title={m.party_show_members()}
+					onclick={() => (tab = 'members')}
+					data-testid="party-avatars"
+				>
+					<Avatar.Group class="*:data-[slot=avatar]:ring-sidebar">
+						{#each shown as person (person.id)}
+							<Avatar.Root size="sm" class="bg-sidebar-accent">
+								<Avatar.Fallback
+									class="bg-sidebar-accent text-[0.625rem] font-medium text-sidebar-accent-foreground"
+								>
+									{initials(person.name)}
+								</Avatar.Fallback>
+							</Avatar.Root>
+						{/each}
+						{#if participants.length > shown.length}
+							<Avatar.GroupCount class="size-6 text-[0.625rem] ring-sidebar">
+								+{formatNumber(participants.length - shown.length, locale)}
+							</Avatar.GroupCount>
+						{/if}
+					</Avatar.Group>
+				</button>
+				<ShareButton url={party.inviteUrl} />
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon-sm"
+								aria-label={m.party_menu()}
+								title={m.party_menu()}
+								data-testid="party-menu"
+							>
+								<EllipsisVerticalIcon />
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="w-auto min-w-44">
+						<DropdownMenu.Item onSelect={() => party.leave()} data-testid="party-leave">
+							<LogOutIcon />
+							{m.party_leave()}
+						</DropdownMenu.Item>
+						{#if party.isOwner}
+							<DropdownMenu.Separator />
+							<DropdownMenu.Item
+								variant="destructive"
+								onSelect={() => (endOpen = true)}
+								data-testid="party-end"
+							>
+								<DoorClosedIcon />
+								{m.party_end()}
+							</DropdownMenu.Item>
+						{/if}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			{/if}
+			{#if !dialog}
+				<Button variant="ghost" size="icon-sm" onclick={onclose}>
+					<XIcon />
+					<span class="sr-only">{m.close()}</span>
+				</Button>
+			{/if}
+		</div>
 	</header>
 
-	<div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4">
+	<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2">
 		{#if party.active}
-			<div class="flex flex-col gap-1.5">
-				<label for="{uid}-invite" class="px-1 text-sm font-semibold">{m.party_invite()}</label>
-				<div class="flex gap-2">
-					<Input
-						id="{uid}-invite"
-						value={party.inviteUrl}
-						readonly
-						class="min-w-0 flex-1 font-mono text-xs"
-						onfocus={(event) => event.currentTarget.select()}
-						data-testid="party-invite"
-					/>
-					<ShareButton url={party.inviteUrl} class="shrink-0" />
-				</div>
-			</div>
+			<PartyNowPlaying
+				current={party.current}
+				playing={party.room?.playing ?? false}
+				class="px-2"
+				onskip={(entry) => party.send({ type: 'skip', entry: entry.id })}
+			/>
 
 			{#if errorMessage}
-				<p class="px-1 text-sm font-medium text-destructive" role="alert">{errorMessage}</p>
+				<p class="px-2 text-sm font-medium text-destructive" role="alert">{errorMessage}</p>
 			{/if}
 
-			<PartyQueue
-				current={party.current}
-				queue={party.room?.queue ?? []}
-				onskip={(entry) => party.send({ type: 'skip', entry: entry.id })}
-				onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
-				onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
-			/>
-
-			<PartyMembers
-				participants={party.participants}
-				meId={party.connection?.participantId}
-				canKick={party.isOwner}
-				onkick={(person) => party.send({ type: 'kick', participant: person.id })}
-			/>
+			<Tabs.Root bind:value={tab} class="gap-1">
+				<Tabs.List
+					variant="line"
+					class="sticky top-0 z-10 w-full shrink-0 justify-start bg-sidebar px-2"
+				>
+					<Tabs.Trigger value="queue" class="flex-none px-1.5" data-testid="party-tab-queue">
+						{m.party_queue()}
+						{@render count(queue.length)}
+					</Tabs.Trigger>
+					<Tabs.Trigger value="members" class="flex-none px-1.5" data-testid="party-tab-members">
+						{m.party_members()}
+						{@render count(participants.length)}
+					</Tabs.Trigger>
+				</Tabs.List>
+				<Tabs.Content value="queue">
+					<PartyQueue
+						{queue}
+						onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
+						onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
+					/>
+				</Tabs.Content>
+				<Tabs.Content value="members">
+					<PartyMembers
+						{participants}
+						meId={party.connection?.participantId}
+						canKick={party.isOwner}
+						onkick={(person) => party.send({ type: 'kick', participant: person.id })}
+					/>
+				</Tabs.Content>
+			</Tabs.Root>
 		{:else if !session.ready}
-			<Skeleton class="h-9 w-full" />
+			<Skeleton class="mx-2 h-9" />
 		{:else if !session.user}
-			<div class="flex flex-col gap-3">
+			<div class="flex flex-col gap-3 px-2">
 				<p class="text-sm text-pretty text-muted-foreground">{m.party_sign_in()}</p>
 				<SignInActions />
 			</div>
 		{:else}
-			<div class="flex flex-col gap-2">
+			<div class="flex flex-col gap-2 px-2">
 				<Button onclick={start} disabled={create.isPending} data-testid="party-start">
 					<PlusIcon />
 					{m.party_start()}
@@ -185,13 +252,20 @@
 			</div>
 
 			{#if rooms.isError}
-				<p class="text-sm text-muted-foreground">{m.party_yours_error()}</p>
+				<p class="px-2 text-sm text-muted-foreground">{m.party_yours_error()}</p>
 			{:else if rooms.data?.length}
-				<section class="flex flex-col gap-1.5" aria-labelledby="{uid}-yours">
-					<h3 id="{uid}-yours" class="px-1 text-sm font-semibold">{m.party_yours()}</h3>
+				<section class="flex flex-col" aria-labelledby="{uid}-yours">
+					<h3
+						id="{uid}-yours"
+						class="flex h-8 items-center px-2 text-xs font-medium text-sidebar-foreground/70"
+					>
+						{m.party_yours()}
+					</h3>
 					<ul class="flex flex-col gap-0.5">
 						{#each rooms.data as room (room.id)}
-							<li class="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/60">
+							<li
+								class="flex items-center gap-3 rounded-md p-2 transition-colors hover:bg-sidebar-accent"
+							>
 								<div class="min-w-0 flex-1">
 									<p class="truncate text-sm font-medium">
 										{room.currentTitle ?? m.party_nothing()}
@@ -217,21 +291,6 @@
 			{/if}
 		{/if}
 	</div>
-
-	{#if party.active}
-		<footer class="flex justify-end gap-2 border-t border-sidebar-border p-4">
-			<Button variant="ghost" size="sm" onclick={() => party.leave()} data-testid="party-leave">
-				<LogOutIcon />
-				{m.party_leave()}
-			</Button>
-			{#if party.isOwner}
-				<Button variant="destructive" size="sm" onclick={() => (endOpen = true)}>
-					<DoorClosedIcon />
-					{m.party_end()}
-				</Button>
-			{/if}
-		</footer>
-	{/if}
 </div>
 
 <AlertDialog.Root bind:open={endOpen}>

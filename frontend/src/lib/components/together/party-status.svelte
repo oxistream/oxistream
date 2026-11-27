@@ -14,21 +14,23 @@
 	);
 </script>
 
+<!-- Connected is the normal case: only a dot then, the label while connecting. -->
 <span
 	class={cn(
-		'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground',
+		'inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground',
 		className
 	)}
 	role="status"
+	title={label}
 	data-status={status}
 	data-testid="party-status"
 >
 	<span
 		class={cn(
-			'size-1.5 rounded-full',
-			status === 'open' ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'
+			'size-2 rounded-full',
+			status === 'open' ? 'bg-emerald-500' : 'animate-pulse bg-amber-500 motion-reduce:animate-none'
 		)}
 		aria-hidden="true"
 	></span>
-	{label}
+	<span class={cn(status === 'open' && 'sr-only')}>{label}</span>
 </span>
