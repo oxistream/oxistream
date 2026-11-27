@@ -65,6 +65,10 @@ pub struct Settings {
     /// keys they do not know.
     #[schema(required = true)]
     pub home_sections: Option<Vec<String>>,
+    /// Audio track to start with: `null` for the original audio, `interface` for the interface
+    /// language, else a language code such as `de` or `pt-BR`.
+    #[schema(required = true)]
+    pub audio_language: Option<String>,
 }
 
 /// Fields to change. Absent fields are kept; `null` resets a field to its default.
@@ -88,6 +92,10 @@ pub struct SettingsPatch {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<Vec<String>>)]
     pub home_sections: Option<Option<Vec<String>>>,
+    /// `interface` or a language code such as `de` or `pt-BR`.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub audio_language: Option<Option<String>>,
 }
 
 /// Tells a field set to `null` (`Some(None)`) apart from an absent one (`None`).
@@ -113,8 +121,24 @@ impl From<UserSettings> for Settings {
             max_quality: quality(settings.max_quality),
             default_quality: quality(settings.default_quality),
             home_sections: settings.home_sections,
+            audio_language: settings.audio_language,
         }
     }
+}
+
+/// Mirrors the `user_settings.audio_language` check constraint.
+fn valid_audio_language(value: &str) -> bool {
+    if value == "interface" {
+        return true;
+    }
+    let (lang, region) = value
+        .split_once('-')
+        .map_or((value, None), |(l, r)| (l, Some(r)));
+    (2..=3).contains(&lang.len())
+        && lang.bytes().all(|b| b.is_ascii_lowercase())
+        && region.is_none_or(|r| {
+            (2..=8).contains(&r.len()) && r.bytes().all(|b| b.is_ascii_alphanumeric())
+        })
 }
 
 fn valid_section_key(key: &str) -> bool {
@@ -155,6 +179,11 @@ impl SettingsPatch {
         {
             fields.insert("home_sections".to_owned(), FieldError::Invalid);
         }
+        if let Some(Some(lang)) = &self.audio_language
+            && !valid_audio_language(lang)
+        {
+            fields.insert("audio_language".to_owned(), FieldError::Invalid);
+        }
         if !fields.is_empty() {
             return Err(ApiError::validation(
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -174,6 +203,7 @@ impl SettingsPatch {
             max_quality: height(self.max_quality),
             default_quality: height(self.default_quality),
             home_sections: self.home_sections,
+            audio_language: self.audio_language,
         })
     }
 }
@@ -244,14 +274,26 @@ mod tests {
             "max_quality": 1000,
             "default_quality": 720,
             "home_sections": ["Bad Key"],
+            "audio_language": "de_DE",
         }))
         .validate()
         .unwrap_err();
         let fields = err.body.fields.unwrap();
         assert_eq!(
             fields.keys().collect::<Vec<_>>(),
-            ["home_sections", "max_quality", "video_codecs"]
+            [
+                "audio_language",
+                "home_sections",
+                "max_quality",
+                "video_codecs"
+            ]
         );
+        for lang in ["de", "pt-BR", "zh-Hans", "fil", "interface"] {
+            assert!(valid_audio_language(lang), "{lang}");
+        }
+        for lang in ["", "DE", "german", "de-", "de-DE-x", "-de"] {
+            assert!(!valid_audio_language(lang), "{lang}");
+        }
         assert!(
             serde_json::from_value::<SettingsPatch>(serde_json::json!({ "codec": "av1" })).is_err()
         );

@@ -18,6 +18,8 @@ pub struct UserSettings {
     pub default_quality: Option<i32>,
     /// Enabled home page sections in order; `None` for the default layout.
     pub home_sections: Option<Vec<String>>,
+    /// Preferred audio language, `interface` for the interface language; `None` for the original.
+    pub audio_language: Option<String>,
 }
 
 /// Fields to change; `None` keeps the stored value, `Some(None)` resets it.
@@ -28,6 +30,7 @@ pub struct SettingsUpdate {
     pub max_quality: Option<Option<i32>>,
     pub default_quality: Option<Option<i32>>,
     pub home_sections: Option<Option<Vec<String>>>,
+    pub audio_language: Option<Option<String>>,
 }
 
 #[async_trait::async_trait]
@@ -52,7 +55,7 @@ impl PgUserSettingsRepository {
 
 macro_rules! settings_columns {
     () => {
-        "history_paused, video_codecs, max_quality, default_quality, home_sections"
+        "history_paused, video_codecs, max_quality, default_quality, home_sections, audio_language"
     };
 }
 
@@ -64,6 +67,7 @@ fn settings_from_row(row: &PgRow) -> Result<UserSettings, sqlx::Error> {
         max_quality: row.try_get("max_quality")?,
         default_quality: row.try_get("default_quality")?,
         home_sections: home_sections.map(|Json(sections)| sections),
+        audio_language: row.try_get("audio_language")?,
     })
 }
 
@@ -105,13 +109,15 @@ impl UserSettingsRepository for PgUserSettingsRepository {
         // The boolean parameters tell "keep" apart from "reset to NULL".
         let row = sqlx::query(concat!(
             "INSERT INTO user_settings \
-                (user_id, video_codecs, max_quality, default_quality, home_sections) \
-             VALUES ($1, COALESCE($2, '{}'), $4, $6, $8) \
+                (user_id, video_codecs, max_quality, default_quality, home_sections, \
+                 audio_language) \
+             VALUES ($1, COALESCE($2, '{}'), $4, $6, $8, $10) \
              ON CONFLICT (user_id) DO UPDATE SET \
                 video_codecs = COALESCE($2, user_settings.video_codecs), \
                 max_quality = CASE WHEN $3 THEN $4 ELSE user_settings.max_quality END, \
                 default_quality = CASE WHEN $5 THEN $6 ELSE user_settings.default_quality END, \
                 home_sections = CASE WHEN $7 THEN $8 ELSE user_settings.home_sections END, \
+                audio_language = CASE WHEN $9 THEN $10 ELSE user_settings.audio_language END, \
                 updated_at = now() \
              RETURNING ",
             settings_columns!()
@@ -129,6 +135,8 @@ impl UserSettingsRepository for PgUserSettingsRepository {
                 .as_ref()
                 .and_then(|sections| sections.as_ref().map(Json)),
         )
+        .bind(update.audio_language.is_some())
+        .bind(update.audio_language.clone().flatten())
         .fetch_one(&self.pool)
         .await?;
         Ok(settings_from_row(&row)?)
