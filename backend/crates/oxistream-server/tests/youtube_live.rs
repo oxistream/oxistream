@@ -607,6 +607,9 @@ async fn shows_content_disclosures() {
 #[ignore = "network"]
 async fn marks_auto_dubbed_audio_tracks() {
     let id = "i8_Pz7sBp_M";
+    if let Err(err) = state_without_db().youtube.player(id).await {
+        panic!("player of {id}: {err:?}");
+    }
     let (status, json) = get_json(&format!("/api/v0/videos/{id}")).await;
     assert_eq!(status, StatusCode::OK, "{json}");
     let tracks = json["audio_tracks"].as_array().unwrap();
