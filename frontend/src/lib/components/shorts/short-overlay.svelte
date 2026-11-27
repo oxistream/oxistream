@@ -37,15 +37,16 @@
 	);
 </script>
 
-<!-- Sits over the bottom of the video and lets clicks through, except on its own controls. -->
+<!-- Sits over the bottom of the video and lets clicks through, except on its own controls. Without a
+     z-index of its own, its gradient can sit below the player controls and its content above them. -->
 <div
 	class={cn(
-		'short-overlay pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end gap-3 bg-linear-to-t from-black/75 via-black/40 to-transparent ps-3 pe-2 pt-20 pb-3 text-white',
+		'short-overlay pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 ps-3 pe-2 pt-20 pb-3 text-white',
 		className
 	)}
 	data-testid="short-overlay"
 >
-	<div class="flex min-w-0 flex-1 flex-col gap-2.5">
+	<div class="relative z-40 flex min-w-0 flex-1 flex-col gap-2.5">
 		{#if channel?.name || channel?.id}
 			<div class="flex min-w-0 items-center gap-2">
 				{#if channel.name}
@@ -85,7 +86,7 @@
 		{/if}
 	</div>
 	<!-- Action column: more actions go above the watch page link. -->
-	<div class="flex shrink-0 flex-col items-center gap-3" data-testid="short-actions">
+	<div class="relative z-40 flex shrink-0 flex-col items-center gap-3" data-testid="short-actions">
 		<LikeButton {videoId} variant="overlay" class="pointer-events-auto" />
 		<Button
 			href={resolve(`/watch?v=${videoId}`)}
@@ -109,3 +110,13 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.short-overlay::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+		background: linear-gradient(to top, rgb(0 0 0 / 75%), rgb(0 0 0 / 40%) 50%, transparent);
+	}
+</style>

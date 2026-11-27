@@ -157,13 +157,24 @@
 		visibility: hidden;
 	}
 
-	.shorts-frame :global(.short-overlay) {
-		transition: translate 150ms cubic-bezier(0, 0, 0.2, 1);
+	/* Lets the overlay's gradient sit between the video and the player controls. */
+	.shorts-frame :global(.shorts-player .media-container) {
+		isolation: auto;
 	}
 
-	/* The player controls only show while paused; the overlay then moves up out of their way. */
+	/* The overlay gradient already backs the controls. */
+	.shorts-frame :global(.shorts-player .video-controls-backdrop) {
+		display: none;
+	}
+
+	.shorts-frame :global(.short-overlay) {
+		transition: padding-bottom 150ms cubic-bezier(0, 0, 0.2, 1);
+	}
+
+	/* The player controls only show while paused; the overlay content then moves up out of their way
+	   while its gradient grows upwards and stays behind the controls. */
 	.shorts-frame[data-active]:has(:global(.oxi-player-frame[data-paused])) :global(.short-overlay) {
-		translate: 0 -3.5rem;
+		padding-bottom: 4.25rem;
 	}
 
 	.shorts-frame :global([data-testid='player-message']) {
