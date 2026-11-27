@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import type { TrendingCategory } from '../src/lib/api/trending';
 
 test.use({ locale: 'en-US' });
 
@@ -41,7 +42,7 @@ function video(prefix: string, n: number) {
 const json = (route: Route, body: unknown, status = 200) =>
 	route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-type Trending = Partial<Record<'news' | 'gaming' | 'podcasts', number | 'error'>>;
+type Trending = Partial<Record<TrendingCategory, number | 'error'>>;
 
 async function mockApi(
 	page: Page,
@@ -233,13 +234,20 @@ test('signed-in users get the rows they chose, in their order', async ({ page })
 	await mockApi(page, {
 		signedIn: true,
 		subscriptions: 1,
-		trending: { news: 2, podcasts: 2 },
-		homeSections: ['trending-podcasts', 'subscriptions', 'trending-news', 'removed-section']
+		trending: { news: 2, podcasts: 2, fashion: 2 },
+		homeSections: [
+			'trending-podcasts',
+			'subscriptions',
+			'trending-fashion',
+			'trending-news',
+			'removed-section'
+		]
 	});
 	await page.goto('/');
 	await expect(page.getByRole('heading', { level: 2 })).toHaveText([
 		'Podcasts',
 		'Latest from your subscriptions',
+		'Fashion & Beauty',
 		'News'
 	]);
 });

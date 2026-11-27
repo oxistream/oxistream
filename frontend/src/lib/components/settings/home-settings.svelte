@@ -26,7 +26,12 @@
 		'subscription-shorts': m.home_subscription_shorts,
 		'trending-news': m.settings_home_trending_news,
 		'trending-gaming': m.settings_home_trending_gaming,
-		'trending-podcasts': m.settings_home_trending_podcasts
+		'trending-podcasts': m.settings_home_trending_podcasts,
+		'trending-music': m.settings_home_trending_music,
+		'trending-sports': m.settings_home_trending_sports,
+		'trending-learning': m.settings_home_trending_learning,
+		'trending-fashion': m.settings_home_trending_fashion,
+		'trending-live': m.settings_home_trending_live
 	};
 
 	const all = $derived(

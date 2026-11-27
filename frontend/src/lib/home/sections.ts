@@ -6,7 +6,12 @@ export const HOME_SECTIONS = [
 	'subscription-shorts',
 	'trending-news',
 	'trending-gaming',
-	'trending-podcasts'
+	'trending-podcasts',
+	'trending-music',
+	'trending-sports',
+	'trending-learning',
+	'trending-fashion',
+	'trending-live'
 ] as const;
 
 export type HomeSectionKey = (typeof HOME_SECTIONS)[number];
@@ -19,7 +24,12 @@ const AUDIENCE: Record<HomeSectionKey, Audience> = {
 	'subscription-shorts': 'user',
 	'trending-news': 'guest',
 	'trending-gaming': 'guest',
-	'trending-podcasts': 'guest'
+	'trending-podcasts': 'guest',
+	'trending-music': 'guest',
+	'trending-sports': 'guest',
+	'trending-learning': 'guest',
+	'trending-fashion': 'guest',
+	'trending-live': 'guest'
 };
 
 export const DEFAULT_SECTIONS: Record<Audience, readonly HomeSectionKey[]> = {
