@@ -122,8 +122,11 @@
 	let inputAt = -Infinity;
 	/** Since when a pointer is down on the player, e.g. dragging the time slider. */
 	let pressedAt: number | null = null;
-	/** The user is seeking; the room hears of it right away, or on release while dragging. */
-	let userSeeking = false;
+	/**
+	 * The user is seeking, with input on the player or e.g. native controls; the room hears of
+	 * it right away, or on release while dragging.
+	 */
+	let userSeeking: 'input' | 'other' | null = null;
 
 	/** Read once the media can seek, so loading time does not put this player behind. */
 	function startTime(): number {
@@ -255,10 +258,17 @@
 		const seeking = () => {
 			const now = localNow();
 			const own = now < ownSeekUntil && Math.abs(media.currentTime - seekTarget) < 0.5;
-			if (own || now - inputAt >= INPUT_MS) return;
-			userSeeking = true;
+			if (own) return;
+			const input = now - inputAt < INPUT_MS;
+			// dash.js jumps gaps while stalled, may follow our seeks elsewhere, or jump to the end.
+			const engine =
+				now < ownSeekUntil ||
+				stalled ||
+				media.currentTime >= (media.duration || Infinity) - END_SLACK;
+			if (!input && engine) return;
+			userSeeking = input ? 'input' : 'other';
 			seekTarget = media.currentTime;
-			if (pressedAt === null) reportSeek(seekTarget);
+			if (pressedAt === null) reportSeek(seekTarget, input);
 		};
 		media.addEventListener('waiting', waiting);
 		media.addEventListener('seeking', seeking);
@@ -284,7 +294,7 @@
 			if (pressedAt === null) return;
 			input();
 			pressedAt = null;
-			if (userSeeking) reportSeek(seekTarget);
+			if (userSeeking) reportSeek(seekTarget, userSeeking === 'input');
 		};
 		el.addEventListener('pointerdown', press, true);
 		el.addEventListener('keydown', input, true);
@@ -319,8 +329,9 @@
 		onpause(position);
 	}
 
-	function reportSeek(position: number) {
-		if (Math.abs(position - target()) <= SEEK_THRESHOLD) return;
+	/** Small seeks without input on the player are noise; with input they are followed. */
+	function reportSeek(position: number, input = false) {
+		if (!input && Math.abs(position - target()) <= SEEK_THRESHOLD) return;
 		reported();
 		onseek(position, serverNow());
 	}
@@ -328,9 +339,10 @@
 	function handleSeeked(position: number) {
 		if (userSeeking) {
 			if (pressedAt !== null) return;
-			userSeeking = false;
+			const input = userSeeking === 'input';
+			userSeeking = null;
 			// The room already heard of it, unless the media landed elsewhere.
-			if (Math.abs(position - seekTarget) > 0.5) reportSeek(position);
+			if (Math.abs(position - seekTarget) > 0.5) reportSeek(position, input);
 			return;
 		}
 		if (localNow() < ownSeekUntil) {
