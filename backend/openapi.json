@@ -7079,9 +7079,17 @@
           "video_codecs",
           "max_quality",
           "default_quality",
-          "home_sections"
+          "home_sections",
+          "audio_language"
         ],
         "properties": {
+          "audio_language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Audio track to start with: `null` for the original audio, `interface` for the interface\nlanguage, else a language code such as `de` or `pt-BR`."
+          },
           "default_quality": {
             "type": [
               "integer",
@@ -7123,6 +7131,13 @@
         "type": "object",
         "description": "Fields to change. Absent fields are kept; `null` resets a field to its default.",
         "properties": {
+          "audio_language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`interface` or a language code such as `de` or `pt-BR`."
+          },
           "default_quality": {
             "type": [
               "integer",

@@ -135,6 +135,7 @@ async fn settings_repository_updates_fields_independently() {
                 video_codecs: Some(vec!["vp9".into(), "h264".into()]),
                 max_quality: Some(Some(1080)),
                 home_sections: Some(Some(vec!["subscriptions".into()])),
+                audio_language: Some(Some("pt-BR".into())),
                 ..Default::default()
             },
         )
@@ -144,6 +145,7 @@ async fn settings_repository_updates_fields_independently() {
     assert_eq!(updated.max_quality, Some(1080));
     assert_eq!(updated.default_quality, None);
     assert_eq!(updated.home_sections, Some(vec!["subscriptions".into()]));
+    assert_eq!(updated.audio_language.as_deref(), Some("pt-BR"));
 
     settings.set_history_paused(user.id, true).await.unwrap();
     let updated = settings
@@ -162,6 +164,7 @@ async fn settings_repository_updates_fields_independently() {
     assert_eq!(updated.max_quality, None);
     assert_eq!(updated.default_quality, Some(720));
     assert_eq!(updated.home_sections, Some(vec!["subscriptions".into()]));
+    assert_eq!(updated.audio_language.as_deref(), Some("pt-BR"));
 
     let updated = settings
         .update(
@@ -169,12 +172,14 @@ async fn settings_repository_updates_fields_independently() {
             &SettingsUpdate {
                 video_codecs: Some(vec![]),
                 home_sections: Some(Some(vec![])),
+                audio_language: Some(None),
                 ..Default::default()
             },
         )
         .await
         .unwrap();
     assert_eq!(updated.video_codecs, Vec::<String>::new());
+    assert_eq!(updated.audio_language, None);
     assert_eq!(
         updated.home_sections,
         Some(vec![]),
@@ -278,6 +283,7 @@ async fn api_reads_and_patches_settings() {
             "max_quality": null,
             "default_quality": null,
             "home_sections": null,
+            "audio_language": null,
         })
     );
 
@@ -301,7 +307,7 @@ async fn api_reads_and_patches_settings() {
         &app,
         Method::PATCH,
         "/api/v0/settings",
-        Some(json!({ "max_quality": null, "default_quality": 720 })),
+        Some(json!({ "max_quality": null, "default_quality": 720, "audio_language": "interface" })),
         Some(&token),
     )
     .await;
@@ -312,11 +318,14 @@ async fn api_reads_and_patches_settings() {
             "max_quality": null,
             "default_quality": 720,
             "home_sections": ["trending-news", "subscriptions"],
+            "audio_language": "interface",
         })
     );
 
     for body in [
         json!({ "max_quality": 1000 }),
+        json!({ "audio_language": "German" }),
+        json!({ "audio_language": "" }),
         json!({ "video_codecs": ["vp9", "vp9"] }),
         json!({ "home_sections": ["a", "a"] }),
         json!({ "home_sections": ["Not Valid"] }),
