@@ -13,7 +13,13 @@ const account = {
 const json = (route: Route, body: unknown, status = 200) =>
 	route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-type Calls = { patches: unknown[]; password: unknown[]; deletions: unknown[]; signedOut: boolean };
+type Calls = {
+	patches: unknown[];
+	password: unknown[];
+	deletions: unknown[];
+	feedTokens: string[];
+	signedOut: boolean;
+};
 
 async function mockApi(
 	page: Page,
@@ -23,7 +29,14 @@ async function mockApi(
 		sponsorblock = false
 	}: { signedIn?: boolean; hasPassword?: boolean; sponsorblock?: boolean } = {}
 ): Promise<Calls> {
-	const calls: Calls = { patches: [], password: [], deletions: [], signedOut: false };
+	const calls: Calls = {
+		patches: [],
+		password: [],
+		deletions: [],
+		feedTokens: [],
+		signedOut: false
+	};
+	let feedCreatedAt: string | null = null;
 	let settings: Record<string, unknown> = {
 		video_codecs: [],
 		max_quality: null,
@@ -69,6 +82,20 @@ async function mockApi(
 			paused = (route.request().postDataJSON() as { paused: boolean }).paused;
 		}
 		return json(route, { paused });
+	});
+	await page.route('**/api/v0/settings/feed-token', (route) => {
+		const method = route.request().method();
+		calls.feedTokens.push(method);
+		if (method === 'POST') {
+			feedCreatedAt = '2026-11-27T10:00:00Z';
+			const url = `http://localhost/api/v0/feed/atom/token-${calls.feedTokens.length}`;
+			return json(route, { url, created_at: feedCreatedAt }, 201);
+		}
+		if (method === 'DELETE') {
+			feedCreatedAt = null;
+			return route.fulfill({ status: 204 });
+		}
+		return json(route, { created_at: feedCreatedAt });
 	});
 	await page.route('**/api/v0/account/password', (route) => {
 		const body = route.request().postDataJSON() as { current_password: string };
@@ -420,4 +447,25 @@ test('deleting the account needs the username and password', async ({ page }) =>
 	await expect(page).toHaveURL(/\/$/);
 	expect(calls.deletions).toEqual([{ username: 'Mara', password: 'old password!!' }]);
 	await expect(page.getByRole('button', { name: /Not signed in/ })).toBeVisible();
+});
+
+test('the feed link is created once, regenerated and deleted', async ({ page }) => {
+	const calls = await mockApi(page);
+	await page.goto('/settings/account');
+
+	await page.getByRole('button', { name: 'Create link' }).click();
+	const link = page.getByLabel('RSS feed');
+	await expect(link).toHaveValue('http://localhost/api/v0/feed/atom/token-2');
+
+	await page.getByRole('button', { name: 'Regenerate' }).click();
+	const dialog = page.getByRole('alertdialog');
+	await expect(dialog).toContainText('The current link stops working.');
+	await dialog.getByRole('button', { name: 'Regenerate' }).click();
+	await expect(link).toHaveValue('http://localhost/api/v0/feed/atom/token-3');
+
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+	await expect(page.getByRole('button', { name: 'Create link' })).toBeVisible();
+	await expect(link).toHaveCount(0);
+	expect(calls.feedTokens).toEqual(['GET', 'POST', 'POST', 'DELETE']);
 });
