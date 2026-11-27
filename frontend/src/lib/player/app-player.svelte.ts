@@ -95,8 +95,6 @@ export class AppPlayer {
 	controls: PlayerControls | undefined;
 	/** The element around the player, wherever it is shown. */
 	element = $state.raw<HTMLElement | null>(null);
-	/** Width a panel covers at the end of the viewport, which the mini player keeps clear of. */
-	endInset = $state('0px');
 
 	/** Whether a page shows the player in its slot. */
 	get inline() {

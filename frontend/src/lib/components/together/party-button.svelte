@@ -23,9 +23,10 @@
 		class="relative"
 		aria-label={label}
 		title={label}
-		aria-expanded={party.sheetOpen}
+		aria-expanded={party.panelOpen}
+		aria-controls={party.docked ? 'party-panel' : undefined}
 		data-active={party.active ? '' : undefined}
-		onclick={() => (party.sheetOpen = !party.sheetOpen)}
+		onclick={() => (party.panelOpen = !party.panelOpen)}
 		data-testid="party-button"
 	>
 		<UsersRoundIcon class={party.active ? 'text-primary' : undefined} />

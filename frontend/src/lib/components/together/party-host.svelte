@@ -10,7 +10,6 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
 	import { party, type PartyEnd } from '#lib/together/party.svelte.js';
-	import PartySheet from './party-sheet.svelte';
 	import SyncReadout from './sync-readout.svelte';
 
 	party.overlay = overlay;
@@ -100,8 +99,6 @@
 		{/if}
 	{/if}
 {/snippet}
-
-<PartySheet bind:open={party.sheetOpen} />
 
 <AlertDialog.Root bind:open={party.leaveOpen}>
 	<AlertDialog.Content>

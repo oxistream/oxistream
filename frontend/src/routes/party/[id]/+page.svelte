@@ -44,11 +44,9 @@
 		if (party.id !== roomId || party.status !== 'open' || !party.room) return;
 		const current = party.current;
 		untrack(() => {
+			party.panelOpen = true;
 			if (current) void goto(resolve(`/watch?v=${current.video.id}`), { replaceState: true });
-			else {
-				party.sheetOpen = true;
-				void goto(resolve('/'), { replaceState: true });
-			}
+			else void goto(resolve('/'), { replaceState: true });
 		});
 	});
 
