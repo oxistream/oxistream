@@ -20,7 +20,6 @@ type Base = {
 	/** Route segment: the section lives at `/settings/{id}`. */
 	id: string;
 	title: () => string;
-	description: () => string;
 	icon: Component;
 	/** Only shown to signed-in users. */
 	account: boolean;
@@ -29,7 +28,7 @@ type Base = {
 };
 
 /**
- * A settings section, listed on the settings overview, its navigation and the sidebar. Either
+ * A settings section, listed in the settings navigation, the phone overview and the sidebar. Either
  * rendered at `/settings/{id}` by a component that loads and saves its own data, or a page of
  * its own at `href`.
  */
@@ -42,8 +41,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'playback',
 		title: m.settings_playback,
-		description: () =>
-			session.user ? m.settings_playback_hint() : m.settings_playback_hint_guest(),
 		icon: PlayIcon,
 		account: false,
 		component: PlaybackSection
@@ -51,7 +48,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'home',
 		title: m.settings_home,
-		description: m.settings_home_hint,
 		icon: HouseIcon,
 		account: true,
 		component: HomeSection
@@ -59,7 +55,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'history',
 		title: m.nav_history,
-		description: m.settings_history_hint,
 		icon: ClockIcon,
 		account: true,
 		component: HistorySection
@@ -67,7 +62,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'sponsorblock',
 		title: m.sponsorblock_title,
-		description: m.settings_sponsorblock_hint,
 		icon: SkipForwardIcon,
 		account: false,
 		available: () => session.sponsorblock,
@@ -76,7 +70,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'blocked',
 		title: m.blocked_title,
-		description: m.blocked_description,
 		icon: BanIcon,
 		account: true,
 		href: () => resolve('/settings/blocked')
@@ -84,7 +77,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'appearance',
 		title: m.settings_appearance,
-		description: m.settings_appearance_description,
 		icon: PaletteIcon,
 		account: false,
 		component: AppearanceSettings
@@ -92,7 +84,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 	{
 		id: 'account',
 		title: m.settings_account,
-		description: m.settings_account_hint,
 		icon: UserIcon,
 		account: true,
 		component: AccountSection
