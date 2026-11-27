@@ -332,3 +332,29 @@ test('the playlist page continues where the owner left off', async ({ page }) =>
 		`/watch?v=${VIDEOS[0]}&list=${LIST}`
 	);
 });
+
+test('the header sits beside the list on wide screens and above it on phones', async ({ page }) => {
+	await mockApi(page);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto(`/playlist?list=${LIST}`);
+	const hero = page.getByRole('complementary');
+	const list = page.getByRole('list', { name: 'Videos in this playlist' });
+	await expect(list.getByTestId('playlist-item')).toHaveCount(3);
+
+	const wideHero = (await hero.boundingBox())!;
+	const wideList = (await list.boundingBox())!;
+	expect(wideHero.x + wideHero.width).toBeLessThan(wideList.x);
+	expect(Math.abs(wideHero.y - wideList.y)).toBeLessThan(8);
+	await expect(hero).toHaveCSS('position', 'sticky');
+	const main = (await page.getByRole('main').boundingBox())!;
+	const left = wideHero.x - main.x;
+	const right = main.x + main.width - (wideList.x + wideList.width);
+	expect(Math.abs(left - right)).toBeLessThan(32);
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(hero).toHaveCSS('position', 'static');
+	const phoneHero = (await hero.boundingBox())!;
+	const phoneList = (await list.boundingBox())!;
+	expect(phoneHero.y + phoneHero.height).toBeLessThanOrEqual(phoneList.y);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
