@@ -158,11 +158,11 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-webkit
       # Skips the browser download on a cache hit but still installs system packages.
       - name: Install Playwright
         timeout-minutes: 10
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:e2e
       - name: Storybook smoke test
         if: success() || failure()
