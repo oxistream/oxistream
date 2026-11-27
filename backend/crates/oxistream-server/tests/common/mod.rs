@@ -181,6 +181,30 @@ pub async fn spawn_upstream(router: Router) -> reqwest::Url {
     format!("http://{addr}/").parse().unwrap()
 }
 
+/// Two manual English tracks and an auto-generated one.
+fn fake_subtitles(base: &str, video_id: &str) -> serde_json::Value {
+    json!([
+        {
+            "url": format!("{base}api/timedtext?v={video_id}&lang=en&fmt=srv3"),
+            "lang": "en",
+            "lang_name": "English",
+            "auto_generated": false,
+        },
+        {
+            "url": format!("{base}api/timedtext?v={video_id}&lang=en&kind=asr"),
+            "lang": "en",
+            "lang_name": "English (auto-generated)",
+            "auto_generated": true,
+        },
+        {
+            "url": format!("{base}api/timedtext?v={video_id}&lang=en&name=English"),
+            "lang": "en",
+            "lang_name": "English - English",
+            "auto_generated": false,
+        },
+    ])
+}
+
 /// Player data whose stream and subtitle URLs point below `base`.
 pub fn fake_player(base: &str, video_id: &str) -> rustypipe::model::VideoPlayer {
     let video = |itag: u32, mime: &str, width: u32, height: u32, hdr: bool| {
@@ -254,20 +278,7 @@ pub fn fake_player(base: &str, video_id: &str) -> rustypipe::model::VideoPlayer 
             audio(251, "en.4", "English original", true),
             audio(251, "de.3", "German", false),
         ],
-        "subtitles": [
-            {
-                "url": format!("{base}api/timedtext?v={video_id}&lang=en&fmt=srv3"),
-                "lang": "en",
-                "lang_name": "English",
-                "auto_generated": false,
-            },
-            {
-                "url": format!("{base}api/timedtext?v={video_id}&lang=en&kind=asr"),
-                "lang": "en",
-                "lang_name": "English (auto-generated)",
-                "auto_generated": true,
-            },
-        ],
+        "subtitles": fake_subtitles(base, video_id),
         "expires_in_seconds": 21_540,
         "valid_until": "2099-01-01T00:00:00Z",
         "hls_manifest_url": null,

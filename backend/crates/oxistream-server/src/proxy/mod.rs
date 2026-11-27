@@ -3,6 +3,7 @@
 //! Stream and subtitle URLs only name the video and format; each replica resolves them against
 //! its own player cache, so upstream URLs are always used from the egress IP that fetched them.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -18,7 +19,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_util::TryStreamExt;
 use reqwest::Url;
 use rustypipe::client::ClientType;
-use rustypipe::model::VideoPlayer;
+use rustypipe::model::{Subtitle, VideoPlayer};
 use serde::Deserialize;
 
 use crate::AppState;
@@ -231,13 +232,36 @@ fn encode(value: &str) -> String {
     out
 }
 
-/// Subtitle ID as used in proxy URLs: the language code, prefixed with `a.` if auto-generated.
-pub fn subtitle_id(lang: &str, auto_generated: bool) -> String {
-    if auto_generated {
-        format!("a.{lang}")
-    } else {
-        lang.to_owned()
-    }
+/// Subtitle IDs as used in proxy URLs, in track order: the language code, prefixed with `a.` if
+/// auto-generated. Later tracks with the same code get a `.2`, `.3`… suffix (YouTube can list
+/// several tracks per language, e.g. differently named manual captions).
+fn unique_subtitle_ids<'a>(tracks: impl IntoIterator<Item = (&'a str, bool)>) -> Vec<String> {
+    let mut seen = HashMap::<String, usize>::new();
+    tracks
+        .into_iter()
+        .map(|(lang, auto_generated)| {
+            let base = if auto_generated {
+                format!("a.{lang}")
+            } else {
+                lang.to_owned()
+            };
+            let count = seen.entry(base.clone()).or_default();
+            *count += 1;
+            if *count == 1 {
+                base
+            } else {
+                format!("{base}.{count}")
+            }
+        })
+        .collect()
+}
+
+pub fn subtitle_ids(subtitles: &[Subtitle]) -> Vec<String> {
+    unique_subtitle_ids(
+        subtitles
+            .iter()
+            .map(|s| (s.lang.as_str(), s.auto_generated)),
+    )
 }
 
 #[derive(Debug)]
@@ -335,11 +359,10 @@ async fn subtitle(
         &signed.sig,
     )?;
     let response = fetch_with_refresh(&state, &video_id, Kind::Subtitle, None, |player| {
-        player
-            .subtitles
+        subtitle_ids(&player.subtitles)
             .iter()
-            .find(|s| subtitle_id(&s.lang, s.auto_generated) == id)
-            .and_then(|s| vtt_url(&s.url))
+            .position(|candidate| *candidate == id)
+            .and_then(|i| vtt_url(&player.subtitles[i].url))
     })
     .await?;
     let mut response = passthrough(Kind::Subtitle, response)?;
@@ -506,8 +529,25 @@ mod tests {
 
     #[test]
     fn subtitle_ids_distinguish_auto_generated() {
-        assert_eq!(subtitle_id("en", false), "en");
-        assert_eq!(subtitle_id("en", true), "a.en");
+        assert_eq!(
+            unique_subtitle_ids([("en", false), ("en", true)]),
+            ["en", "a.en"]
+        );
+    }
+
+    #[test]
+    fn subtitle_ids_are_unique_per_language() {
+        assert_eq!(
+            unique_subtitle_ids([
+                ("en", false),
+                ("es-419", false),
+                ("en", false),
+                ("en", true),
+                ("en", false),
+                ("en", true),
+            ]),
+            ["en", "es-419", "en.2", "a.en", "en.3", "a.en.2"]
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 
-use crate::proxy::subtitle_id;
+use crate::proxy::subtitle_ids;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Thumbnail {
@@ -55,7 +55,8 @@ pub struct VideoDetails {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Subtitle {
-    /// Unique per video: the language code, prefixed with `a.` if auto-generated.
+    /// Unique per video: the language code, prefixed with `a.` if auto-generated, suffixed with
+    /// `.2`, `.3`… for further tracks of the same language and kind.
     pub id: String,
     /// Language code, e.g. `en` or `pt-BR`.
     pub lang: String,
@@ -331,7 +332,8 @@ impl VideoDetails {
                 .map(|p| {
                     p.subtitles
                         .iter()
-                        .map(|s| Subtitle::from_rp(s, subtitle_url))
+                        .zip(subtitle_ids(&p.subtitles))
+                        .map(|(s, id)| Subtitle::from_rp(s, id, subtitle_url))
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -349,8 +351,7 @@ impl VideoDetails {
 }
 
 impl Subtitle {
-    pub fn from_rp(subtitle: &rp::Subtitle, url: &impl Fn(&str) -> String) -> Self {
-        let id = subtitle_id(&subtitle.lang, subtitle.auto_generated);
+    pub fn from_rp(subtitle: &rp::Subtitle, id: String, url: &impl Fn(&str) -> String) -> Self {
         Self {
             url: url(&id),
             id,
@@ -608,6 +609,8 @@ mod tests {
                   "lang_name": "German", "auto_generated": false },
                 { "url": "https://www.youtube.com/api/timedtext?lang=en&kind=asr", "lang": "en",
                   "lang_name": "English (auto-generated)", "auto_generated": true },
+                { "url": "https://www.youtube.com/api/timedtext?lang=de&name=Lyrics", "lang": "de",
+                  "lang_name": "German - Lyrics", "auto_generated": false },
             ],
             "expires_in_seconds": 21_540,
             "valid_until": "2026-01-01T18:00:00Z",
@@ -678,6 +681,13 @@ mod tests {
                     label: "English (auto-generated)".into(),
                     auto_generated: true,
                     url: "proxy:subtitle/a.en".into(),
+                },
+                Subtitle {
+                    id: "de.2".into(),
+                    lang: "de".into(),
+                    label: "German - Lyrics".into(),
+                    auto_generated: false,
+                    url: "proxy:subtitle/de.2".into(),
                 },
             ]
         );

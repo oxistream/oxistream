@@ -487,7 +487,7 @@
 				{autoplay}
 				{loop}
 			>
-				{#each subtitles as track (track.id)}
+				{#each subtitles as track, i (`${i}:${track.id}`)}
 					<track kind="subtitles" src={track.url} srclang={track.lang} label={track.label} />
 				{/each}
 				{#if storyboard}
