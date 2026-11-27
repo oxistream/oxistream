@@ -68,6 +68,7 @@
 		onplay,
 		onpause,
 		onseeked,
+		externalRate = false,
 		class: className
 	}: {
 		/** DASH manifest URL. */
@@ -76,8 +77,8 @@
 		subtitles?: PlayerSubtitle[];
 		/** WebVTT thumbnails track for seek previews. */
 		storyboard?: string;
-		/** Seconds to start from, e.g. from `?t=`. */
-		startTime?: number;
+		/** Seconds to start from, e.g. from `?t=`; a function is read once the media can seek. */
+		startTime?: number | (() => number);
 		autoplay?: boolean;
 		/** dash.js settings, e.g. codec and quality preferences from the user's settings. */
 		dashSettings?: DashEngineConfig['dashJs'];
@@ -107,6 +108,11 @@
 		onplay?: (currentTime: number) => void;
 		onpause?: (currentTime: number) => void;
 		onseeked?: (currentTime: number) => void;
+		/**
+		 * The speed is set with `setRate`, e.g. to stay in sync in a watch room: the saved speed is
+		 * neither applied nor overwritten, and the speed menu is hidden.
+		 */
+		externalRate?: boolean;
 		class?: string;
 	} = $props();
 
@@ -239,6 +245,21 @@
 		return media?.currentTime ?? 0;
 	}
 
+	/** Changes the speed without saving it, keeping the pitch. */
+	export function setRate(rate: number) {
+		const video = mediaElement();
+		if (!video || video.playbackRate === rate) return;
+		video.preservesPitch = true;
+		video.playbackRate = rate;
+	}
+
+	/** The underlying `<video>`, for listening to its events. */
+	export function mediaElement(): HTMLVideoElement | undefined {
+		return (
+			(media as unknown as { target?: HTMLVideoElement | null } | undefined)?.target ?? undefined
+		);
+	}
+
 	/** Whether playback is stopped and no play is waiting for the media. */
 	export function isPaused(): boolean {
 		return showPaused;
@@ -306,7 +327,7 @@
 				next.volume = volume.volume;
 				next.muted = volume.muted;
 			}
-			if (startApplied && rate) next.playbackRate = rate.playbackRate;
+			if (startApplied && rate && !externalRate) next.playbackRate = rate.playbackRate;
 			if (restoredCaptions && tracks) {
 				const showing = tracks.textTrackList.find(
 					(t) => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing'
@@ -343,8 +364,11 @@
 			}
 			if (startApplied) return;
 			startApplied = true;
-			if (prefs.playbackRate) selectPlaybackRate(store.state)?.setPlaybackRate(prefs.playbackRate);
-			if (startTime > 0) seekInternal(startTime);
+			if (prefs.playbackRate && !externalRate) {
+				selectPlaybackRate(store.state)?.setPlaybackRate(prefs.playbackRate);
+			}
+			const start = typeof startTime === 'function' ? startTime() : startTime;
+			if (start > 0) seekInternal(start);
 		};
 		const onTimeUpdate = () => {
 			const now = snapshot();
@@ -478,6 +502,7 @@
 			data-theater={theater ? '' : undefined}
 			data-variant={variant}
 			data-paused={showPaused ? '' : undefined}
+			data-external-rate={externalRate ? '' : undefined}
 		>
 			<dash-video
 				bind:this={media}
@@ -1106,6 +1131,10 @@
 
 	.oxi-player :global(.oxi-player-frame[data-variant='short']) {
 		aspect-ratio: 9 / 16;
+	}
+
+	.oxi-player :global([data-external-rate] :is([commandfor$='-speed'], [id$='-speed'])) {
+		display: none;
 	}
 
 	/* Shorts keep play, volume, the time bar, captions, settings and fullscreen. */

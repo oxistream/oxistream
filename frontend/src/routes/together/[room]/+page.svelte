@@ -27,6 +27,7 @@
 		type RoomErrorCode,
 		type RoomParticipant
 	} from '#lib/together/connection.svelte.js';
+	import { announceRoom } from '#lib/together/active-room.svelte.js';
 	import { guestKey, saveGuestName, savedGuestName } from '#lib/together/sync.js';
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -35,6 +36,7 @@
 	const ERROR_VISIBLE_MS = 6000;
 
 	const roomId = $derived(page.params.room ?? '');
+	const debugSync = $derived(page.url.searchParams.get('debug') === 'sync');
 	const info = createRoomQuery(() => roomId);
 	const closeRoom = createCloseRoomMutation();
 
@@ -70,6 +72,16 @@
 	const currentVideo = $derived(current ? toVideo(current.video) : null);
 	const isOwner = $derived(connection?.isOwner ?? info.data?.is_owner ?? false);
 	const owner = $derived(info.data?.owner ?? room?.owner ?? '');
+	const announcedOwner = $derived(status === 'open' ? owner : '');
+
+	// Other tabs offer adding videos here while this one is connected.
+	$effect(() => {
+		const conn = connection;
+		if (!conn || !announcedOwner) return;
+		return announceRoom({ id: roomId, owner: announcedOwner }, (videoId) =>
+			conn.send({ type: 'add', video_id: videoId })
+		);
+	});
 	const shareUrl = $derived(
 		new URL(resolve('/together/[room]', { room: roomId }), page.url.origin).href
 	);
@@ -181,9 +193,11 @@
 								positionAt: room.position_at
 							}}
 							serverNow={() => conn.serverNow()}
-							onplay={(position) => conn.send({ type: 'play', position })}
+							clockStats={() => conn.clockStats()}
+							debug={debugSync}
+							onplay={(position, at) => conn.send({ type: 'play', position, at })}
 							onpause={(position) => conn.send({ type: 'pause', position })}
-							onseek={(position) => conn.send({ type: 'seek', position })}
+							onseek={(position, at) => conn.send({ type: 'seek', position, at })}
 							onended={() => conn.send({ type: 'ended', entry: current.id })}
 						/>
 					{/key}
