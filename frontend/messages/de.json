@@ -134,6 +134,8 @@
 	"watch_title": "Ansehen",
 	"channel_title": "Kanal",
 	"search_suggestions_label": "Suchvorschläge",
+	"search_recent_remove": "Aus dem Suchverlauf entfernen",
+	"search_recent_clear": "Suchverlauf löschen",
 	"search_resolving": "Link wird geöffnet …",
 	"search_corrected": "Stattdessen Ergebnisse für „{query}“",
 	"search_prompt_title": "Videos, Kanäle und Playlists suchen",

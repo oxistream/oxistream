@@ -1,12 +1,16 @@
 <script lang="ts">
+	import HistoryIcon from '@lucide/svelte/icons/history';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { createSuggestionsQuery, resolveYouTubeUrl } from '#lib/api/search.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { MAX_RECENT_SEARCHES, matchRecent } from '#lib/recent-searches.js';
+	import { recentSearches } from '#lib/recent-searches.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import { parseYouTubeUrl, resolvedPath } from '#lib/youtube.js';
 
@@ -28,6 +32,9 @@
 	const uid = $props.id();
 	const listboxId = `${uid}-suggestions`;
 	const MAX_SUGGESTIONS = 8;
+	const MAX_RECENT_MATCHES = 3;
+
+	type Option = { kind: 'recent' | 'suggestion' | 'clear'; value: string };
 
 	let query = $state('');
 	let debounced = $state('');
@@ -51,15 +58,38 @@
 
 	const isUrl = $derived(parseYouTubeUrl(query) !== null);
 	const suggestionsQuery = createSuggestionsQuery(() => (isUrl ? '' : debounced));
-	const suggestions = $derived(
-		query.trim() && !isUrl ? (suggestionsQuery.data ?? []).slice(0, MAX_SUGGESTIONS) : []
-	);
-	const open = $derived(focused && !dismissed && suggestions.length > 0);
+	const options = $derived.by((): Option[] => {
+		if (isUrl) return [];
+		const typed = query.trim();
+		if (!typed) {
+			const recent = recentSearches.items.slice(0, MAX_RECENT_SEARCHES);
+			if (recent.length === 0) return [];
+			return [
+				...recent.map((value): Option => ({ kind: 'recent', value })),
+				{ kind: 'clear', value: '' }
+			];
+		}
+		const recent = matchRecent(recentSearches.items, typed, MAX_RECENT_MATCHES);
+		const seen = new Set(recent.map((value) => value.toLowerCase()));
+		const suggested = (suggestionsQuery.data ?? []).filter(
+			(value) => !seen.has(value.toLowerCase())
+		);
+		return [
+			...recent.map((value): Option => ({ kind: 'recent', value })),
+			...suggested.map((value): Option => ({ kind: 'suggestion', value }))
+		].slice(0, MAX_SUGGESTIONS);
+	});
+	const open = $derived(focused && !dismissed && options.length > 0);
+	const optionsKey = $derived(options.map((option) => `${option.kind}:${option.value}`).join('\n'));
+
+	/** Highlight to keep after the list changes, e.g. when a recent search is removed. */
+	let keepActive: number | null = null;
 
 	$effect(() => {
 		// A new list invalidates the highlighted option.
-		void suggestions;
-		active = -1;
+		void optionsKey;
+		active = keepActive !== null ? Math.min(keepActive, options.length - 1) : -1;
+		keepActive = null;
 	});
 
 	function optionId(index: number) {
@@ -69,10 +99,24 @@
 	/** Splits a suggestion into the typed prefix and the completed rest, which is set bold. */
 	function split(suggestion: string): [string, string] {
 		const typed = query.trimStart().toLowerCase();
-		if (typed && suggestion.toLowerCase().startsWith(typed)) {
+		if (!typed.trim()) return [suggestion, ''];
+		if (suggestion.toLowerCase().startsWith(typed)) {
 			return [suggestion.slice(0, typed.length), suggestion.slice(typed.length)];
 		}
 		return ['', suggestion];
+	}
+
+	function removeRecent(value: string, index: number) {
+		keepActive = active >= 0 ? index : null;
+		recentSearches.remove(value);
+	}
+
+	function pick(option: Option) {
+		if (option.kind === 'clear') {
+			recentSearches.clear();
+			return;
+		}
+		void submit(option.value);
 	}
 
 	async function submit(value: string) {
@@ -97,13 +141,15 @@
 			}
 		}
 		input?.blur();
+		recentSearches.add(q);
 		const params = new URLSearchParams({ search_query: q });
 		await goto(resolve(`/results?${params.toString()}`));
 	}
 
 	function onsubmit(event: SubmitEvent) {
 		event.preventDefault();
-		void submit(active >= 0 ? suggestions[active] : query);
+		if (active >= 0) pick(options[active]);
+		else void submit(query);
 	}
 
 	function onkeydown(event: KeyboardEvent) {
@@ -111,17 +157,24 @@
 		switch (event.key) {
 			case 'ArrowDown':
 			case 'ArrowUp': {
-				if (suggestions.length === 0) return;
+				if (options.length === 0) return;
 				event.preventDefault();
 				if (!open) {
 					dismissed = false;
-					active = event.key === 'ArrowDown' ? 0 : suggestions.length - 1;
+					active = event.key === 'ArrowDown' ? 0 : options.length - 1;
 					return;
 				}
 				const step = event.key === 'ArrowDown' ? 1 : -1;
 				// -1 (no option) sits between the last and the first option, as in a browser's own list.
 				const next = active + step;
-				active = next >= suggestions.length ? -1 : next < -1 ? suggestions.length - 1 : next;
+				active = next >= options.length ? -1 : next < -1 ? options.length - 1 : next;
+				return;
+			}
+			case 'Delete': {
+				const option = open && active >= 0 ? options[active] : undefined;
+				if (option?.kind !== 'recent') return;
+				event.preventDefault();
+				removeRecent(option.value, active);
 				return;
 			}
 			case 'Escape':
@@ -217,22 +270,63 @@
 		hidden={!open}
 		class="absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-lg border bg-popover py-1 text-popover-foreground shadow-lg shadow-black/5 dark:shadow-black/40"
 	>
-		{#each suggestions as suggestion, index (suggestion)}
-			{@const [typed, rest] = split(suggestion)}
+		{#each options as option, index (`${option.kind}:${option.value}`)}
 			<!-- Options are picked by keyboard through the combobox input, so they take no focus of their own. -->
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<li
-				id={optionId(index)}
-				role="option"
-				aria-selected={index === active}
-				class="flex h-9 cursor-pointer items-center gap-3 px-3 text-sm transition-colors duration-(--motion-out) ease-ui aria-selected:bg-accent aria-selected:text-accent-foreground"
-				onpointerdown={(event) => event.preventDefault()}
-				onpointermove={() => (active = index)}
-				onclick={() => void submit(suggestion)}
-			>
-				<SearchIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-				<span class="truncate">{typed}<strong class="font-semibold">{rest}</strong></span>
-			</li>
+			{#if option.kind === 'clear'}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<li
+					id={optionId(index)}
+					role="option"
+					aria-selected={index === active}
+					data-testid="search-recent-clear"
+					class="mt-1 flex h-9 cursor-pointer items-center border-t px-3 text-xs text-muted-foreground transition-colors duration-(--motion-out) ease-ui aria-selected:bg-accent aria-selected:text-accent-foreground"
+					onpointerdown={(event) => event.preventDefault()}
+					onpointermove={() => (active = index)}
+					onclick={() => pick(option)}
+				>
+					{m.search_recent_clear()}
+				</li>
+			{:else}
+				{@const [typed, rest] = split(option.value)}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<li
+					id={optionId(index)}
+					role="option"
+					aria-selected={index === active}
+					aria-label={option.value}
+					data-kind={option.kind}
+					class="group/option flex h-9 cursor-pointer items-center gap-3 ps-3 text-sm transition-colors duration-(--motion-out) ease-ui aria-selected:bg-accent aria-selected:text-accent-foreground"
+					class:pe-3={option.kind === 'suggestion'}
+					class:pe-1={option.kind === 'recent'}
+					onpointerdown={(event) => event.preventDefault()}
+					onpointermove={() => (active = index)}
+					onclick={() => pick(option)}
+				>
+					{#if option.kind === 'recent'}
+						<HistoryIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+					{:else}
+						<SearchIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+					{/if}
+					<span class="min-w-0 flex-1 truncate">
+						{typed}<strong class="font-semibold">{rest}</strong>
+					</span>
+					{#if option.kind === 'recent'}
+						<button
+							type="button"
+							tabindex="-1"
+							aria-label={m.search_recent_remove()}
+							title={m.search_recent_remove()}
+							class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-(--motion-out) ease-ui hover:bg-background/70 hover:text-foreground"
+							onclick={(event) => {
+								event.stopPropagation();
+								removeRecent(option.value, index);
+							}}
+						>
+							<XIcon class="size-4" aria-hidden="true" />
+						</button>
+					{/if}
+				</li>
+			{/if}
 		{/each}
 	</ul>
 	<span class="sr-only" role="status">{resolving ? m.search_resolving() : ''}</span>

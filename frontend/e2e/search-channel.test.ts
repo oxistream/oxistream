@@ -189,6 +189,69 @@ test('suggestions are keyboard navigable and pick a search', async ({ page }) =>
 	await expect(listbox).toBeHidden();
 });
 
+test('recent searches show on focus and can be removed and cleared', async ({ page }) => {
+	await mockSearch(page);
+	await page.route('**/api/v0/search/suggestions?*', (route) =>
+		json(route, ['forge welding', 'forge build', 'forging a knife'])
+	);
+	await page.goto('/');
+
+	const input = page.getByRole('combobox', { name: 'Search videos' });
+	const listbox = page.getByRole('listbox', { name: 'Search suggestions' });
+	await input.click();
+	await expect(listbox).toBeHidden();
+
+	for (const q of ['knife', 'forge welding', 'anvil']) {
+		await input.fill(q);
+		await input.press('Enter');
+		await expect(page).toHaveURL(new RegExp(`search_query=${q.replace(' ', '\\+')}$`));
+	}
+	await page.goto('/');
+	await input.click();
+	await expect(listbox.getByRole('option')).toHaveText([
+		'anvil',
+		'forge welding',
+		'knife',
+		'Clear search history'
+	]);
+
+	await input.pressSequentially('forg');
+	await expect(listbox.getByRole('option')).toHaveText([
+		'forge welding',
+		'forge build',
+		'forging a knife'
+	]);
+	await expect(listbox.getByRole('option').first()).toHaveAttribute('data-kind', 'recent');
+	await input.fill('');
+
+	await listbox
+		.getByRole('option', { name: 'forge welding' })
+		.getByRole('button', { name: 'Remove from search history' })
+		.click();
+	await expect(listbox.getByRole('option')).toHaveCount(3);
+	await expect(input).toBeFocused();
+
+	// The hovered row stays highlighted after its neighbour is removed.
+	await expect(listbox.getByRole('option', { name: 'knife' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await input.press('ArrowUp');
+	await input.press('Delete');
+	await expect(listbox.getByRole('option')).toHaveText(['knife', 'Clear search history']);
+	await expect(listbox.getByRole('option', { name: 'knife' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+
+	await page.reload();
+	await input.click();
+	await expect(listbox.getByRole('option')).toHaveText(['knife', 'Clear search history']);
+	await listbox.getByRole('option', { name: 'Clear search history' }).click();
+	await expect(listbox).toBeHidden();
+	expect(await page.evaluate(() => localStorage.getItem('oxistream:recent-searches'))).toBe('[]');
+});
+
 test('a pasted YouTube link opens its target directly', async ({ page }) => {
 	await page.route('**/api/v0/resolve?*', (route) => {
 		const url = new URL(route.request().url()).searchParams.get('url') ?? '';
@@ -205,6 +268,7 @@ test('a pasted YouTube link opens its target directly', async ({ page }) => {
 	await input.fill('youtube.com/@hammerandtongs');
 	await input.press('Enter');
 	await expect(page).toHaveURL(new RegExp(`/channel/${forge.id}$`));
+	expect(await page.evaluate(() => localStorage.getItem('oxistream:recent-searches'))).toBeNull();
 });
 
 async function mockChannel(page: Page) {
