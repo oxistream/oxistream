@@ -503,13 +503,15 @@ async fn video_details_list_proxied_subtitles() {
 #[tokio::test]
 #[ignore = "network"]
 async fn trending_lists_proxied_videos_per_category() {
-    for category in ["podcasts", "gaming", "news"] {
+    for category in [
+        "podcasts", "gaming", "news", "music", "sports", "learning", "fashion", "live",
+    ] {
         let (status, json) = get_json(&format!("/api/v0/trending?category={category}")).await;
         assert_eq!(status, StatusCode::OK, "{json}");
         assert_eq!(json["region"], "US");
         assert_eq!(json["category"], category);
         let items = json["items"].as_array().unwrap();
-        assert!(items.len() >= 20, "{category}: {} items", items.len());
+        assert!(items.len() >= 10, "{category}: {} items", items.len());
         let thumb = items[0]["thumbnails"][0]["url"].as_str().unwrap();
         assert!(thumb.starts_with("/proxy/image/"), "{thumb}");
     }

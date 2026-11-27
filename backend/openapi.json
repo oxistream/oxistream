@@ -4665,7 +4665,12 @@
               "enum": [
                 "podcasts",
                 "gaming",
-                "news"
+                "news",
+                "music",
+                "sports",
+                "learning",
+                "fashion",
+                "live"
               ]
             }
           },
@@ -7470,7 +7475,12 @@
         "enum": [
           "podcasts",
           "gaming",
-          "news"
+          "news",
+          "music",
+          "sports",
+          "learning",
+          "fashion",
+          "live"
         ]
       },
       "TrendingVideos": {
