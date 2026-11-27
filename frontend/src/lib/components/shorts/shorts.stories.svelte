@@ -42,6 +42,21 @@
 	{template}
 />
 
+<Story
+	name="Overlay with AI label"
+	args={{
+		disclosures: [
+			{
+				kind: 'altered_or_synthetic',
+				title: 'Made with AI',
+				text: 'Sounds or visuals were altered or fully generated.',
+				help_url: 'https://support.google.com/youtube/answer/15447836'
+			}
+		]
+	}}
+	{template}
+/>
+
 <Story name="Overlay without channel" args={{ channel: { id: '', name: '' } }} {template} />
 
 <Story

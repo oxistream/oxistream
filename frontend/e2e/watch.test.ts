@@ -141,6 +141,42 @@ test('subtitle tracks sharing an id do not break the player', async ({ page }) =
 	expect(errors.filter((e) => /each_key_duplicate/.test(e.message))).toEqual([]);
 });
 
+test('altered or synthetic content is labelled', async ({ page }) => {
+	await mockApi(page, {
+		details: {
+			status: 200,
+			body: {
+				...video,
+				content_disclosures: [
+					{
+						kind: 'auto_dubbed',
+						title: 'Auto-dubbed',
+						text: 'Audio tracks for some languages were automatically generated.'
+					},
+					{
+						kind: 'altered_or_synthetic',
+						title: 'Made with AI',
+						text: 'Sounds or visuals were altered or fully generated.',
+						help_url: 'https://support.google.com/youtube/answer/15447836'
+					}
+				]
+			}
+		}
+	});
+	await page.goto(`/watch?v=${ID}`);
+
+	const label = page.getByRole('button', { name: 'Altered or synthetic content' });
+	await expect(label).toHaveAttribute('aria-expanded', 'false');
+	await expect(page.getByText('Sounds or visuals were altered')).toBeHidden();
+	await label.click();
+	await expect(page.getByText('Sounds or visuals were altered')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Learn more on YouTube' })).toHaveAttribute(
+		'rel',
+		'noopener noreferrer'
+	);
+	await expect(page.getByText('Audio tracks for some languages')).toHaveCount(0);
+});
+
 test('description expands and links timestamps and URLs', async ({ page }) => {
 	await mockApi(page);
 	await page.setViewportSize({ width: 900, height: 900 });

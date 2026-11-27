@@ -1,12 +1,20 @@
 // Stand-in watch page data for stories, shaped like the API's VideoDetails.
 import type { components } from '#lib/api/schema.js';
-import type { VideoDetails } from '#lib/api/video.js';
+import type { ContentDisclosure, VideoDetails } from '#lib/api/video.js';
 import { mockVideos } from '#lib/mocks/videos.js';
 import type { VideoSummary } from '#lib/video.js';
 
 const thumb = (url?: string) => (url ? [{ url, width: 640, height: 360 }] : []);
 
 export const mockNow = new Date('2026-11-26T12:00:00Z');
+
+export const mockDisclosure: ContentDisclosure = {
+	kind: 'altered_or_synthetic',
+	title: 'Made with AI',
+	text: 'Sounds or visuals were altered or fully generated.',
+	attribution: 'Info from Google LLC',
+	help_url: 'https://support.google.com/youtube/answer/15447836'
+};
 
 const forge = mockVideos[0];
 
@@ -45,6 +53,8 @@ export const mockVideoDetails: VideoDetails = {
 		{ id: 'en', lang: 'en', label: 'English', auto_generated: false, url: '' },
 		{ id: 'a.de', lang: 'de', label: 'German', auto_generated: true, url: '' }
 	],
+	audio_tracks: [],
+	content_disclosures: [],
 	related: mockVideos.slice(1, 9).map((v): components['schemas']['VideoSummary'] => ({
 		id: v.id,
 		title: v.title,

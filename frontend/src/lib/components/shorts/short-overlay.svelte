@@ -3,12 +3,14 @@
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import { resolve } from '$app/paths';
 	import type { LinkedVideo } from '#lib/api/shorts.js';
+	import type { ContentDisclosure as Disclosure } from '#lib/api/video.js';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
 	import VerifiedBadge from '#lib/components/channel/verified-badge.svelte';
 	import LikeButton from '#lib/components/like/like-button.svelte';
 	import SubscribeButton from '#lib/components/subscription/subscribe-button.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import ContentDisclosure from '#lib/components/watch/content-disclosure.svelte';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import type { ChannelSummary } from '#lib/video.js';
@@ -18,6 +20,7 @@
 		title,
 		channel,
 		linkedVideo,
+		disclosures = [],
 		onblocked,
 		class: className
 	}: {
@@ -27,6 +30,8 @@
 		channel?: ChannelSummary;
 		/** The full video the short links to. */
 		linkedVideo?: LinkedVideo;
+		/** YouTube's "How this was made" labels. */
+		disclosures?: readonly Disclosure[];
 		/** The user just blocked the channel. */
 		onblocked?: () => void;
 		class?: string;
@@ -74,6 +79,7 @@
 				{title}
 			</h1>
 		{/if}
+		<ContentDisclosure {disclosures} variant="overlay" />
 		{#if linkedVideo}
 			<a
 				href={resolve(`/watch?v=${linkedVideo.id}`)}

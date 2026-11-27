@@ -3,8 +3,9 @@
 	import { ApiError } from '#lib/api/mapping.js';
 	import { mockVideos } from '#lib/mocks/videos.js';
 	import ChannelRow from './channel-row.svelte';
+	import ContentDisclosure from './content-disclosure.svelte';
 	import { describeProblem, liveProblem } from './errors';
-	import { mockNow, mockRelated, mockVideoDetails } from './mocks';
+	import { mockDisclosure, mockNow, mockRelated, mockVideoDetails } from './mocks';
 	import PlayerMessage from './player-message.svelte';
 	import RelatedVideos from './related-videos.svelte';
 	import VideoDescription from './video-description.svelte';
@@ -30,6 +31,21 @@
 <Story name="Default" {template} />
 
 <Story name="Description expanded" args={{ descriptionExpanded: true }} {template} />
+
+<Story
+	name="Altered or synthetic content"
+	args={{ video: { ...mockVideoDetails, content_disclosures: [mockDisclosure] } }}
+	{template}
+/>
+
+<Story name="Content disclosure" asChild>
+	<div class="flex max-w-md flex-col gap-4">
+		<ContentDisclosure disclosures={[mockDisclosure]} />
+		<div class="rounded-xl bg-zinc-800 p-4">
+			<ContentDisclosure disclosures={[mockDisclosure]} variant="overlay" />
+		</div>
+	</div>
+</Story>
 
 <Story
 	name="Short description, no likes"

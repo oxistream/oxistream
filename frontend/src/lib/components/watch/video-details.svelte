@@ -5,6 +5,7 @@
 	import LikeButton from '#lib/components/like/like-button.svelte';
 	import { cn } from '#lib/utils.js';
 	import ChannelRow from './channel-row.svelte';
+	import ContentDisclosure from './content-disclosure.svelte';
 	import VideoDescription from './video-description.svelte';
 
 	let {
@@ -31,6 +32,7 @@
 	<h1 class="text-lg leading-snug font-semibold tracking-tight text-pretty break-words sm:text-xl">
 		{video.title}
 	</h1>
+	<ContentDisclosure disclosures={video.content_disclosures} class="-mt-1" />
 	<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
 		<ChannelRow {channel} />
 		<div class="flex flex-wrap items-center gap-2">
