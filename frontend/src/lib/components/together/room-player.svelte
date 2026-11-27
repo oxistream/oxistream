@@ -16,6 +16,8 @@
 		SEEK_THRESHOLD,
 		livePosition,
 		localNow,
+		saveRateCost,
+		savedRateCost,
 		type Playback
 	} from '#lib/together/sync.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -34,6 +36,10 @@
 	/** While paused, a seek that did not land is retried this often. */
 	const PAUSED_SEEK_MS = 1000;
 	const STUCK_MS = 4000;
+	/** A seek this soon after input on the player is the user's. */
+	const INPUT_MS = 1000;
+	/** Longest a press on the player holds off following the room. */
+	const USER_HOLD_MS = 15_000;
 
 	let {
 		videoId,
@@ -90,7 +96,7 @@
 	let blockTimer: ReturnType<typeof setTimeout> | undefined;
 	let playTriedAt = -Infinity;
 
-	const controller = new DriftController();
+	const controller = new DriftController(savedRateCost());
 	let stalled = false;
 	let settleUntil = 0;
 	let stats = $state<SyncStats>({
@@ -99,6 +105,7 @@
 		drift: null,
 		rate: 1,
 		lead: controller.lead,
+		rateCost: controller.rateCost,
 		state: 'idle'
 	});
 
@@ -111,6 +118,12 @@
 	let seekTarget = 0;
 	/** When drift was last acted on, or playback last had nothing to correct. */
 	let controlledAt = 0;
+	let root = $state<HTMLDivElement>();
+	let inputAt = -Infinity;
+	/** Since when a pointer is down on the player, e.g. dragging the time slider. */
+	let pressedAt: number | null = null;
+	/** The user is seeking; the room hears of it right away, or on release while dragging. */
+	let userSeeking = false;
 
 	/** Read once the media can seek, so loading time does not put this player behind. */
 	function startTime(): number {
@@ -146,6 +159,7 @@
 			drift: drift === null ? null : drift * 1000,
 			rate: controller.rate,
 			lead: controller.lead,
+			rateCost: controller.rateCost,
 			state
 		};
 	}
@@ -158,6 +172,7 @@
 		if (playback.playing && duration > 0 && position >= duration) return ended();
 		// What this player just did is on its way to the server; the room follows shortly.
 		if (now < reportedUntil) return report('reporting');
+		if (pressedAt !== null && now - pressedAt < USER_HOLD_MS) return report('scrubbing');
 		if (!playback.playing || player.isPaused()) controlledAt = now;
 		if (!playback.playing) {
 			blocked = false;
@@ -237,17 +252,56 @@
 			stalled = false;
 			settle();
 		};
+		const seeking = () => {
+			const now = localNow();
+			const own = now < ownSeekUntil && Math.abs(media.currentTime - seekTarget) < 0.5;
+			if (own || now - inputAt >= INPUT_MS) return;
+			userSeeking = true;
+			seekTarget = media.currentTime;
+			if (pressedAt === null) reportSeek(seekTarget);
+		};
 		media.addEventListener('waiting', waiting);
+		media.addEventListener('seeking', seeking);
 		media.addEventListener('playing', playing);
 		media.addEventListener('seeked', settle);
 		return () => {
 			media.removeEventListener('waiting', waiting);
+			media.removeEventListener('seeking', seeking);
 			media.removeEventListener('playing', playing);
 			media.removeEventListener('seeked', settle);
 		};
 	});
 
-	onDestroy(() => clearTimeout(blockTimer));
+	$effect(() => {
+		const el = root;
+		if (!el) return;
+		const input = () => (inputAt = localNow());
+		const press = () => {
+			input();
+			pressedAt = inputAt;
+		};
+		const release = () => {
+			if (pressedAt === null) return;
+			input();
+			pressedAt = null;
+			if (userSeeking) reportSeek(seekTarget);
+		};
+		el.addEventListener('pointerdown', press, true);
+		el.addEventListener('keydown', input, true);
+		window.addEventListener('pointerup', release, true);
+		window.addEventListener('pointercancel', release, true);
+		return () => {
+			el.removeEventListener('pointerdown', press, true);
+			el.removeEventListener('keydown', input, true);
+			window.removeEventListener('pointerup', release, true);
+			window.removeEventListener('pointercancel', release, true);
+		};
+	});
+
+	onDestroy(() => {
+		clearTimeout(blockTimer);
+		saveRateCost(controller.rateCost);
+	});
 
 	const reported = () => (reportedUntil = localNow() + REPORT_GRACE_MS);
 
@@ -265,14 +319,25 @@
 		onpause(position);
 	}
 
+	function reportSeek(position: number) {
+		if (Math.abs(position - target()) <= SEEK_THRESHOLD) return;
+		reported();
+		onseek(position, serverNow());
+	}
+
 	function handleSeeked(position: number) {
+		if (userSeeking) {
+			if (pressedAt !== null) return;
+			userSeeking = false;
+			// The room already heard of it, unless the media landed elsewhere.
+			if (Math.abs(position - seekTarget) > 0.5) reportSeek(position);
+			return;
+		}
 		if (localNow() < ownSeekUntil) {
 			ownSeekUntil = 0;
 			return;
 		}
-		if (Math.abs(position - target()) <= SEEK_THRESHOLD) return;
-		reported();
-		onseek(position, serverNow());
+		reportSeek(position);
 	}
 
 	function join() {
@@ -281,7 +346,7 @@
 	}
 </script>
 
-<div class={cn('relative', className)} data-testid="room-player">
+<div bind:this={root} class={cn('relative', className)} data-testid="room-player">
 	{#if problem}
 		<PlayerMessage {problem} {videoId} {poster} />
 	{:else if details}

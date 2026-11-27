@@ -139,6 +139,80 @@ describe('DriftController', () => {
 	});
 });
 
+/**
+ * Runs the controller against a player that freezes for `freeze` seconds on every rate change,
+ * as WebKit does, ticking every 250 ms like the room player.
+ */
+function simulate(control: DriftController, drift: number, seconds: number, freeze: number) {
+	const tick = 0.25;
+	let rate = 1;
+	let frozen = 0;
+	let changes = 0;
+	const drifts: number[] = [];
+	for (let t = 0; t < seconds; t += tick) {
+		const action = control.update(drift, t * 1000);
+		expect(action).not.toBe('seek');
+		if (action !== rate) {
+			rate = action as number;
+			changes++;
+			frozen += freeze;
+		}
+		const still = Math.min(tick, frozen);
+		frozen -= still;
+		drift += (rate - 1) * (tick - still) - still;
+		drifts.push(drift);
+	}
+	return { drift, changes, drifts, rate };
+}
+
+describe('DriftController with costly rate changes', () => {
+	it('learns what a rate change costs from how drift moved after it', () => {
+		const control = new DriftController();
+		expect(control.costly).toBe(false);
+		simulate(control, -0.4, 4, 0.3);
+		expect(control.rateCost).toBeGreaterThan(0.1);
+		expect(control.costly).toBe(true);
+	});
+
+	it('stays fine-grained when rate changes are free', () => {
+		const control = new DriftController();
+		const run = simulate(control, -0.4, 30, 0);
+		expect(control.rateCost).toBe(0);
+		expect(Math.abs(run.drift)).toBeLessThan(0.03);
+	});
+
+	it('makes up drift in one phase of two rate changes, freezes included', () => {
+		for (const start of [-0.6, -0.15, 0.15, 0.5, 0.9]) {
+			const control = new DriftController(0.3);
+			const run = simulate(control, start, 60, 0.3);
+			expect(run.changes).toBe(2);
+			expect(run.rate).toBe(1);
+			expect(Math.abs(run.drift)).toBeLessThan(0.03);
+		}
+	});
+
+	it('leaves drift inside the wider deadband alone', () => {
+		const control = new DriftController(0.3);
+		const run = simulate(control, 0.06, 30, 0.3);
+		expect(run.changes).toBe(0);
+	});
+
+	it('settles with few rate changes before the cost is known', () => {
+		const control = new DriftController();
+		const run = simulate(control, -0.5, 120, 0.3);
+		expect(run.changes).toBeLessThanOrEqual(6);
+		expect(Math.abs(run.drift)).toBeLessThan(0.05);
+		// Once settled, nothing changes any more.
+		expect(run.drifts.slice(-200).every((d) => Math.abs(d - run.drift) < 0.001)).toBe(true);
+	});
+
+	it('remembers the cost across videos', () => {
+		expect(new DriftController(0.25).costly).toBe(true);
+		expect(new DriftController(0.02).costly).toBe(false);
+		expect(new DriftController(9).rateCost).toBeLessThanOrEqual(1.5);
+	});
+});
+
 describe('videoIdFromInput', () => {
 	it('accepts IDs and the usual YouTube links', () => {
 		const id = 'dQw4w9WgXcQ';

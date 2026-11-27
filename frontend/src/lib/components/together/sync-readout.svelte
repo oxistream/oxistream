@@ -9,6 +9,8 @@
 		rate: number;
 		/** Seconds a seek aims ahead of the room. */
 		lead: number;
+		/** Seconds of playback lost per rate change. */
+		rateCost: number;
 		state: string;
 	};
 </script>
@@ -44,4 +46,6 @@
 	<dd>{ms(stats.rtt)}</dd>
 	<dt class="text-white/60">seek lead</dt>
 	<dd>{(stats.lead * 1000).toFixed(0)} ms</dd>
+	<dt class="text-white/60">rate cost</dt>
+	<dd>{(stats.rateCost * 1000).toFixed(0)} ms</dd>
 </dl>

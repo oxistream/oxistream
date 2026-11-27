@@ -13,6 +13,7 @@ export const MAX_NAME_LENGTH = 32;
 
 const NAME_KEY = 'oxistream:together-name';
 const GUEST_KEY = 'oxistream:together-guest';
+const RATE_COST_KEY = 'oxistream:together-rate-cost';
 
 export type Playback = {
 	playing: boolean;
@@ -90,18 +91,44 @@ const INITIAL_SEEK_LEAD = 0.3;
 const MAX_SEEK_LEAD = 3;
 /** A seek's landing only teaches the lead if playback resumed this soon after it, in ms. */
 const LANDING_WINDOW = 8000;
+/** Seconds playback loses per rate change above which catching up uses few, long phases. */
+const COSTLY_RATE_CHANGE = 0.08;
+const MAX_RATE_COST = 1.5;
+/** A rate change's cost is measured this long after it, in ms, if the rate held. */
+const COST_WINDOW = 1500;
+/** With costly rate changes, a phase starts beyond this drift and lasts at least this long. */
+const COSTLY_DEADBAND = 0.08;
+const MIN_PHASE_MS = 1000;
 
 /**
  * Keeps a playing player on the room's position: small drift is made up by playing slightly
  * faster or slower, large drift by seeking ahead of the room by how long seeks took before.
+ *
+ * Some engines (WebKit) freeze playback for a moment on every rate change. That loss is learned
+ * from how drift moved after earlier changes; when it is large, drift is made up in rare phases
+ * at the full rate change, timed so the freezes at both ends are accounted for.
  */
 export class DriftController {
 	/** Seconds to seek ahead of the room, learned from where earlier seeks landed. */
 	lead = INITIAL_SEEK_LEAD;
 	rate = 1;
+	/** Seconds of playback lost per rate change. */
+	rateCost: number;
 	#drift: number | null = null;
 	#correcting = false;
 	#seekedAt: number | null = null;
+	#change: { at: number; drift: number; rate: number } | null = null;
+	/** When the current or the last phase started or ended. */
+	#phaseAt = -Infinity;
+	#lastAt: number | null = null;
+
+	constructor(rateCost = 0) {
+		this.rateCost = Math.min(MAX_RATE_COST, Math.max(0, rateCost));
+	}
+
+	get costly(): boolean {
+		return this.rateCost > COSTLY_RATE_CHANGE;
+	}
 
 	/** Call on a jump to the room's position plus `lead`, while playing. */
 	seeked(now: number) {
@@ -113,6 +140,8 @@ export class DriftController {
 	reset() {
 		this.#drift = null;
 		this.#correcting = false;
+		this.#change = null;
+		this.#lastAt = null;
 		this.rate = 1;
 	}
 
@@ -127,21 +156,60 @@ export class DriftController {
 			}
 			this.#seekedAt = null;
 		}
-		if (Math.abs(drift) > PLAYING_DRIFT) {
+		this.#learnCost(drift, now);
+		const tick = this.#lastAt === null ? 0 : (now - this.#lastAt) / 1000;
+		this.#lastAt = now;
+		if (Math.abs(drift) > PLAYING_DRIFT + (this.costly ? this.rateCost : 0)) {
 			this.reset();
 			return 'seek';
 		}
 		this.#drift = this.#drift === null ? drift : this.#drift + SMOOTHING * (drift - this.#drift);
-		const size = Math.abs(this.#drift);
-		this.#correcting = size > DEADBAND[this.#correcting ? 1 : 0];
-		if (!this.#correcting) {
-			this.rate = 1;
-			return this.rate;
-		}
-		const change = Math.min(MAX_RATE_CHANGE, Math.max(-MAX_RATE_CHANGE, -GAIN * this.#drift));
-		this.rate = Math.round((1 + change) / RATE_STEP) * RATE_STEP;
-		this.rate = Math.round(this.rate * 1000) / 1000;
+		const previous = this.rate;
+		this.rate = this.costly ? this.#phase(drift, now, tick) : this.#steer();
+		if (this.rate !== previous) this.#change = { at: now, drift, rate: this.rate };
 		return this.rate;
+	}
+
+	#steer(): number {
+		const drift = this.#drift!;
+		this.#correcting = Math.abs(drift) > DEADBAND[this.#correcting ? 1 : 0];
+		if (!this.#correcting) return 1;
+		const change = Math.min(MAX_RATE_CHANGE, Math.max(-MAX_RATE_CHANGE, -GAIN * drift));
+		return Math.round(Math.round((1 + change) / RATE_STEP) * RATE_STEP * 1000) / 1000;
+	}
+
+	/**
+	 * Both rate changes of a phase lose `rateCost`, so it starts toward a drift of `+rateCost`
+	 * and ends there, and the freeze of going back to normal speed lands it on the room.
+	 */
+	#phase(drift: number, now: number, tick: number): number {
+		const cost = this.rateCost;
+		if (this.rate === 1) {
+			// The freeze at the end of the last phase is still to come or just happened.
+			if (now - this.#phaseAt < COST_WINDOW) {
+				this.#drift = drift;
+				return 1;
+			}
+			if (Math.abs(this.#drift!) <= COSTLY_DEADBAND) return 1;
+			this.#phaseAt = now;
+			return drift - cost < cost ? 1 + MAX_RATE_CHANGE : 1 - MAX_RATE_CHANGE;
+		}
+		if (now - this.#phaseAt < MIN_PHASE_MS) return this.rate;
+		const direction = Math.sign(this.rate - 1);
+		const step = Math.abs(this.rate - 1) * tick;
+		if (direction * (drift - cost) < -step / 2) return this.rate;
+		this.#phaseAt = now;
+		return 1;
+	}
+
+	/** Drift should have moved with the new rate since a change; what is missing was lost. */
+	#learnCost(drift: number, now: number) {
+		const change = this.#change;
+		if (!change || now - change.at < COST_WINDOW) return;
+		this.#change = null;
+		const expected = change.drift + ((change.rate - 1) * (now - change.at)) / 1000;
+		const lost = Math.min(MAX_RATE_COST, Math.max(0, expected - drift));
+		this.rateCost += 0.5 * (lost - this.rateCost);
 	}
 }
 
@@ -165,6 +233,17 @@ export function cleanName(name: string): string {
 		.replace(/\p{Cc}/gu, '')
 		.trim()
 		.slice(0, MAX_NAME_LENGTH);
+}
+
+/** What a rate change cost in the last room, so the next video starts out right. */
+export function savedRateCost(): number {
+	return (
+		readJson(RATE_COST_KEY, (v): v is number => typeof v === 'number' && Number.isFinite(v)) ?? 0
+	);
+}
+
+export function saveRateCost(cost: number) {
+	writeJson(RATE_COST_KEY, Math.round(cost * 1000) / 1000);
 }
 
 export function savedGuestName(): string {
