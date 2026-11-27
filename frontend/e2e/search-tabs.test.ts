@@ -100,7 +100,7 @@ test('search tabs switch the result type and keep it in the URL', async ({ page 
 		'href',
 		`/channel/${forge.id}`
 	);
-	await expect(results.getByTestId('subscribe-button')).toBeVisible();
+	await expect(results.getByTestId('subscribe-button')).toHaveCount(0);
 
 	await tabs.getByRole('link', { name: 'Playlists' }).click();
 	await expect(page.getByRole('heading', { name: 'No playlists for “forge”' })).toBeVisible();

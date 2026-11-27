@@ -6,11 +6,13 @@
 
 	let {
 		recent = [],
-		now
+		now,
+		onremove
 	}: {
 		/** Videos watched in this browser, most recent first. */
 		recent?: VideoSummary[];
 		now?: Date;
+		onremove?: (video: VideoSummary) => void;
 	} = $props();
 
 	const headingId = $props.id();
@@ -30,5 +32,10 @@
 </section>
 
 {#if recent.length}
-	<HomeRow title={m.home_recently_watched()} videos={recent} {now} />
+	<HomeRow
+		title={m.home_recently_watched()}
+		videos={recent}
+		{now}
+		removal={onremove && { label: m.action_remove(), onremove }}
+	/>
 {/if}

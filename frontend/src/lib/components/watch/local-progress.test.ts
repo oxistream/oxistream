@@ -3,6 +3,7 @@ import {
 	PROGRESS_KEY,
 	readLocalProgress,
 	recentLocalVideos,
+	removeLocalProgress,
 	resumePosition,
 	saveLocalProgress
 } from './local-progress';
@@ -68,6 +69,17 @@ describe('local progress', () => {
 		expect(recent[0]).toMatchObject({ title: 'First', progress: 1, durationSeconds: 100 });
 		expect(recent[1]).toMatchObject({ title: 'Second', progress: 0.5 });
 		expect(recentLocalVideos(1)).toHaveLength(1);
+	});
+
+	it('removes one video', () => {
+		const video = { title: 'First', channel: { id: 'UC1', name: 'One' } };
+		const report = { position: 50, duration: 100, finished: false, reason: 'pause' } as const;
+		saveLocalProgress('a', report, 1, video);
+		saveLocalProgress('b', report, 2, video);
+		removeLocalProgress('a');
+		removeLocalProgress('missing');
+		expect(readLocalProgress('a')).toBeNull();
+		expect(recentLocalVideos(5).map((v) => v.id)).toEqual(['b']);
 	});
 
 	it('skips malformed video details', () => {

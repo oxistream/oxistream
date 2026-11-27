@@ -6,7 +6,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
-	import type { VideoSummary } from '#lib/video.js';
+	import type { VideoRemoval, VideoSummary } from '#lib/video.js';
 	import VideoMeta from './video-meta.svelte';
 	import VideoThumbnail from './video-thumbnail.svelte';
 
@@ -15,6 +15,7 @@
 		headingLevel = 3,
 		showChannel = true,
 		now,
+		removal,
 		class: className
 	}: {
 		video: VideoSummary;
@@ -22,6 +23,8 @@
 		showChannel?: boolean;
 		/** Reference time for the relative date; fixed in stories so snapshots stay stable. */
 		now?: Date;
+		/** Offers removing the video from the list it is shown in. */
+		removal?: VideoRemoval;
 		class?: string;
 	} = $props();
 
@@ -78,10 +81,12 @@
 			{/if}
 			<VideoMeta {video} {now} />
 		</div>
-		{#if channelShown}
+		{#if channelShown || removal}
 			<ChannelActionsMenu
 				channel={video.channel}
 				{video}
+				removeLabel={removal?.label}
+				onremove={removal && (() => removal.onremove(video))}
 				label={m.block_video_actions({ title: video.title })}
 				class="relative z-10 -me-1.5 shrink-0 pointer-fine:opacity-0 pointer-fine:group-hover/video:opacity-100 pointer-fine:focus-visible:opacity-100 pointer-fine:data-[state=open]:opacity-100"
 			/>

@@ -4,7 +4,6 @@
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
 	import { ApiError, isNotFound } from '#lib/api/mapping.js';
 	import {
 		createFollowMutation,
@@ -26,7 +25,6 @@
 	import { pageTitle } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale } from '#lib/paraglide/runtime.js';
-	import { authHref } from '#lib/auth/links.js';
 	import { session } from '#lib/session.svelte.js';
 	import CourseBadge from './course-badge.svelte';
 	import FollowToggle from './follow-toggle.svelte';
@@ -44,9 +42,6 @@
 	const importMutation = createImportPlaylistMutation();
 	const markSeen = useMarkSeen();
 
-	const signInHref = $derived(
-		session.user ? undefined : authHref('/login', page.url.pathname + page.url.search)
-	);
 	const following = $derived(followState.data === true);
 
 	// Once per page, and only for a follow the server reported: a new follow has nothing new yet.
@@ -162,19 +157,12 @@
 						{m.playlist_play_all()}
 					</Button>
 				{/if}
-				<FollowToggle
-					{following}
-					{signInHref}
-					loading={session.user !== null && followState.isPending}
-					onclick={() => followMutation.mutate({ playlistId: data.id, follow: !following })}
-				/>
-				{#if signInHref}
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by authHref -->
-					<Button href={signInHref} variant="outline">
-						<CopyPlusIcon />
-						{m.playlist_copy()}
-					</Button>
-				{:else}
+				{#if session.user}
+					<FollowToggle
+						{following}
+						loading={followState.isPending}
+						onclick={() => followMutation.mutate({ playlistId: data.id, follow: !following })}
+					/>
 					<Button
 						variant="outline"
 						disabled={importMutation.isPending}

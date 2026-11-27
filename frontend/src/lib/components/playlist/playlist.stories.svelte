@@ -77,7 +77,6 @@
 	<div class="flex flex-wrap gap-2">
 		<FollowToggle {following} onclick={() => (following = !following)} />
 		<FollowToggle loading />
-		<FollowToggle signInHref="/login" />
 	</div>
 </Story>
 

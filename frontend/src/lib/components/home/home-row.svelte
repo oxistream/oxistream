@@ -4,7 +4,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import VideoGrid from '#lib/components/video/video-grid.svelte';
 	import { m } from '#lib/paraglide/messages.js';
-	import type { VideoSummary } from '#lib/video.js';
+	import type { VideoRemoval, VideoSummary } from '#lib/video.js';
 
 	let {
 		title,
@@ -12,6 +12,7 @@
 		videos = [],
 		loading = false,
 		now,
+		removal,
 		children
 	}: {
 		title: string;
@@ -20,6 +21,7 @@
 		videos?: VideoSummary[];
 		loading?: boolean;
 		now?: Date;
+		removal?: VideoRemoval;
 		/** Replaces the row, e.g. with an empty or error state. */
 		children?: Snippet;
 	} = $props();
@@ -40,6 +42,6 @@
 	{#if children}
 		{@render children()}
 	{:else}
-		<VideoGrid {videos} {loading} {now} skeletonCount={5} layout="row" label={title} />
+		<VideoGrid {videos} {loading} {now} skeletonCount={5} layout="row" label={title} {removal} />
 	{/if}
 </section>

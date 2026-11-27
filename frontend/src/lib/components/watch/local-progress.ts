@@ -81,6 +81,13 @@ export function saveLocalProgress(
 	writeJson(PROGRESS_KEY, Object.fromEntries(entries));
 }
 
+export function removeLocalProgress(videoId: string): void {
+	const map = readJson(PROGRESS_KEY, isProgressMap);
+	if (!map || !(videoId in map)) return;
+	delete map[videoId];
+	writeJson(PROGRESS_KEY, map);
+}
+
 /** Videos watched in this browser that can be listed again, most recent first. */
 export function recentLocalVideos(limit: number): VideoSummary[] {
 	const map = readJson(PROGRESS_KEY, isProgressMap) ?? {};

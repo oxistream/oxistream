@@ -198,9 +198,55 @@ test('guests get a search box and their local history when trending fails', asyn
 		/Newer local video.*50% watched/
 	);
 
+	await page.getByRole('button', { name: 'More actions for Newer local video' }).click();
+	await expect(page.getByTestId('block-channel')).toHaveCount(0);
+	await page.getByRole('menuitem', { name: 'Remove' }).click();
+	await expect(recent.getByRole('listitem')).toHaveCount(1);
+	expect(
+		await page.evaluate(() =>
+			Object.keys(JSON.parse(localStorage.getItem('oxistream:progress')!) as object)
+		)
+	).not.toContain('lcl00000002');
+
 	await page.getByTestId('search-input-large').fill('forging');
 	await page.getByTestId('search-input-large').press('Enter');
 	await expect(page).toHaveURL(/\/results\?search_query=forging$/);
+});
+
+test('signed-in users can remove videos from continue watching', async ({ page }) => {
+	await mockApi(page, { signedIn: true });
+	let continued = [video('cont', 1), video('cont', 2)];
+	const dismissed: string[] = [];
+	await page.route('**/api/v0/history/continue?*', (route) =>
+		json(
+			route,
+			continued.map((v) => ({
+				video: v,
+				progress: {
+					video_id: v.id,
+					position_seconds: 60,
+					duration_seconds: 300,
+					finished: false,
+					updated_at: '2026-11-26T10:00:00Z'
+				}
+			}))
+		)
+	);
+	await page.route('**/api/v0/history/continue/*', (route) => {
+		const id = new URL(route.request().url()).pathname.split('/').pop()!;
+		dismissed.push(`${route.request().method()} ${id}`);
+		continued = continued.filter((v) => v.id !== id);
+		return route.fulfill({ status: 204 });
+	});
+	await page.goto('/');
+
+	const row = page.getByRole('list', { name: 'Continue watching' });
+	await expect(row.getByRole('listitem')).toHaveCount(2);
+	await page.getByRole('button', { name: 'More actions for cont video 1' }).click();
+	await page.getByRole('menuitem', { name: 'Remove' }).click();
+	await expect(row.getByRole('listitem')).toHaveCount(1);
+	await expect(row.getByRole('link', { name: /cont video 2/ })).toBeVisible();
+	expect(dismissed).toEqual([`DELETE ${video('cont', 1).id}`]);
 });
 
 test('signed-in users see the latest videos of their subscriptions', async ({ page }) => {

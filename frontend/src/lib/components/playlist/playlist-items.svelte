@@ -28,7 +28,7 @@
 		items,
 		editable = false,
 		reorderable = editable,
-		removeLabel = m.playlist_remove_item(),
+		removeLabel = m.action_remove(),
 		onmove,
 		onremove,
 		class: className
@@ -201,9 +201,10 @@
 					>
 						<EllipsisVerticalIcon />
 					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="w-52">
+					<DropdownMenu.Content align="end" class="w-max min-w-52">
 						<QueueMenuItems {video} />
 						<AddToPartyMenuItem videoId={video.id} />
+						<DropdownMenu.Separator />
 						{#if reorderable}
 							<DropdownMenu.Item disabled={index === 0} onSelect={() => move(video, index, 0)}>
 								<ArrowUpToLineIcon />

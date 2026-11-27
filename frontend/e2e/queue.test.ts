@@ -254,7 +254,7 @@ test('the queue can be reordered, trimmed and cleared, and lasts the tab', async
 	await expect.poll(() => titles(upNext)).toEqual([title(CANYON), title(BEACH), title(DELTA)]);
 	await entryAction(upNext, CANYON, 'Move down');
 	await expect.poll(() => titles(upNext)).toEqual([title(BEACH), title(CANYON), title(DELTA)]);
-	await entryAction(upNext, BEACH, 'Remove from queue');
+	await entryAction(upNext, BEACH, 'Remove');
 	await expect.poll(() => titles(upNext)).toEqual([title(CANYON), title(DELTA)]);
 
 	await page.reload();
@@ -285,7 +285,7 @@ test('the mini player shows the queue, skips ahead and plays on by itself', asyn
 	await mini.getByRole('button', { name: 'Show queue' }).click();
 	const list = mini.getByTestId('up-next');
 	await expect.poll(() => titles(list)).toEqual([title(BEACH), title(CANYON), title(DELTA)]);
-	await entryAction(list, DELTA, 'Remove from queue');
+	await entryAction(list, DELTA, 'Remove');
 	await expect.poll(() => titles(list)).toEqual([title(BEACH), title(CANYON)]);
 
 	await mini.getByRole('button', { name: 'Next video' }).click();
