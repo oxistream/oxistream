@@ -675,5 +675,10 @@
 	"together_sync_play": "Join playback",
 	"together_no_video_title": "Nothing playing",
 	"together_no_video_body": "Add a video to the queue to start watching.",
-	"together_history_hint": "Videos watched in rooms are not added to your history."
+	"together_history_hint": "Videos watched in rooms are not added to your history.",
+	"together_add_to_room": "Add to {owner}'s room",
+	"together_added_to_room": "Added to {owner}'s room",
+	"together_add_to_room_failed": "The room is no longer open in another tab.",
+	"together_search_clear": "Clear search",
+	"together_search_results": "Search results"
 }

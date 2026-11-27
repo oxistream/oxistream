@@ -5,6 +5,7 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
+	import AddToRoomMenuItem from '#lib/components/together/add-to-room-menu-item.svelte';
 	import BlockMenuItem from './block-menu-item.svelte';
 
 	let {
@@ -12,6 +13,7 @@
 		label = m.block_more_actions(),
 		variant = 'default',
 		size = 'icon-sm',
+		videoId,
 		onblocked,
 		class: className
 	}: {
@@ -20,6 +22,8 @@
 		/** `overlay` sits over video, as in the shorts player. */
 		variant?: 'default' | 'overlay';
 		size?: 'icon-sm' | 'icon' | 'icon-lg';
+		/** Offers adding this video to a room open in another tab. */
+		videoId?: string;
 		onblocked?: () => void;
 		class?: string;
 	} = $props();
@@ -41,6 +45,7 @@
 		<EllipsisVerticalIcon />
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="min-w-52">
+		{#if videoId}<AddToRoomMenuItem {videoId} />{/if}
 		<BlockMenuItem {channel} {onblocked} />
 	</DropdownMenu.Content>
 </DropdownMenu.Root>

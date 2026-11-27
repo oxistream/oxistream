@@ -7,13 +7,17 @@
 		mockRoomQueue,
 		mockRooms
 	} from '#lib/mocks/together.js';
+	import { mockVideos } from '#lib/mocks/videos.js';
+	import AddToRoomButton from './add-to-room-button.svelte';
 	import JoinForm from './join-form.svelte';
 	import RoomAdd from './room-add.svelte';
 	import RoomCard from './room-card.svelte';
 	import RoomParticipants from './room-participants.svelte';
 	import RoomQueue from './room-queue.svelte';
+	import RoomSearchResults from './room-search-results.svelte';
 	import RoomStatus from './room-status.svelte';
 	import ShareButton from './share-button.svelte';
+	import SyncReadout from './sync-readout.svelte';
 
 	const { Story } = defineMeta({
 		title: 'Together/RoomQueue',
@@ -25,6 +29,7 @@
 <script lang="ts">
 	let queue = $state(mockRoomQueue);
 	let added = $state<string[]>([]);
+	let picked = $state<string[]>([mockVideos[1].id]);
 </script>
 
 <Story name="Queue" asChild>
@@ -86,4 +91,41 @@
 
 <Story name="Share button" asChild>
 	<ShareButton url="https://tube.example/together/Qm9vbS1vbmUtMTIzNDU2Nw" />
+</Story>
+
+<Story name="Search results" asChild>
+	<div class="flex max-w-sm flex-col gap-2">
+		<RoomSearchResults
+			results={mockVideos.slice(0, 6)}
+			added={picked}
+			hasMore
+			onadd={(id) => (picked = [...picked, id])}
+			onmore={() => {}}
+			onclear={() => (picked = [])}
+		/>
+	</div>
+</Story>
+
+<Story name="Search results loading" asChild>
+	<div class="flex max-w-sm flex-col gap-2">
+		<RoomSearchResults results={[]} pending onadd={() => {}} onmore={() => {}} onclear={() => {}} />
+	</div>
+</Story>
+
+<Story name="Add to room" asChild>
+	<div class="flex flex-wrap gap-2">
+		<AddToRoomButton
+			videoId={mockVideos[0].id}
+			room={{ id: 'room', owner: 'mara', tab: 'story' }}
+		/>
+	</div>
+</Story>
+
+<Story name="Sync readout" asChild>
+	<div class="relative aspect-video max-w-xl rounded-xl bg-zinc-800">
+		<SyncReadout
+			stats={{ offset: -12.4, rtt: 3.1, drift: 6.8, rate: 1, lead: 0.42, state: 'locked' }}
+			class="absolute start-2 top-2"
+		/>
+	</div>
 </Story>
