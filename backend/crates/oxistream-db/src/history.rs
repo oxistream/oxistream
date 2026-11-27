@@ -86,6 +86,10 @@ pub trait HistoryRepository: Send + Sync {
         limit: u32,
     ) -> Result<Vec<HistoryEntry>, Error>;
 
+    /// Hides a video from [`Self::unfinished`] until its next progress report; the history
+    /// entry and resume point stay. Returns whether an entry existed.
+    async fn dismiss_continue(&self, user_id: Uuid, video_id: &str) -> Result<bool, Error>;
+
     /// Returns whether an entry existed.
     async fn delete(&self, user_id: Uuid, video_id: &str) -> Result<bool, Error>;
 
@@ -128,6 +132,7 @@ impl HistoryRepository for PgHistoryRepository {
                 position_seconds = EXCLUDED.position_seconds, \
                 duration_seconds = EXCLUDED.duration_seconds, \
                 finished = EXCLUDED.finished, \
+                continue_dismissed = false, \
                 updated_at = now()",
         )
         .bind(user_id)
@@ -191,7 +196,8 @@ impl HistoryRepository for PgHistoryRepository {
         Ok(
             sqlx::query_as::<_, HistoryEntry>(sqlx::AssertSqlSafe(format!(
                 "{ENTRY_QUERY} \
-             WHERE p.user_id = $1 AND NOT p.finished AND p.position_seconds >= $2 \
+             WHERE p.user_id = $1 AND NOT p.finished AND NOT p.continue_dismissed \
+                AND p.position_seconds >= $2 \
                 AND NOT EXISTS (SELECT 1 FROM channel_videos cv \
                 WHERE cv.video_id = p.video_id AND cv.is_short) \
              ORDER BY p.updated_at DESC, p.video_id DESC \
@@ -203,6 +209,19 @@ impl HistoryRepository for PgHistoryRepository {
             .fetch_all(&self.pool)
             .await?,
         )
+    }
+
+    async fn dismiss_continue(&self, user_id: Uuid, video_id: &str) -> Result<bool, Error> {
+        Ok(sqlx::query(
+            "UPDATE watch_progress SET continue_dismissed = true \
+             WHERE user_id = $1 AND video_id = $2",
+        )
+        .bind(user_id)
+        .bind(video_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected()
+            > 0)
     }
 
     async fn delete(&self, user_id: Uuid, video_id: &str) -> Result<bool, Error> {

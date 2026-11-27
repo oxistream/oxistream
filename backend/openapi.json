@@ -1692,6 +1692,66 @@
         ]
       }
     },
+    "/api/v0/history/continue/{video_id}": {
+      "delete": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Hide a video from \"Continue watching\" until it is watched again. It stays in the history\nand keeps its resume point. Succeeds if it is not in the history, too.",
+        "operationId": "dismiss_continue",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "description": "YouTube video ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Not in \"Continue watching\" anymore"
+          },
+          "400": {
+            "description": "Invalid video ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/history/settings": {
       "get": {
         "tags": [
