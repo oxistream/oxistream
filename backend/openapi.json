@@ -3547,6 +3547,295 @@
         ]
       }
     },
+    "/api/v0/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "The signed-in user's up-next queue. Guests keep theirs in the browser.",
+        "operationId": "get_queue",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpNextQueue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Remove all entries.",
+        "operationId": "clear_queue",
+        "responses": {
+          "200": {
+            "description": "The queue after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpNextQueue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/queue/entries": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Add entries at the start or end. A full queue loses entries at the end.",
+        "operationId": "add_entries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddToUpNext"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The queue after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpNextQueue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/queue/entries/{key}": {
+      "delete": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Remove an entry. Succeeds if it is not queued, too, so two players taking the same\nentry do not fail.",
+        "operationId": "remove_entry",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Entry key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The queue after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpNextQueue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/queue/entries/{key}/position": {
+      "put": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Move an entry to another position. Succeeds if it is not queued, too.",
+        "operationId": "move_entry",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Entry key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveUpNextEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The queue after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpNextQueue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/resolve": {
       "get": {
         "tags": [
@@ -5460,6 +5749,29 @@
           "full"
         ]
       },
+      "AddToUpNext": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewUpNextEntry"
+            },
+            "description": "Up to 200. Entries whose key is already queued are left out, so retries are harmless."
+          },
+          "position": {
+            "$ref": "#/components/schemas/UpNextPosition",
+            "description": "Default `end`."
+          },
+          "skip_queued": {
+            "type": "boolean",
+            "description": "Also leaves out videos that are already queued, e.g. to merge a queue from before\nsigning in."
+          }
+        }
+      },
       "AudioTrack": {
         "type": "object",
         "required": [
@@ -6358,6 +6670,62 @@
             "format": "int32",
             "description": "Zero-based target position; past the end moves the item to the end.",
             "minimum": 0
+          }
+        }
+      },
+      "MoveUpNextEntry": {
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Zero-based target position; past the end moves the entry to the end.",
+            "minimum": 0
+          }
+        }
+      },
+      "NewUpNextEntry": {
+        "type": "object",
+        "required": [
+          "key",
+          "video_id",
+          "title"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "channel_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Up to 200 characters; ignored without `channel_id`."
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "key": {
+            "type": "string",
+            "description": "Chosen by the client and unique within the queue: 1 to 64 of `A-Z a-z 0-9 _ -`."
+          },
+          "title": {
+            "type": "string",
+            "description": "1 to 500 characters."
+          },
+          "video_id": {
+            "type": "string"
           }
         }
       },
@@ -7762,6 +8130,50 @@
           "region": {
             "type": "string",
             "description": "ISO 3166-1 alpha-2 country code, from `OXISTREAM_TRENDING_REGION`."
+          }
+        }
+      },
+      "UpNextEntry": {
+        "type": "object",
+        "required": [
+          "key",
+          "video"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoSummary",
+            "description": "As sent by the client; view counts and dates are never set."
+          }
+        }
+      },
+      "UpNextPosition": {
+        "type": "string",
+        "enum": [
+          "start",
+          "end"
+        ]
+      },
+      "UpNextQueue": {
+        "type": "object",
+        "description": "The signed-in user's up-next queue, in play order.",
+        "required": [
+          "revision",
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpNextEntry"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Grows with every change, so clients can tell newer states from older ones."
           }
         }
       },

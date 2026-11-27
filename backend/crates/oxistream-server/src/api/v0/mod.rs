@@ -18,6 +18,7 @@ mod likes;
 mod manifest;
 mod oidc;
 mod playlists;
+mod queue;
 pub(super) mod rooms;
 mod settings;
 mod shorts;
@@ -40,6 +41,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(follows::router())
         .merge(blocks::router())
         .merge(likes::router())
+        .merge(queue::router())
         .merge(sponsorblock::router())
         .merge(settings::router())
         .merge(feed_token::router())
