@@ -4,7 +4,7 @@
 	import { createBlockMutation, createBlocksQuery, type BlockedChannel } from '#lib/api/blocks.js';
 	import BlockedChannelRow from '#lib/components/block/blocked-channel-row.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
-	import SignInActions from '#lib/components/sign-in-actions.svelte';
+	import SettingsGuestHint from '#lib/components/settings/settings-guest-hint.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
 	import ErrorState from '#lib/components/state/error-state.svelte';
 	import SubscriptionRowSkeleton from '#lib/components/subscription/subscription-row-skeleton.svelte';
@@ -41,37 +41,27 @@
 	}
 </script>
 
-<div class="flex w-full max-w-3xl flex-col gap-6">
-	<PageHeader
-		title={m.blocked_title()}
-		description={session.user && blocks.data
-			? `${m.blocked_count({ count })} · ${m.blocked_description()}`
-			: m.blocked_description()}
-	/>
+<PageHeader
+	title={m.blocked_title()}
+	description={session.user && blocks.data ? m.blocked_count({ count }) : undefined}
+/>
 
-	{#if !session.ready || (session.user && blocks.isPending)}
-		<div class="flex flex-col" role="status" aria-label={m.blocked_loading()}>
-			{#each { length: 4 }, i (i)}<SubscriptionRowSkeleton />{/each}
-		</div>
-	{:else if !session.user}
-		<EmptyState icon={BanIcon} title={m.blocked_title()} description={m.blocked_sign_in_body()}>
-			{#snippet actions()}<SignInActions />{/snippet}
-		</EmptyState>
-	{:else if blocks.isError && !blocks.data}
-		<ErrorState onretry={() => void blocks.refetch()} />
-	{:else if rows.length === 0}
-		<EmptyState
-			icon={BanIcon}
-			title={m.blocked_empty_title()}
-			description={m.blocked_empty_body()}
-		/>
-	{:else}
-		<ul class="-mx-2 flex flex-col" aria-label={m.blocked_title()}>
-			{#each rows as channel (channel.id)}
-				<li>
-					<BlockedChannelRow {channel} blocked={!removed.has(channel.id)} ontoggle={toggle} />
-				</li>
-			{/each}
-		</ul>
-	{/if}
-</div>
+{#if !session.ready || (session.user && blocks.isPending)}
+	<div class="flex flex-col" role="status" aria-label={m.blocked_loading()}>
+		{#each { length: 4 }, i (i)}<SubscriptionRowSkeleton />{/each}
+	</div>
+{:else if !session.user}
+	<SettingsGuestHint />
+{:else if blocks.isError && !blocks.data}
+	<ErrorState onretry={() => void blocks.refetch()} />
+{:else if rows.length === 0}
+	<EmptyState icon={BanIcon} title={m.blocked_empty_title()} />
+{:else}
+	<ul class="-mx-2 flex flex-col" aria-label={m.blocked_title()}>
+		{#each rows as channel (channel.id)}
+			<li>
+				<BlockedChannelRow {channel} blocked={!removed.has(channel.id)} ontoggle={toggle} />
+			</li>
+		{/each}
+	</ul>
+{/if}
