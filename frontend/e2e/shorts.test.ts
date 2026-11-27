@@ -351,11 +351,11 @@ test('the shorts entry opens endless discovery with the linked full video', asyn
 		await expect(viewer(page).getByRole('heading', { name: `Forge short ${n}` })).toBeVisible();
 		await expect(activeShort(page).getByTestId('short-linked-video')).toHaveCount(0);
 	}
-	await expect(page).toHaveURL(/\/shorts$/);
+	await expect(page).toHaveURL(new RegExp(`/shorts/${shortId(4)}\\?feed=discover$`));
 	await expect(page.getByTestId('shorts-next')).toBeDisabled();
 
 	// Shorts shown in this session do not come again.
-	await page.reload();
+	await page.goto('/shorts');
 	await expect(page.getByTestId('shorts-feed-state')).toContainText('No shorts right now');
 
 	await page.goto(`/shorts/${shortId(1)}`);
@@ -378,10 +378,10 @@ test('signed-in users switch between discovery and subscriptions', async ({ page
 	const feed = page.waitForRequest((r) => r.url().includes('/api/v0/feed?'));
 	await feeds.getByRole('link', { name: 'Subscriptions' }).click();
 	expect(new URL((await feed).url()).searchParams.get('kind')).toBe('shorts');
-	await expect(page).toHaveURL(/\/shorts\?feed=subscriptions$/);
 	await expect(feeds.getByRole('link', { name: 'Subscriptions' })).toHaveAttribute(
 		'aria-current',
 		'page'
 	);
 	await expect(viewer(page).getByRole('heading', { name: 'Forge short 7' })).toBeVisible();
+	await expect(page).toHaveURL(new RegExp(`/shorts/${shortId(7)}\\?feed=subscriptions$`));
 });
