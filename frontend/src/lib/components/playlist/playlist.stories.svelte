@@ -90,7 +90,7 @@
 
 <Story name="Items, editable" asChild>
 	<PlaylistItems
-		class="max-w-3xl"
+		class="max-w-2xl"
 		playlistId={mockPlaylist.id}
 		{items}
 		editable
@@ -100,7 +100,7 @@
 </Story>
 
 <Story name="Items, read only" asChild>
-	<PlaylistItems class="max-w-3xl" playlistId={mockPlaylist.id} items={mockPlaylist.items} />
+	<PlaylistItems class="max-w-2xl" playlistId={mockPlaylist.id} items={mockPlaylist.items} />
 </Story>
 
 <Story name="Watch panel" asChild>
@@ -130,7 +130,7 @@
 				count={youtubeList.videoCount}
 				class="max-w-md"
 			/>
-			<h1 class="text-xl font-semibold tracking-tight">{youtubeList.title}</h1>
+			<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">{youtubeList.title}</h1>
 		{/snippet}
 		<PlaylistItems playlistId={youtubeList.id} items={youtubeList.items} />
 	</PlaylistLayout>

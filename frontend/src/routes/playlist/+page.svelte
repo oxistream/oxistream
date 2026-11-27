@@ -102,7 +102,7 @@
 	{#if !listId || local}<title>{title}</title>{/if}
 </svelte:head>
 
-<div class="px-(--page-gutter) py-6">
+<div class="page-column py-6">
 	{#if !data && (local || !listId)}<h1 class="sr-only">{m.search_playlist()}</h1>{/if}
 	{#if !listId}
 		<EmptyState
@@ -137,7 +137,7 @@
 			{#snippet hero()}
 				<PlaylistCover src={data.thumbnailUrl} count={data.items.length} class="max-w-md" />
 				<div class="flex min-w-0 flex-col gap-1.5">
-					<h1 class="text-xl font-semibold tracking-tight text-pretty break-words">
+					<h1 class="text-xl font-semibold tracking-tight text-pretty break-words sm:text-2xl">
 						{data.title}
 					</h1>
 					<p class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
@@ -210,18 +210,10 @@
 					{/if}
 				</div>
 				<p class="sr-only" aria-live="polite">{copied ? m.playlist_share_copied() : ''}</p>
-				{#if data.isOwner && data.visibility === 'private'}
-					<p class="text-xs text-muted-foreground">{m.playlist_private_hint()}</p>
-				{/if}
 			{/snippet}
 
 			{#if data.items.length === 0}
-				<EmptyState
-					icon={ListVideoIcon}
-					title={m.playlist_empty_title()}
-					description={m.playlist_empty_body()}
-					headingLevel={2}
-				/>
+				<EmptyState icon={ListVideoIcon} title={m.playlist_empty_title()} headingLevel={2} />
 			{:else}
 				<PlaylistItems
 					playlistId={data.id}

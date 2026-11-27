@@ -7,10 +7,14 @@
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { resolve } from '$app/paths';
+	import { createProgressLookup } from '#lib/api/history.js';
 	import { dropIndex, moveItem } from '#lib/api/playlist-order.js';
+	import ChannelActionsMenu from '#lib/components/block/channel-actions-menu.svelte';
+	import AddToPartyMenuItem from '#lib/components/together/add-to-party-menu-item.svelte';
 	import type { VideoSummary } from '#lib/video.js';
 	import { buttonVariants } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import VideoMeta from '#lib/components/video/video-meta.svelte';
 	import VideoThumbnail from '#lib/components/video/video-thumbnail.svelte';
 	import { formatDurationLong } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -41,6 +45,10 @@
 	} = $props();
 
 	const locale = getLocale();
+	const percent = new Intl.NumberFormat(locale, { style: 'percent' });
+	const progress = createProgressLookup(() => items.map((video) => video.id));
+	const menuClass =
+		'relative z-10 shrink-0 rounded-full text-muted-foreground hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground pointer-fine:opacity-0 pointer-fine:group-hover/video:opacity-100 pointer-fine:focus-visible:opacity-100 pointer-fine:data-[state=open]:opacity-100';
 	let list = $state<HTMLOListElement>();
 	let drag = $state<{ id: string; from: number; to: number; midpoints: number[] } | null>(null);
 	let announcement = $state('');
@@ -114,14 +122,19 @@
 <!-- On the window, since reordering moves the handle in the DOM, which can drop pointer capture. -->
 <svelte:window onpointermove={dragMove} onpointerup={endDrag} onpointercancel={cancelDrag} />
 
-<ol bind:this={list} class={cn('flex flex-col', className)} aria-label={m.playlist_items_label()}>
+<ol
+	bind:this={list}
+	class={cn('flex flex-col gap-0.5', className)}
+	aria-label={m.playlist_items_label()}
+>
 	{#each shown as video, i (video.id)}
 		{@const index = items.indexOf(video)}
 		{@const dragging = drag?.id === video.id}
+		{@const watched = video.progress ?? progress.get(video.id)}
 		<li
 			class={cn(
-				'group/video relative flex items-center gap-2 rounded-lg py-1.5 pe-1 transition-colors duration-(--motion-in) ease-ui hover:bg-muted/60 sm:gap-3',
-				reorderable ? 'ps-0' : 'ps-2',
+				'group/video relative flex items-start gap-2 rounded-lg py-2 pe-1 transition-colors duration-(--motion-in) ease-ui hover:bg-muted/60 has-[[data-row-link]:focus-visible]:bg-muted/60 sm:gap-3',
+				reorderable ? 'ps-0' : 'ps-2 sm:ps-0',
 				dragging && 'z-10 bg-muted shadow-md ring-1 ring-border'
 			)}
 			data-testid="playlist-item"
@@ -129,7 +142,7 @@
 			{#if reorderable}
 				<button
 					type="button"
-					class="relative z-10 flex h-11 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+					class="relative z-10 -me-1 flex w-7 shrink-0 cursor-grab touch-none items-center justify-center self-stretch rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing sm:me-0"
 					aria-label={m.playlist_reorder_handle({ title: video.title })}
 					aria-describedby="playlist-reorder-hint"
 					onpointerdown={(event) => startDrag(event, video, index)}
@@ -138,46 +151,57 @@
 					<GripVerticalIcon class="size-4" />
 				</button>
 			{:else}
-				<span class="w-6 shrink-0 text-center text-xs text-muted-foreground tabular">{i + 1}</span>
+				<span
+					class="hidden w-7 shrink-0 self-center text-center text-xs text-muted-foreground tabular sm:block"
+				>
+					{i + 1}
+				</span>
 			{/if}
 			<VideoThumbnail
 				src={video.thumbnailUrl}
 				durationSeconds={video.durationSeconds}
-				class="w-32 shrink-0 rounded-md sm:w-40"
+				progress={watched}
+				class="w-36 shrink-0 sm:w-44 md:w-48"
 			/>
-			<div class="min-w-0 flex-1">
+			<div class="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
 				<h3 class="line-clamp-2 text-sm leading-5 font-medium">
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in links.ts -->
 					<a
 						href={playlistWatchHref(video.id, playlistId)}
 						title={video.title}
-						class="rounded-sm after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-offset-2"
+						data-row-link
+						class="rounded-sm outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 					>
-						{video.title}{#if video.durationSeconds !== undefined}<span class="sr-only">
-								, {m.video_duration({
+						{video.title}<span class="sr-only">
+							{#if video.durationSeconds !== undefined}, {m.video_duration({
 									duration: formatDurationLong(video.durationSeconds, locale)
-								})}
-							</span>{/if}
+								})}{/if}{#if watched !== undefined}, {m.video_watched({
+									percent: percent.format(watched)
+								})}{/if}
+						</span>
 					</a>
 				</h3>
 				{#if video.channel.id}
 					<a
 						href={resolve('/channel/[id]', { id: video.channel.id })}
-						class="relative z-10 mt-1 block w-fit max-w-full truncate rounded-sm text-xs text-muted-foreground transition-colors duration-(--motion-in) ease-ui hover:text-foreground"
+						class="relative z-10 block w-fit max-w-full truncate rounded-sm text-xs text-muted-foreground transition-colors duration-(--motion-in) ease-ui hover:text-foreground"
 					>
 						{video.channel.name}
 					</a>
 				{/if}
+				<VideoMeta {video} />
 			</div>
 			{#if editable}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger
-						class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'relative z-10 shrink-0')}
+						class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), menuClass)}
 						aria-label={m.playlist_item_actions({ title: video.title })}
+						title={m.playlist_item_actions({ title: video.title })}
 					>
 						<EllipsisVerticalIcon />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-52">
+						<AddToPartyMenuItem videoId={video.id} />
 						{#if reorderable}
 							<DropdownMenu.Item disabled={index === 0} onSelect={() => move(video, index, 0)}>
 								<ArrowUpToLineIcon />
@@ -212,6 +236,13 @@
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
+			{:else if video.channel.id}
+				<ChannelActionsMenu
+					channel={video.channel}
+					videoId={video.id}
+					label={m.block_video_actions({ title: video.title })}
+					class={menuClass}
+				/>
 			{/if}
 		</li>
 	{/each}
