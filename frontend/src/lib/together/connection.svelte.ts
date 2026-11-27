@@ -22,6 +22,8 @@ export type ConnectionStatus =
 
 export type JoinDetails = { name?: string; guestKey?: string };
 
+/** The most videos one `add_many` may carry, the queue limit. */
+export const MAX_BATCH = 100;
 const PING_INTERVAL = 10_000;
 /** Pings right after joining, so the clock is accurate before the first seek. */
 const PING_BURST = [0, 150, 300, 450, 600, 900];
@@ -43,6 +45,8 @@ export class RoomConnection {
 	isOwner = $state(false);
 	/** The last error the server reported for something this client sent. */
 	lastError = $state<{ code: RoomErrorCode; at: number } | null>(null);
+	/** The answer to the last batch this client queued. */
+	lastAdded = $state<{ added: number; skipped: number; at: number } | null>(null);
 
 	#roomId: string;
 	#join: JoinDetails;
@@ -53,6 +57,8 @@ export class RoomConnection {
 	#clock = new ClockSync();
 	#welcomeOffset = 0;
 	#stopped = false;
+	/** Videos cut off from the last batch sent, counted as skipped when its answer arrives. */
+	#overflow = 0;
 
 	constructor(roomId: string, join: JoinDetails) {
 		this.#roomId = roomId;
@@ -107,8 +113,17 @@ export class RoomConnection {
 		this.#write(message);
 	}
 
-	#write(message: RoomClientMessage) {
-		if (this.#socket?.readyState === WebSocket.OPEN) this.#socket.send(JSON.stringify(message));
+	/** Queues up to {@link MAX_BATCH} videos at once; the rest count as skipped. */
+	addMany(videoIds: string[]) {
+		if (videoIds.length === 0) return;
+		if (!this.#write({ type: 'add_many', video_ids: videoIds.slice(0, MAX_BATCH) })) return;
+		this.#overflow = Math.max(0, videoIds.length - MAX_BATCH);
+	}
+
+	#write(message: RoomClientMessage): boolean {
+		if (this.#socket?.readyState !== WebSocket.OPEN) return false;
+		this.#socket.send(JSON.stringify(message));
+		return true;
 	}
 
 	#sendPing() {
@@ -138,10 +153,20 @@ export class RoomConnection {
 			case 'state':
 				if (!this.room || message.room.revision >= this.room.revision) this.room = message.room;
 				break;
+			case 'added':
+				this.lastAdded = {
+					added: message.added,
+					skipped: message.skipped + this.#overflow,
+					at: Date.now()
+				};
+				this.#overflow = 0;
+				break;
 			case 'pong':
 				this.#clock.sample(message.t, localNow(), message.server_time);
 				break;
 			case 'error': {
+				// A reorder lost to a newer change; that change's state shows the outcome.
+				if (message.code === 'stale') break;
 				const rejected = this.status !== 'open' && message.code === 'invalid';
 				const final = FINAL_ERRORS[message.code] ?? (rejected ? 'rejected' : null);
 				if (final) this.status = final;

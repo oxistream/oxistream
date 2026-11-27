@@ -3,6 +3,7 @@
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import ShuffleIcon from '@lucide/svelte/icons/shuffle';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -28,6 +29,8 @@
 	import { cn } from '#lib/utils.js';
 	import { initials } from '#lib/video.js';
 	import { addErrorMessage } from './errors.js';
+	import PartyAdd from './party-add.svelte';
+	import PartyLibrary from './party-library.svelte';
 	import PartyMembers from './party-members.svelte';
 	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyQueue from './party-queue.svelte';
@@ -71,8 +74,24 @@
 	const errorMessage = $derived(
 		lastError && now - lastError.at < ERROR_VISIBLE_MS ? addErrorMessage(lastError.code) : null
 	);
+	const lastAdded = $derived(party.connection?.lastAdded);
+	const addedMessage = $derived(
+		lastAdded && now - lastAdded.at < ERROR_VISIBLE_MS
+			? lastAdded.skipped > 0
+				? m.party_batch_skipped({
+						added: formatNumber(lastAdded.added, locale),
+						skipped: formatNumber(lastAdded.skipped, locale)
+					})
+				: m.party_batch_added({ added: formatNumber(lastAdded.added, locale) })
+			: null
+	);
+	/** Videos playing or queued, marked where they can be added. */
+	const queued = $derived(
+		new Set([...(party.current ? [party.current] : []), ...queue].map((e) => e.video.id))
+	);
 	$effect(() => {
-		if (!lastError) return;
+		const at = Math.max(lastError?.at ?? 0, lastAdded?.at ?? 0);
+		if (!at) return;
 		now = Date.now();
 		const timer = setTimeout(() => (now = Date.now()), ERROR_VISIBLE_MS);
 		return () => clearTimeout(timer);
@@ -195,6 +214,13 @@
 			{#if errorMessage}
 				<p class="px-2 text-sm font-medium text-destructive" role="alert">{errorMessage}</p>
 			{/if}
+			<p
+				class="px-2 text-sm text-muted-foreground empty:hidden"
+				role="status"
+				data-testid="party-batch"
+			>
+				{addedMessage ?? ''}
+			</p>
 
 			<Tabs.Root bind:value={tab} class="gap-1">
 				<Tabs.List
@@ -210,11 +236,36 @@
 						{@render count(participants.length)}
 					</Tabs.Trigger>
 				</Tabs.List>
-				<Tabs.Content value="queue">
+				<Tabs.Content value="queue" class="flex flex-col gap-1">
+					<div class="flex flex-col gap-1 px-1 pt-1">
+						<PartyAdd {queued} onadd={(id) => party.add(id)} />
+						<div class="flex items-center gap-1">
+							{#if session.user}
+								<PartyLibrary
+									{queued}
+									onadd={(id) => party.add(id)}
+									onaddmany={(ids) => party.addMany(ids)}
+								/>
+							{/if}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="ms-auto whitespace-nowrap text-muted-foreground hover:text-foreground"
+								disabled={queue.length < 2}
+								onclick={() => party.shuffle()}
+								data-testid="party-shuffle"
+							>
+								<ShuffleIcon />
+								{m.party_shuffle()}
+							</Button>
+						</div>
+					</div>
 					<PartyQueue
 						{queue}
+						revision={party.room?.revision}
 						onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
 						onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
+						onmove={(entry, to) => party.move(entry.id, to)}
 					/>
 				</Tabs.Content>
 				<Tabs.Content value="members">

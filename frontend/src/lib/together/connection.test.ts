@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RoomConnection, socketUrl } from './connection.svelte';
+import { MAX_BATCH, RoomConnection, socketUrl } from './connection.svelte';
 
 class FakeSocket extends EventTarget {
 	static OPEN = 1;
@@ -121,6 +121,35 @@ describe('RoomConnection', () => {
 		FakeSocket.instances[1].receive({ type: 'error', code: 'not_found' });
 		expect(other.status).toBe('not_found');
 		expect(other.final).toBe(true);
+		conn.disconnect();
+	});
+
+	it('caps batches and counts what did not fit as skipped', () => {
+		const conn = new RoomConnection('room', {});
+		conn.connect();
+		const socket = FakeSocket.instances[0];
+		socket.open();
+		socket.receive(welcome);
+		const ids = Array.from({ length: MAX_BATCH + 20 }, (_, i) => `video${i}`);
+		conn.addMany(ids);
+		expect(socket.sent.at(-1)).toEqual({ type: 'add_many', video_ids: ids.slice(0, MAX_BATCH) });
+		socket.receive({ type: 'added', added: 90, skipped: 10 });
+		expect(conn.lastAdded).toMatchObject({ added: 90, skipped: 30 });
+
+		conn.addMany(['one']);
+		socket.receive({ type: 'added', added: 1, skipped: 0 });
+		expect(conn.lastAdded).toMatchObject({ added: 1, skipped: 0 });
+		conn.disconnect();
+	});
+
+	it('ignores a reorder that lost to a newer change', () => {
+		const conn = new RoomConnection('room', {});
+		conn.connect();
+		const socket = FakeSocket.instances[0];
+		socket.open();
+		socket.receive(welcome);
+		socket.receive({ type: 'error', code: 'stale' });
+		expect(conn.lastError).toBeNull();
 		conn.disconnect();
 	});
 });

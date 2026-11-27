@@ -85,6 +85,9 @@ type ClientMessage = {
 	video_id?: string;
 	play?: boolean;
 	entry?: number;
+	video_ids?: string[];
+	to?: number;
+	revision?: number;
 };
 
 /** A party server in the test process, shared by both browsers. */
@@ -111,6 +114,14 @@ class FakeRoom {
 			this.setPosition(0, true);
 		}
 		this.current ??= id;
+	}
+
+	upcoming() {
+		return this.queue.filter((e) => e.id !== this.current);
+	}
+
+	reorder(upcoming: typeof this.queue) {
+		this.queue = [...this.queue.filter((e) => e.id === this.current), ...upcoming];
 	}
 
 	state() {
@@ -177,6 +188,30 @@ class FakeRoom {
 				this.setPosition(0, this.playing);
 				return this.broadcast();
 			}
+			case 'add_many': {
+				// Livestreams cannot be queued, as on the real server.
+				const ids = message.video_ids!.filter((id) => !id.startsWith('live'));
+				for (const id of ids) this.add(id, this.sockets.get(socket)!.name);
+				const skipped = message.video_ids!.length - ids.length;
+				socket.send(JSON.stringify({ type: 'added', added: ids.length, skipped }));
+				return this.broadcast();
+			}
+			case 'move': {
+				if (message.revision !== this.revision) {
+					return socket.send(JSON.stringify({ type: 'error', code: 'stale' }));
+				}
+				const upcoming = this.upcoming();
+				const from = upcoming.findIndex((e) => e.id === message.entry);
+				if (from < 0) return;
+				const [moved] = upcoming.splice(from, 1);
+				upcoming.splice(Math.min(message.to!, upcoming.length), 0, moved);
+				this.reorder(upcoming);
+				return this.broadcast();
+			}
+			case 'shuffle':
+				// Reversed, so the test knows the outcome.
+				this.reorder(this.upcoming().reverse());
+				return this.broadcast();
 			case 'remove':
 				this.queue = this.queue.filter((e) => e.id !== message.entry || e.id === this.current);
 				return this.broadcast();
@@ -513,7 +548,7 @@ test('the party plays on while browsing and leaving asks first', async ({ browse
 	await browseTo(host, LONG_TOO);
 	await host.getByTestId('add-to-party').click();
 	const queue = (await openPanel(host)).getByTestId('party-queue');
-	await queue.getByRole('button', { name: title(LONG_TOO) }).click();
+	await queue.getByRole('button', { name: new RegExp(`^${title(LONG_TOO)}`) }).click();
 	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LONG_TOO));
 	await expect(guest).toHaveURL(/\/$/);
 	await expect(host).toHaveURL(watchUrl(LONG_TOO));
@@ -868,4 +903,110 @@ test('the invite menu copies the link and shows a scannable QR code', async ({
 		.poll(() => page.evaluate(() => (window as unknown as { shared?: ShareData }).shared?.url))
 		.toBe(url);
 	await context.close();
+});
+
+test('the queue is filled from the panel, reordered and shuffled', async ({ browser }) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom();
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+	const PLAYLIST = 'evening-list-001';
+	const playlist = {
+		id: PLAYLIST,
+		title: 'Evening',
+		description: '',
+		visibility: 'private',
+		item_count: 3,
+		thumbnails: [],
+		created_at: '2026-11-26T10:00:00Z',
+		updated_at: '2026-11-26T10:00:00Z'
+	};
+	await hostContext.route('**/api/v0/search?*', (route) =>
+		json(route, {
+			items: [LIVE, SECOND, LONG].map((id) => ({ ...summary(id), type: 'video' })),
+			continuation: null
+		})
+	);
+	await hostContext.route('**/api/v0/resolve?*', (route) =>
+		json(route, { kind: 'video', id: LONG_TOO })
+	);
+	await hostContext.route('**/api/v0/playlists', (route) => json(route, [playlist]));
+	await hostContext.route(`**/api/v0/playlists/${PLAYLIST}`, (route) =>
+		json(route, {
+			...playlist,
+			owner: 'mara',
+			is_owner: true,
+			items: [FIRST, SECOND, LIVE].map((id) => ({
+				video: summary(id),
+				added_at: '2026-11-26T10:00:00Z'
+			}))
+		})
+	);
+	const ids = () => room.state().queue.map((e) => e.video.id);
+
+	// Search results queue with one click and say so; livestreams are left out.
+	const hostPanel = await openPanel(host);
+	await hostPanel.getByTestId('party-add-input').fill('fjord');
+	const results = hostPanel.getByTestId('party-add-results').getByTestId('party-pick');
+	await expect(results).toHaveCount(2);
+	await results.first().click();
+	await expect(results.first()).toHaveAttribute('data-queued', 'true');
+	await expect(results.first()).toBeDisabled();
+	await expect.poll(ids).toEqual([SECOND]);
+
+	// A pasted link is queued right away.
+	await hostPanel.getByTestId('party-add-input').fill('');
+	await hostPanel.getByTestId('party-add-input').evaluate((input) => {
+		const data = new DataTransfer();
+		data.setData('text/plain', 'https://youtu.be/syncDDDDDDw');
+		input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true }));
+	});
+	await expect.poll(ids).toEqual([SECOND, LONG_TOO]);
+	await expect(hostPanel.getByTestId('party-add-input')).toHaveValue('');
+
+	// A whole playlist from the library; what cannot be queued is counted.
+	await hostPanel.getByTestId('party-library-open').click();
+	const library = host.getByTestId('party-library');
+	await library.getByRole('button', { name: /Evening/ }).click();
+	await expect(library.getByTestId('party-pick')).toHaveCount(3);
+	await library.getByTestId('party-library-all').click();
+	await expect(hostPanel.getByTestId('party-batch')).toHaveText('2 queued, 1 skipped');
+	await expect.poll(ids).toEqual([SECOND, LONG_TOO, FIRST, SECOND]);
+
+	// Guests have no library, but reorder with the keyboard like everyone.
+	const guestPanel = await openPanel(guest);
+	await expect(guestPanel.getByTestId('party-library-open')).toHaveCount(0);
+	const guestQueue = guestPanel.getByTestId('party-queue');
+	await guestQueue.getByTestId('party-queue-handle').first().focus();
+	await guest.keyboard.press('End');
+	await expect.poll(ids).toEqual([LONG_TOO, FIRST, SECOND, SECOND]);
+	await expect(guestQueue.getByTestId('party-queue-handle').last()).toBeFocused();
+
+	// Dragging the last entry to the top.
+	const handles = hostPanel.getByTestId('party-queue-handle');
+	await expect(handles).toHaveCount(4);
+	const from = (await handles.last().boundingBox())!;
+	const to = (await handles.first().boundingBox())!;
+	await host.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await host.mouse.down();
+	await host.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 8 });
+	await host.mouse.up();
+	await expect.poll(ids).toEqual([SECOND, LONG_TOO, FIRST, SECOND]);
+	const titles = hostPanel.getByTestId('party-queue-item');
+	await expect(titles.first()).toContainText(title(SECOND));
+	await expect(titles.nth(1)).toContainText(title(LONG_TOO));
+
+	// A move based on an older state is dropped without a notice.
+	room.revision++;
+	await guestQueue.getByTestId('party-queue-handle').first().focus();
+	await guest.keyboard.press('ArrowDown');
+	await guest.waitForTimeout(300);
+	expect(ids()).toEqual([SECOND, LONG_TOO, FIRST, SECOND]);
+	await expect(guestPanel.getByRole('alert')).toHaveCount(0);
+
+	await guestPanel.getByTestId('party-shuffle').click();
+	await expect.poll(ids).toEqual([SECOND, FIRST, LONG_TOO, SECOND]);
+	await expect(titles.nth(2)).toContainText(title(LONG_TOO));
+
+	await hostContext.close();
+	await guestContext.close();
 });
