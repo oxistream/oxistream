@@ -290,6 +290,12 @@ async function openPanel(page: Page) {
 	return panel;
 }
 
+/** Opens the party menu in the panel and returns its item `name`. */
+async function partyMenu(page: Page, name: string) {
+	await page.getByTestId('party-panel').getByTestId('party-menu').click();
+	return page.getByRole('menuitem', { name });
+}
+
 async function closePanel(page: Page) {
 	const panel = page.getByTestId('party-panel');
 	await panel.getByRole('button', { name: 'Close' }).click();
@@ -328,14 +334,25 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 
 	const hostPanel = await openPanel(host);
 	await expect(hostPanel.getByTestId('party-status')).toHaveText('Connected');
-	await expect(hostPanel.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	await expect(hostPanel.getByTestId('party-invite')).toHaveAttribute(
+		'data-url',
+		new RegExp(`/party/${ROOM}$`)
+	);
+	await expect(hostPanel.getByTestId('party-current')).toContainText(title(FIRST));
+	await expect(hostPanel.getByTestId('party-tab-members')).toHaveText(/Members\s*2/);
+	await hostPanel.getByTestId('party-avatars').click();
 	const people = hostPanel.getByTestId('party-members');
 	await expect(people.getByText('Grace')).toBeVisible();
 	await expect(people.getByRole('button', { name: 'Remove Grace' })).toBeVisible();
-	await expect(hostPanel.getByRole('button', { name: 'End party' })).toBeVisible();
+	await expect(await partyMenu(host, 'End party')).toBeVisible();
+	await host.keyboard.press('Escape');
+	await hostPanel.getByTestId('party-tab-queue').click();
 	const guestPanel = await openPanel(guest);
+	await guestPanel.getByTestId('party-tab-members').click();
 	await expect(guestPanel.getByTestId('party-members').getByRole('button')).toHaveCount(0);
-	await expect(guestPanel.getByRole('button', { name: 'End party' })).toHaveCount(0);
+	await expect(await partyMenu(guest, 'Leave party')).toBeVisible();
+	await expect(guest.getByRole('menuitem', { name: 'End party' })).toHaveCount(0);
+	await guest.keyboard.press('Escape');
 	await closePanel(guest);
 
 	// Playing in one browser plays in the other; so does pausing.
@@ -751,7 +768,10 @@ test('the party sidebar sits next to the content and stays open across visits', 
 	await page.reload();
 	await expect(button).toHaveAttribute('aria-expanded', 'true');
 	await expect(panel).toBeVisible();
-	await expect(panel.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	await expect(panel.getByTestId('party-invite')).toHaveAttribute(
+		'data-url',
+		new RegExp(`/party/${ROOM}$`)
+	);
 
 	await context.close();
 });
@@ -772,7 +792,10 @@ test('on a phone the party opens as a sheet', async ({ browser }) => {
 
 	await page.getByTestId('party-button').click();
 	await expect(sheet).toBeVisible();
-	await expect(sheet.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	await expect(sheet.getByTestId('party-invite')).toHaveAttribute(
+		'data-url',
+		new RegExp(`/party/${ROOM}$`)
+	);
 	await page.keyboard.press('Escape');
 	await expect(sheet).toBeHidden();
 
