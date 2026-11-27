@@ -152,6 +152,7 @@
 	--motion-panel: 200ms;
 	--motion-image: 600ms;
 	--page-gutter: 1rem;
+	--column-width: 72rem;
 }
 
 @media (min-width: 48rem) {
@@ -236,6 +237,14 @@
 			flex-basis: 82%;
 		}
 	}
+}
+
+/* Centered column for list and form pages; grids stay full width. */
+@utility page-column {
+	width: 100%;
+	max-width: calc(var(--column-width) + 2 * var(--page-gutter));
+	margin-inline: auto;
+	padding-inline: var(--page-gutter);
 }
 
 @utility tabular {

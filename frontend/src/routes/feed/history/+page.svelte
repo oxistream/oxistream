@@ -43,7 +43,7 @@
 	const paused = $derived(settings.data === true);
 </script>
 
-<div class="flex w-full max-w-5xl flex-col gap-6 px-(--page-gutter) py-6">
+<div class="page-column flex flex-col gap-6 py-6">
 	<PageHeader title={m.nav_history()}>
 		{#snippet actions()}
 			{#if session.user}

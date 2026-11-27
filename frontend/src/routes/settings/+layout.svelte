@@ -15,7 +15,7 @@
 	const overview = $derived(page.url.pathname.replace(/\/$/, '') === overviewHref);
 </script>
 
-<div class="flex w-full max-w-5xl flex-col gap-6 px-(--page-gutter) py-6">
+<div class="page-column flex flex-col gap-6 py-6">
 	{#if overview}
 		{@render children()}
 	{:else}

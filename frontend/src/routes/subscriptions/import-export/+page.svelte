@@ -87,7 +87,7 @@
 	}
 </script>
 
-<div class="flex max-w-3xl flex-col gap-6 px-(--page-gutter) py-6">
+<div class="page-column flex flex-col gap-6 py-6">
 	<PageHeader title={m.import_export_title()} description={m.import_export_description()} />
 
 	{#if !session.ready}
