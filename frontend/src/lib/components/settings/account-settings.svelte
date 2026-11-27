@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import type { Snippet } from 'svelte';
 	import type { AccountResult } from '#lib/api/settings.js';
 	import FormField from '#lib/components/auth/form-field.svelte';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
@@ -14,7 +15,8 @@
 		account,
 		localEnabled = true,
 		onchangepassword,
-		ondelete
+		ondelete,
+		children
 	}: {
 		account: Account;
 		/** Password changes need local accounts to be enabled on the instance. */
@@ -25,6 +27,8 @@
 		}) => Promise<AccountResult>;
 		/** Resolves once the account is gone or the attempt failed. */
 		ondelete: (body: { username: string; password?: string }) => Promise<AccountResult>;
+		/** Rows shown below the account summary. */
+		children?: Snippet;
 	} = $props();
 
 	const since = $derived(
@@ -125,6 +129,8 @@
 		</span>
 	{/snippet}
 </SettingRow>
+
+{@render children?.()}
 
 {#if account.has_password && localEnabled}
 	<SettingRow label={m.settings_password()} description={m.settings_password_hint()} stacked>

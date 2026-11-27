@@ -334,6 +334,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/feed/atom/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The newest videos of a user's subscriptions as Atom. The token from
+         *     `POST /settings/feed-token` authenticates; no session is needed.
+         */
+        get: operations["atom_feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/history": {
         parameters: {
             query?: never;
@@ -783,6 +803,25 @@ export interface paths {
         patch: operations["update_settings"];
         trace?: never;
     };
+    "/api/v0/settings/feed-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the signed-in user has a feed URL. */
+        get: operations["get_feed_token"];
+        put?: never;
+        /** Create a personal Atom feed URL of the subscription feed; an existing one stops working. */
+        post: operations["create_feed_token"];
+        /** Revoke the signed-in user's feed URL. */
+        delete: operations["delete_feed_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/settings/sponsorblock": {
         parameters: {
             query?: never;
@@ -1161,6 +1200,12 @@ export interface components {
             /** @description YouTube video to start with. */
             video_id?: string | null;
         };
+        CreatedFeedToken: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description The Atom feed URL. Only the token's hash is stored, so it is shown only once. */
+            url: string;
+        };
         Credentials: {
             /** @description 12 to 256 characters. */
             password: string;
@@ -1193,6 +1238,13 @@ export interface components {
             continuation?: string | null;
             /** @description Newest first; `channel` is always set. */
             items: components["schemas"]["VideoSummary"][];
+        };
+        FeedTokenStatus: {
+            /**
+             * Format: date-time
+             * @description When the current feed URL was created; `null` without one.
+             */
+            created_at: string | null;
         };
         /**
          * @description Why a request field was rejected.
@@ -2971,6 +3023,38 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    atom_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feed token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Atom feed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/atom+xml": string;
+                };
+            };
+            /** @description Unknown or revoked token, or disabled user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4883,6 +4967,107 @@ export interface operations {
             };
             /** @description Invalid values, see `fields` */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_feed_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedTokenStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_feed_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedFeedToken"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_feed_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked, or there was none */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
