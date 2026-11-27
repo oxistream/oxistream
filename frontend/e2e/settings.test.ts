@@ -95,12 +95,21 @@ async function mockApi(
 	return calls;
 }
 
-test('guests get browser-only settings and a sign-in prompt', async ({ page }) => {
+test('guests get browser-only settings and a sign-in line', async ({ page }) => {
 	await mockApi(page, { signedIn: false });
 	await page.goto('/settings');
-	await expect(page.getByRole('heading', { name: 'Sign in for more settings' })).toBeVisible();
-	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
-	await expect(overview.getByRole('link')).toHaveText([/Playback/, /Appearance/]);
+	await expect(page).toHaveURL(/\/settings\/playback$/);
+	const sections = page.getByRole('navigation', { name: 'Settings sections' });
+	await expect(sections.getByRole('listitem')).toHaveText(['Playback', 'Appearance']);
+	const hint = sections.getByTestId('settings-guest-hint');
+	await expect(hint).toHaveText(/Sign in for more settings/);
+	await expect(hint.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+
+	// Account sections show the same line instead of their content.
+	await page.goto('/settings/home');
+	await expect(page.getByRole('main').getByTestId('settings-guest-hint')).toHaveCount(1);
+	await page.goto('/settings/blocked');
+	await expect(page.getByRole('main').getByTestId('settings-guest-hint')).toHaveCount(1);
 
 	// Open on settings routes.
 	const nav = page.locator('[data-slot="sidebar"]');
@@ -132,9 +141,13 @@ test('signed-in users store the audio track preference', async ({ page }) => {
 
 test('sponsorblock has its own section when the server offers it', async ({ page }) => {
 	await mockApi(page, { signedIn: false, sponsorblock: true });
-	await page.goto('/settings');
-	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
-	await expect(overview.getByRole('link')).toHaveText([/Playback/, /SponsorBlock/, /Appearance/]);
+	await page.goto('/settings/playback');
+	const sections = page.getByRole('navigation', { name: 'Settings sections' });
+	await expect(sections.getByRole('listitem')).toHaveText([
+		'Playback',
+		'SponsorBlock',
+		'Appearance'
+	]);
 
 	await page.locator('[data-slot="sidebar"]').getByRole('link', { name: 'SponsorBlock' }).click();
 	await expect(page).toHaveURL(/\/settings\/sponsorblock$/);
@@ -146,9 +159,48 @@ test('sponsorblock has its own section when the server offers it', async ({ page
 	);
 });
 
-test('the overview links every section', async ({ page }) => {
+test('desktop opens the first section next to the section navigation', async ({ page }) => {
 	await mockApi(page);
 	await page.goto('/settings');
+	await expect(page).toHaveURL(/\/settings\/playback$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Playback' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'All settings' })).toBeHidden();
+	const sections = page.getByRole('navigation', { name: 'Settings sections' });
+	await expect(sections.getByRole('link')).toHaveText([
+		'Playback',
+		'Home page',
+		'History',
+		'Blocked channels',
+		'Appearance',
+		'Account'
+	]);
+	await expect(sections.getByRole('link', { name: 'Playback' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await sections.getByRole('link', { name: 'Home page' }).click();
+	await expect(page).toHaveURL(/\/settings\/home$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Home page' })).toBeVisible();
+	await sections.getByRole('link', { name: 'Blocked channels' }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Blocked channels' })).toBeVisible();
+
+	// Back leaves settings instead of returning to the redirect.
+	await page.goto('/');
+	await page.goto('/settings');
+	await expect(page).toHaveURL(/\/settings\/playback$/);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/$/);
+
+	await page.goto('/settings/nope');
+	await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+test('phones list the sections, then open one with a way back', async ({ page }) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await mockApi(page);
+	await page.goto('/settings');
+	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page.getByRole('navigation', { name: 'Settings sections' })).toBeHidden();
 	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
 	await expect(overview.getByRole('link')).toHaveText([
 		/Playback/,
@@ -158,12 +210,19 @@ test('the overview links every section', async ({ page }) => {
 		/Appearance/,
 		/Account/
 	]);
-	await overview.getByRole('link', { name: /Home page/ }).click();
-	await expect(page).toHaveURL(/\/settings\/home$/);
-	await expect(page.getByRole('heading', { level: 1, name: 'Home page' })).toBeVisible();
+	await overview.getByRole('link', { name: /Blocked channels/ }).click();
+	await expect(page).toHaveURL(/\/settings\/blocked$/);
+	await page.getByRole('link', { name: 'All settings' }).click();
+	await expect(page).toHaveURL(/\/settings$/);
+});
 
-	await page.goto('/settings/nope');
-	await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+test('guests on phones see the sections and the sign-in line', async ({ page }) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await mockApi(page, { signedIn: false });
+	await page.goto('/settings');
+	const overview = page.getByRole('main').getByRole('list', { name: 'Settings sections' });
+	await expect(overview.getByRole('link')).toHaveText([/Playback/, /Appearance/]);
+	await expect(page.getByTestId('settings-guest-hint').filter({ visible: true })).toHaveCount(1);
 });
 
 test('the sidebar settings entry expands to the sections', async ({ page }) => {
@@ -229,10 +288,10 @@ test('the collapsed sidebar lists the sections in the settings tooltip', async (
 	]);
 
 	await gear.click();
-	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page).toHaveURL(/\/settings\/playback$/);
 	await page
-		.getByRole('main')
-		.getByRole('link', { name: /History/ })
+		.getByRole('navigation', { name: 'Settings sections' })
+		.getByRole('link', { name: 'History' })
 		.click();
 	await expect(page).toHaveURL(/\/settings\/history$/);
 	await expect(gear).toHaveAttribute('data-active', 'true');

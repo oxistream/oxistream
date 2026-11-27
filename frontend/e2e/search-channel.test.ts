@@ -281,8 +281,8 @@ test('short links redirect to the watch page, shorts open the shorts player', as
 
 test('app routes are not taken for video ids or handles', async ({ page }) => {
 	await page.goto('/settings');
-	await expect(page).toHaveURL(/\/settings$/);
-	await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/playback$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Playback' })).toBeVisible();
 
 	await page.route('**/api/v0/youtube/playlists/*', (route) =>
 		json(route, { code: 'not_found', message: 'not found' }, 404)
