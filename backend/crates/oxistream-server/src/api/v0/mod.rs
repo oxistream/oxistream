@@ -11,6 +11,7 @@ mod account;
 mod auth;
 mod blocks;
 mod cursor;
+pub(crate) mod feed_token;
 mod follows;
 mod history;
 mod likes;
@@ -41,6 +42,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(likes::router())
         .merge(sponsorblock::router())
         .merge(settings::router())
+        .merge(feed_token::router())
         .merge(account::router())
         .merge(shorts::router())
         .merge(rooms::router())

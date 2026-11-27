@@ -1,9 +1,10 @@
 use sqlx::postgres::PgRow;
 use sqlx::types::Json;
 use sqlx::{PgPool, Row};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::Error;
+use crate::{Error, TokenHash};
 
 /// Per-user preferences. Users without a `user_settings` row have the defaults.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -40,6 +41,22 @@ pub trait UserSettingsRepository: Send + Sync {
     async fn set_history_paused(&self, user_id: Uuid, paused: bool) -> Result<UserSettings, Error>;
 
     async fn update(&self, user_id: Uuid, update: &SettingsUpdate) -> Result<UserSettings, Error>;
+
+    /// When the user's feed token was created; `None` without one.
+    async fn feed_token_created_at(&self, user_id: Uuid) -> Result<Option<OffsetDateTime>, Error>;
+
+    /// Stores a new feed token, replacing any previous one; returns its creation time.
+    async fn replace_feed_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &TokenHash,
+    ) -> Result<OffsetDateTime, Error>;
+
+    /// Returns whether a feed token existed.
+    async fn delete_feed_token(&self, user_id: Uuid) -> Result<bool, Error>;
+
+    /// The user owning the feed token, unless that user is disabled.
+    async fn feed_token_user(&self, token_hash: &TokenHash) -> Result<Option<Uuid>, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -140,5 +157,50 @@ impl UserSettingsRepository for PgUserSettingsRepository {
         .fetch_one(&self.pool)
         .await?;
         Ok(settings_from_row(&row)?)
+    }
+
+    async fn feed_token_created_at(&self, user_id: Uuid) -> Result<Option<OffsetDateTime>, Error> {
+        Ok(
+            sqlx::query_scalar("SELECT created_at FROM feed_tokens WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
+
+    async fn replace_feed_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &TokenHash,
+    ) -> Result<OffsetDateTime, Error> {
+        Ok(sqlx::query_scalar(
+            "INSERT INTO feed_tokens (user_id, token_hash) VALUES ($1, $2) \
+             ON CONFLICT (user_id) DO UPDATE SET \
+                token_hash = EXCLUDED.token_hash, \
+                created_at = now() \
+             RETURNING created_at",
+        )
+        .bind(user_id)
+        .bind(token_hash.as_slice())
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
+    async fn delete_feed_token(&self, user_id: Uuid) -> Result<bool, Error> {
+        let result = sqlx::query("DELETE FROM feed_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn feed_token_user(&self, token_hash: &TokenHash) -> Result<Option<Uuid>, Error> {
+        Ok(sqlx::query_scalar(
+            "SELECT t.user_id FROM feed_tokens t JOIN users u ON u.id = t.user_id \
+             WHERE t.token_hash = $1 AND NOT u.disabled",
+        )
+        .bind(token_hash.as_slice())
+        .fetch_optional(&self.pool)
+        .await?)
     }
 }

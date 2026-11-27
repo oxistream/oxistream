@@ -259,7 +259,9 @@ impl FromRequestParts<AppState> for ClientAddr {
 /// Paths that need a session when `OXISTREAM_REQUIRE_LOGIN` is set.
 fn requires_login(path: &str) -> bool {
     let protected = path.starts_with("/api/v0/") || path.starts_with("/proxy/");
-    let exempt = path.starts_with("/api/v0/auth/") || path == "/api/v0/instance";
+    let exempt = path.starts_with("/api/v0/auth/")
+        || path == "/api/v0/instance"
+        || path.starts_with(crate::api::ATOM_FEED_PREFIX);
     protected && !exempt
 }
 
@@ -322,7 +324,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn login_requirement_spares_auth_and_instance() {
+    fn login_requirement_spares_auth_instance_and_atom_feed() {
         for path in [
             "/api/v0/search",
             "/api/v0/videos/x",
@@ -335,6 +337,7 @@ mod tests {
             "/api/v0/auth/login",
             "/api/v0/auth/me",
             "/api/v0/instance",
+            "/api/v0/feed/atom/token",
             "/api/openapi.json",
             "/api/docs",
             "/healthz",

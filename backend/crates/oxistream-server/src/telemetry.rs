@@ -1,9 +1,11 @@
 use std::time::Instant;
 
 use axum::extract::{MatchedPath, Request};
+use axum::http::Uri;
 use axum::middleware::Next;
 use axum::response::Response;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use tracing::Span;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::LogFormat;
@@ -41,6 +43,25 @@ pub fn detached_metrics_handle() -> PrometheusHandle {
     metrics_builder().build_recorder().handle()
 }
 
+/// The request span, with secrets in the path left out.
+pub fn make_span<B>(request: &axum::http::Request<B>) -> Span {
+    tracing::info_span!(
+        "request",
+        method = %request.method(),
+        uri = %redacted(request.uri()),
+        version = ?request.version(),
+    )
+}
+
+fn redacted(uri: &Uri) -> std::borrow::Cow<'_, str> {
+    let prefix = crate::api::ATOM_FEED_PREFIX;
+    if uri.path().starts_with(prefix) {
+        format!("{prefix}<redacted>").into()
+    } else {
+        uri.to_string().into()
+    }
+}
+
 pub async fn track_http(request: Request, next: Next) -> Response {
     let start = Instant::now();
     let method = request.method().to_string();
@@ -61,4 +82,17 @@ pub async fn track_http(request: Request, next: Next) -> Response {
         .record(start.elapsed().as_secs_f64());
 
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacts_feed_tokens() {
+        let uri = Uri::from_static("/api/v0/feed/atom/secret");
+        assert_eq!(redacted(&uri), "/api/v0/feed/atom/<redacted>");
+        let uri = Uri::from_static("/api/v0/feed?limit=1");
+        assert_eq!(redacted(&uri), "/api/v0/feed?limit=1");
+    }
 }
