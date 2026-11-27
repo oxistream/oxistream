@@ -62,7 +62,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - Tables:
   - `users`, `user_identities` (OIDC `(issuer, sub)`), `sessions` (incl. OIDC `sid` and ID token), `user_settings` (codec/quality prefs, history paused), `oidc_logout_jti`
   - `videos`: metadata upsert cache (no media)
-  - `channels`, `subscriptions`, `channel_videos` (feed)
+  - `channels`, `subscriptions`, `channel_videos` (feed), `feed_tokens` (Atom feed URL, SHA-256 only)
   - `playlists`, `playlist_items` (ordered)
   - `youtube_playlists`, `playlist_follows`, `youtube_playlist_items` (followed YouTube playlists)
   - `watch_progress`: user, video, position, duration, finished, updated_at; doubles as history and resume point
@@ -99,6 +99,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - Trending: YouTube dropped its trending page and YouTube Charts needs reCAPTCHA, so `GET /api/v0/trending?category=podcasts|gaming|news|music|sports|learning|fashion|live` (default `podcasts`) uses the destination pages of `OXISTREAM_TRENDING_REGION` (ISO country code, default `US`, validated at startup), cached in memory per instance for 30 min. Each is a home row (guest default: news, gaming, podcasts). Left out: Shopping and Courses (redirect logged-out clients to the start page), Movies & TV (paid titles only), Playables (games).
 - Shorts discovery: `GET /api/v0/shorts/discover` pages through the unauthenticated reel watch sequence (`reel/reel_watch_sequence`). Seeds: liked shorts and recent subscription shorts for signed-in users, plus trending; only seed video IDs reach YouTube. Each page continues the current sequence and starts the next seed, interleaved; blocked channels are left out. `GET /api/v0/shorts/{id}` (`reel/reel_item_watch`) returns the full video a short links to. The frontend skips shorts already shown in the browser session.
 - Feed worker: interval via `OXISTREAM_FEED_INTERVAL_MINUTES` (default 30); fetches only due channels on a 1 min tick. Each channel is fetched once, however many users subscribe. A new subscription triggers an immediate fetch. Followed YouTube playlists work the same way; only their first 500 items are stored, for "new videos" counts. Runs under a Postgres advisory lock so multiple replicas are safe.
+- Atom feed: `GET /api/v0/feed/atom/{token}` lists the latest 50 subscription videos; the token is the only credential (exempt from `OXISTREAM_REQUIRE_LOGIN`, redacted in request logs, 404 for disabled users). `POST /api/v0/settings/feed-token` returns the URL once and revokes the previous one, `DELETE` revokes. Links use `OXISTREAM_PUBLIC_URL`, else the request's `Host`; thumbnails go through the image proxy.
 
 ### Stream proxy
 
