@@ -124,7 +124,15 @@
 <Story name="Sync readout" asChild>
 	<div class="relative aspect-video max-w-xl rounded-xl bg-zinc-800">
 		<SyncReadout
-			stats={{ offset: -12.4, rtt: 3.1, drift: 6.8, rate: 1, lead: 0.42, state: 'locked' }}
+			stats={{
+				offset: -12.4,
+				rtt: 3.1,
+				drift: 6.8,
+				rate: 1,
+				lead: 0.42,
+				rateCost: 0.02,
+				state: 'locked'
+			}}
 			class="absolute start-2 top-2"
 		/>
 	</div>
