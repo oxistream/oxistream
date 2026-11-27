@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import LogoMark from '#lib/components/brand/logo-mark.svelte';
 	import SearchBox from '#lib/components/search/search-box.svelte';
+	import PartyButton from '#lib/components/together/party-button.svelte';
 	import { Separator } from '#lib/components/ui/separator/index.js';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '#lib/components/ui/sidebar/index.js';
@@ -46,6 +47,7 @@
 	/>
 	<SearchBox bind:input />
 	<div class="ms-auto flex shrink-0 items-center gap-0.5">
+		<PartyButton />
 		<LanguageSwitch />
 		<ThemeSwitch />
 	</div>

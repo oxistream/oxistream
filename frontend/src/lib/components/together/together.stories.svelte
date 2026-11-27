@@ -1,87 +1,59 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import {
-		mockParticipants,
-		mockRoomCurrent,
-		mockRoomNow,
-		mockRoomQueue,
-		mockRooms
-	} from '#lib/mocks/together.js';
+	import { mockParticipants, mockRoomCurrent, mockRoomQueue } from '#lib/mocks/together.js';
 	import { mockVideos } from '#lib/mocks/videos.js';
-	import AddToRoomButton from './add-to-room-button.svelte';
 	import JoinForm from './join-form.svelte';
-	import RoomAdd from './room-add.svelte';
-	import RoomCard from './room-card.svelte';
-	import RoomParticipants from './room-participants.svelte';
-	import RoomQueue from './room-queue.svelte';
-	import RoomSearchResults from './room-search-results.svelte';
-	import RoomStatus from './room-status.svelte';
+	import PartyElsewhere from './party-elsewhere.svelte';
+	import PartyMembers from './party-members.svelte';
+	import PartyQueue from './party-queue.svelte';
+	import PartyStatus from './party-status.svelte';
 	import ShareButton from './share-button.svelte';
 	import SyncReadout from './sync-readout.svelte';
 
 	const { Story } = defineMeta({
-		title: 'Together/RoomQueue',
-		component: RoomQueue,
+		title: 'Together/PartyQueue',
+		component: PartyQueue,
 		args: { current: mockRoomCurrent, queue: mockRoomQueue }
 	});
 </script>
 
 <script lang="ts">
 	let queue = $state(mockRoomQueue);
-	let added = $state<string[]>([]);
-	let picked = $state<string[]>([mockVideos[1].id]);
 </script>
 
 <Story name="Queue" asChild>
 	<div class="max-w-sm">
-		<RoomQueue
+		<PartyQueue
 			current={mockRoomCurrent}
 			{queue}
 			onremove={(entry) => (queue = queue.filter((e) => e.id !== entry.id))}
-		>
-			{#snippet add()}<RoomAdd onadd={(id) => (added = [...added, id])} />{/snippet}
-		</RoomQueue>
-		{#if added.length}
-			<p class="mt-2 text-xs text-muted-foreground">Added: {added.join(', ')}</p>
-		{/if}
+		/>
 	</div>
 </Story>
 
 <Story name="Queue empty" asChild>
 	<div class="max-w-sm">
-		<RoomQueue current={null} queue={[]}>
-			{#snippet add()}<RoomAdd onadd={() => {}} error="The queue is full." />{/snippet}
-		</RoomQueue>
+		<PartyQueue current={null} queue={[]} />
 	</div>
 </Story>
 
-<Story name="Participants as host" asChild>
+<Story name="Members as host" asChild>
 	<div class="max-w-sm">
-		<RoomParticipants participants={mockParticipants} meId="p-mara" canKick onkick={() => {}} />
+		<PartyMembers participants={mockParticipants} meId="p-mara" canKick onkick={() => {}} />
 	</div>
 </Story>
 
-<Story name="Participants as guest" asChild>
+<Story name="Members as guest" asChild>
 	<div class="max-w-sm">
-		<RoomParticipants participants={mockParticipants} meId="p-grace" />
+		<PartyMembers participants={mockParticipants} meId="p-grace" />
 	</div>
 </Story>
 
 <Story name="Connection status" asChild>
 	<div class="flex flex-wrap gap-2">
-		<RoomStatus status="connecting" />
-		<RoomStatus status="open" />
-		<RoomStatus status="reconnecting" />
-	</div>
-</Story>
-
-<Story name="Room cards" asChild>
-	<div class="@container max-w-3xl">
-		<ul class="video-list" data-layout="grid">
-			{#each mockRooms as room (room.id)}
-				<li class="min-w-0"><RoomCard {room} now={mockRoomNow} /></li>
-			{/each}
-		</ul>
+		<PartyStatus status="connecting" />
+		<PartyStatus status="open" />
+		<PartyStatus status="reconnecting" />
 	</div>
 </Story>
 
@@ -90,34 +62,18 @@
 </Story>
 
 <Story name="Share button" asChild>
-	<ShareButton url="https://tube.example/together/Qm9vbS1vbmUtMTIzNDU2Nw" />
+	<ShareButton url="https://tube.example/party/Qm9vbS1vbmUtMTIzNDU2Nw" />
 </Story>
 
-<Story name="Search results" asChild>
-	<div class="flex max-w-sm flex-col gap-2">
-		<RoomSearchResults
-			results={mockVideos.slice(0, 6)}
-			added={picked}
-			hasMore
-			onadd={(id) => (picked = [...picked, id])}
-			onmore={() => {}}
-			onclear={() => (picked = [])}
-		/>
+<Story name="Party plays another video" asChild>
+	<div class="max-w-2xl">
+		<PartyElsewhere poster={mockVideos[1].thumbnailUrl} playing={mockVideos[0].title} />
 	</div>
 </Story>
 
-<Story name="Search results loading" asChild>
-	<div class="flex max-w-sm flex-col gap-2">
-		<RoomSearchResults results={[]} pending onadd={() => {}} onmore={() => {}} onclear={() => {}} />
-	</div>
-</Story>
-
-<Story name="Add to room" asChild>
-	<div class="flex flex-wrap gap-2">
-		<AddToRoomButton
-			videoId={mockVideos[0].id}
-			room={{ id: 'room', owner: 'mara', tab: 'story' }}
-		/>
+<Story name="Party plays nothing yet" asChild>
+	<div class="max-w-2xl">
+		<PartyElsewhere poster={mockVideos[1].thumbnailUrl} />
 	</div>
 </Story>
 

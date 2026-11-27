@@ -6682,7 +6682,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Random ID, used in `/together/{id}`."
+            "description": "Random ID, used in `/party/{id}`."
           },
           "is_owner": {
             "type": "boolean",

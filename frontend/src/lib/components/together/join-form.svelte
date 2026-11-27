@@ -14,7 +14,7 @@
 		onjoin
 	}: {
 		owner: string;
-		/** Prefilled from the last room this browser joined. */
+		/** Prefilled from the last party this browser joined. */
 		name?: string;
 		onjoin: (name: string) => void;
 	} = $props();
@@ -42,13 +42,13 @@
 			<UsersRoundIcon class="size-5" />
 		</div>
 		<div class="flex flex-col gap-1">
-			<h1 class="text-base font-semibold tracking-tight">{m.together_join_title({ owner })}</h1>
-			<p class="text-sm text-pretty text-muted-foreground">{m.together_join_body()}</p>
+			<h1 class="text-base font-semibold tracking-tight">{m.party_join_title({ owner })}</h1>
+			<p class="text-sm text-pretty text-muted-foreground">{m.party_join_body()}</p>
 		</div>
 	</div>
 	<form class="flex flex-col gap-3" onsubmit={submit}>
 		<div class="flex flex-col gap-1.5">
-			<Label for="{uid}-name">{m.together_join_name()}</Label>
+			<Label for="{uid}-name">{m.party_join_name()}</Label>
 			<Input
 				id="{uid}-name"
 				bind:value
@@ -57,10 +57,10 @@
 				required
 			/>
 		</div>
-		<Button type="submit" disabled={!cleaned}>{m.together_join()}</Button>
+		<Button type="submit" disabled={!cleaned}>{m.party_join()}</Button>
 	</form>
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by authHref -->
 	<a href={signInHref} class="text-center text-sm text-primary underline-offset-4 hover:underline">
-		{m.together_join_sign_in()}
+		{m.party_join_sign_in()}
 	</a>
 </div>

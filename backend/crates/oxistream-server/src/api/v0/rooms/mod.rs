@@ -62,7 +62,7 @@ fn check_room_id(id: &str) -> Result<(), ApiError> {
 /// A watch together room.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RoomInfo {
-    /// Random ID, used in `/together/{id}`.
+    /// Random ID, used in `/party/{id}`.
     pub id: String,
     /// Username of the owner.
     pub owner: String,

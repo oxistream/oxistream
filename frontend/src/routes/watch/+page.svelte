@@ -26,8 +26,9 @@
 	} from '#lib/components/playlist/playback.js';
 	import PlaylistPanel from '#lib/components/playlist/playlist-panel.svelte';
 	import SaveToPlaylistButton from '#lib/components/playlist/save-to-playlist-button.svelte';
-	import AddToRoomButton from '#lib/components/together/add-to-room-button.svelte';
-	import StartRoomButton from '#lib/components/together/start-room-button.svelte';
+	import AddToPartyButton from '#lib/components/together/add-to-party-button.svelte';
+	import PartyElsewhere from '#lib/components/together/party-elsewhere.svelte';
+	import StartPartyButton from '#lib/components/together/start-party-button.svelte';
 	import { parseStartTime } from '#lib/components/player/start-time.js';
 	import { readJson, writeJson } from '#lib/components/player/storage.js';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -44,6 +45,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import { session } from '#lib/session.svelte.js';
+	import { party } from '#lib/together/party.svelte.js';
 
 	const THEATER_KEY = 'oxistream:theater';
 	// Enough to find a video anywhere in YouTube's largest playlists (5,000 videos).
@@ -171,6 +173,13 @@
 
 	// The app-wide player keeps playing across pages; this page only loads it for a new video.
 	const playing = $derived(videoId !== null && appPlayer.media?.videoId === videoId);
+	/**
+	 * The party holds the player and plays another video (or none yet), so this page cannot
+	 * load its own; the party's video goes on in the mini player.
+	 */
+	const partyElsewhere = $derived(
+		videoId !== null && party.active && !playing && party.current?.video.id !== videoId
+	);
 	const ready = $derived(
 		videoId !== null && !problem && details?.id === videoId && startKnown && settingsKnown
 	);
@@ -268,9 +277,11 @@
 						{@attach appPlayer.slot(() => ({
 							theater,
 							ontheatertoggle: toggleTheater,
-							onended: playlistPosition.next ? playNext : undefined
+							onended: playlistPosition.next && !party.active ? playNext : undefined
 						}))}
 					></div>
+				{:else if partyElsewhere}
+					<PartyElsewhere {poster} playing={party.current?.video.title} class="watch-frame" />
 				{:else}
 					<div class="watch-frame" role="status" aria-label={m.watch_loading()}>
 						<Skeleton class="aspect-video w-full rounded-xl" />
@@ -281,9 +292,9 @@
 			<div class="watch-meta">
 				{#if details}
 					<VideoDetails video={details} bind:descriptionExpanded onseek={seek}>
-						{#snippet actions()}<SaveToPlaylistButton {videoId} /><AddToRoomButton
+						{#snippet actions()}<SaveToPlaylistButton {videoId} /><AddToPartyButton
 								{videoId}
-							/><StartRoomButton {videoId} />{/snippet}
+							/><StartPartyButton {videoId} />{/snippet}
 					</VideoDetails>
 				{:else if video.isPending}
 					<VideoDetailsSkeleton />
@@ -405,7 +416,8 @@
 		}
 
 		.watch :global(.watch-frame [data-slot='skeleton']),
-		.watch :global(.watch-frame[data-testid='player-message']) {
+		.watch :global(.watch-frame[data-testid='player-message']),
+		.watch :global(.watch-frame[data-testid='party-elsewhere']) {
 			border-radius: 0;
 		}
 	}
@@ -428,7 +440,8 @@
 		}
 
 		.watch[data-theater] :global(.watch-frame [data-slot='skeleton']),
-		.watch[data-theater] :global(.watch-frame[data-testid='player-message']) {
+		.watch[data-theater] :global(.watch-frame[data-testid='player-message']),
+		.watch[data-theater] :global(.watch-frame[data-testid='party-elsewhere']) {
 			border-radius: 0;
 		}
 	}
