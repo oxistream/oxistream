@@ -4,6 +4,7 @@ import {
 	test,
 	type Browser,
 	type BrowserContext,
+	type Locator,
 	type Page,
 	type Route,
 	type WebSocketRoute
@@ -280,18 +281,19 @@ async function joinAsGuest(page: Page, query = '') {
 	await page.getByRole('button', { name: 'Join', exact: true }).click();
 }
 
-async function openSheet(page: Page) {
-	const sheet = page.getByTestId('party-sheet');
-	if (await sheet.isVisible()) return sheet;
+/** The party sidebar, or the sheet on narrow screens. */
+async function openPanel(page: Page) {
+	const panel = page.getByTestId('party-panel');
+	if (await panel.isVisible()) return panel;
 	await page.getByTestId('party-button').click();
-	await expect(sheet).toBeVisible();
-	return sheet;
+	await expect(panel).toBeVisible();
+	return panel;
 }
 
-async function closeSheet(page: Page) {
-	const sheet = page.getByTestId('party-sheet');
-	await sheet.getByRole('button', { name: 'Close' }).click();
-	await expect(sheet).toBeHidden();
+async function closePanel(page: Page) {
+	const panel = page.getByTestId('party-panel');
+	await panel.getByRole('button', { name: 'Close' }).click();
+	await expect(panel).toBeHidden();
 }
 
 /** Follows a related video on the watch page, without reloading the app. */
@@ -324,17 +326,17 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 	await expect(host.getByTestId('party-count')).toHaveText('2');
 	await expect(guest.getByTestId('party-count')).toHaveText('2');
 
-	const hostSheet = await openSheet(host);
-	await expect(hostSheet.getByTestId('party-status')).toHaveText('Connected');
-	await expect(hostSheet.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
-	const people = hostSheet.getByTestId('party-members');
+	const hostPanel = await openPanel(host);
+	await expect(hostPanel.getByTestId('party-status')).toHaveText('Connected');
+	await expect(hostPanel.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	const people = hostPanel.getByTestId('party-members');
 	await expect(people.getByText('Grace')).toBeVisible();
 	await expect(people.getByRole('button', { name: 'Remove Grace' })).toBeVisible();
-	await expect(hostSheet.getByRole('button', { name: 'End party' })).toBeVisible();
-	const guestSheet = await openSheet(guest);
-	await expect(guestSheet.getByTestId('party-members').getByRole('button')).toHaveCount(0);
-	await expect(guestSheet.getByRole('button', { name: 'End party' })).toHaveCount(0);
-	await closeSheet(guest);
+	await expect(hostPanel.getByRole('button', { name: 'End party' })).toBeVisible();
+	const guestPanel = await openPanel(guest);
+	await expect(guestPanel.getByTestId('party-members').getByRole('button')).toHaveCount(0);
+	await expect(guestPanel.getByRole('button', { name: 'End party' })).toHaveCount(0);
+	await closePanel(guest);
 
 	// Playing in one browser plays in the other; so does pausing.
 	await expect.poll(() => isPaused(guest)).toBe(true);
@@ -356,7 +358,7 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(FIRST));
 	await guest.getByTestId('add-to-party').click();
 	await expect(guest.getByTestId('add-to-party')).toHaveText('Added to party');
-	const queue = hostSheet.getByTestId('party-queue');
+	const queue = hostPanel.getByTestId('party-queue');
 	await expect(queue.getByText(title(SECOND))).toBeVisible();
 	await expect(queue.getByText('Added by Grace')).toBeVisible();
 
@@ -492,7 +494,7 @@ test('the party plays on while browsing and leaving asks first', async ({ browse
 	// Another member switching the video changes the mini player, without moving the guest.
 	await browseTo(host, LONG_TOO);
 	await host.getByTestId('add-to-party').click();
-	const queue = (await openSheet(host)).getByTestId('party-queue');
+	const queue = (await openPanel(host)).getByTestId('party-queue');
 	await queue.getByRole('button', { name: 'Play now' }).click();
 	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LONG_TOO));
 	await expect(guest).toHaveURL(/\/$/);
@@ -695,4 +697,88 @@ test('shorts mute the party video, and a video that cannot play says so', async 
 
 	await hostContext.close();
 	await guestContext.close();
+});
+
+type Box = { x: number; y: number; width: number; height: number };
+const box = async (locator: Locator): Promise<Box> => (await locator.boundingBox())!;
+const right = (b: Box) => b.x + b.width;
+
+test('the party sidebar sits next to the content and stays open across visits', async ({
+	browser
+}) => {
+	const context = await browser.newContext();
+	await mockApi(context, new FakeRoom(LONG), { signedIn: true });
+	const page = await context.newPage();
+	const button = page.getByTestId('party-button');
+	const panel = page.getByTestId('party-panel');
+	const card = page.locator('[data-slot="sidebar-inset"]');
+	const viewport = page.viewportSize()!;
+
+	// Joining opens it as a sidebar, and the body card makes room instead of being covered.
+	await openParty(page);
+	await expect(page).toHaveURL(watchUrl(LONG));
+	await expect(page.getByTestId('party-sidebar')).toBeVisible();
+	await expect(panel).toBeVisible();
+	await expect(button).toHaveAttribute('aria-expanded', 'true');
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect.poll(async () => right(await box(card))).toBeLessThan(viewport.width - 300);
+	const aside = page.locator('#party-panel');
+	await expect
+		.poll(async () => (await box(aside)).x)
+		.toBeGreaterThanOrEqual(right(await box(card)) - 1);
+	await expect.poll(async () => right(await box(aside))).toBeLessThanOrEqual(viewport.width + 1);
+
+	// The mini player stays inside the body card.
+	await page.getByRole('link', { name: 'Home' }).first().click();
+	const mini = page.getByTestId('mini-player');
+	await expect(mini).toBeVisible();
+	await expect.poll(async () => right(await box(mini))).toBeLessThanOrEqual(right(await box(card)));
+	expect(right(await box(mini))).toBeLessThan((await box(aside)).x);
+
+	// Closed, the body card takes the full width again, also after a reload.
+	await button.click();
+	await expect(panel).toBeHidden();
+	await expect(button).toHaveAttribute('aria-expanded', 'false');
+	await expect.poll(async () => right(await box(card))).toBeGreaterThan(viewport.width - 16);
+	await expect.poll(async () => right(await box(mini))).toBeGreaterThan(viewport.width - 32);
+	await page.reload();
+	await expect(button).toHaveAttribute('aria-expanded', 'false');
+	await expect(panel).toBeHidden();
+
+	await button.click();
+	await expect(panel).toBeVisible();
+	await page.reload();
+	await expect(button).toHaveAttribute('aria-expanded', 'true');
+	await expect(panel).toBeVisible();
+	await expect(panel.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+
+	await context.close();
+});
+
+test('on a phone the party opens as a sheet', async ({ browser }) => {
+	const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+	await mockApi(context, new FakeRoom(LONG), { signedIn: true });
+	const page = await context.newPage();
+	await openParty(page);
+	await expect(page).toHaveURL(watchUrl(LONG));
+
+	const sheet = page.getByRole('dialog');
+	await expect(sheet).toBeVisible();
+	await expect(sheet.getByTestId('party-panel')).toBeVisible();
+	await expect(page.getByTestId('party-sidebar')).toHaveCount(0);
+	await sheet.getByRole('button', { name: 'Close' }).click();
+	await expect(sheet).toBeHidden();
+
+	await page.getByTestId('party-button').click();
+	await expect(sheet).toBeVisible();
+	await expect(sheet.getByTestId('party-invite')).toHaveValue(new RegExp(`/party/${ROOM}$`));
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+
+	// The sheet is not remembered.
+	await page.reload();
+	await expect(page.getByTestId('party-button')).toHaveAttribute('aria-expanded', 'false');
+	await expect(sheet).toHaveCount(0);
+
+	await context.close();
 });
