@@ -1,9 +1,8 @@
 <script lang="ts">
-	import BookmarkCheckIcon from '@lucide/svelte/icons/bookmark-check';
-	import BookmarkPlusIcon from '@lucide/svelte/icons/bookmark-plus';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import BookmarkIcon from '@lucide/svelte/icons/bookmark';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
+	import IconAction from './icon-action.svelte';
 
 	let {
 		following = false,
@@ -19,8 +18,9 @@
 	} = $props();
 </script>
 
-<Button
-	variant={following ? 'secondary' : 'outline'}
+<IconAction
+	label={m.playlist_follow()}
+	tooltip={following ? m.playlist_following() : m.playlist_follow()}
 	class={cn(loading && 'cursor-wait', className)}
 	aria-pressed={following}
 	aria-busy={loading || undefined}
@@ -28,11 +28,10 @@
 	data-testid="follow-button"
 	{onclick}
 >
-	{#if following}
-		<BookmarkCheckIcon class="text-primary" />
-		{m.playlist_following()}
-	{:else}
-		<BookmarkPlusIcon />
-		{m.playlist_follow()}
-	{/if}
-</Button>
+	<BookmarkIcon
+		class={cn(
+			'transition-colors duration-(--motion-in) ease-ui',
+			following && 'fill-primary text-primary'
+		)}
+	/>
+</IconAction>

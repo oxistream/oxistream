@@ -331,6 +331,28 @@ test('the playlist page continues where the owner left off', async ({ page }) =>
 	);
 });
 
+test('the header actions fit one row on a German phone', async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem('PARAGLIDE_LOCALE', 'de'));
+	const state = await mockApi(page);
+	state.playlists[0].last_video_id = VIDEOS[1];
+	await page.setViewportSize({ width: 360, height: 780 });
+	await page.goto(`/playlist?list=${LIST}`);
+
+	const actions = [
+		page.getByTestId('playlist-continue'),
+		page.getByRole('link', { name: 'Von vorn abspielen' }),
+		page.getByRole('button', { name: 'Link kopieren' }),
+		page.getByRole('button', { name: 'Playlist bearbeiten' }),
+		page.getByRole('button', { name: 'Playlist löschen' })
+	];
+	for (const action of actions) await expect(action).toBeVisible();
+	const tops = await Promise.all(actions.map(async (a) => Math.round((await a.boundingBox())!.y)));
+	expect(new Set(tops).size).toBe(1);
+
+	await page.getByRole('button', { name: 'Playlist bearbeiten' }).hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText('Playlist bearbeiten');
+});
+
 test('the header sits beside the list on wide screens and above it on phones', async ({ page }) => {
 	await mockApi(page);
 	await page.setViewportSize({ width: 1440, height: 900 });
