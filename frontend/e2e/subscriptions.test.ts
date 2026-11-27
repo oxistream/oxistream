@@ -226,11 +226,9 @@ test('the collapsed sidebar shows channel avatars with tooltips', async ({ page 
 	await expect(first).toHaveAttribute('href', `/channel/${many[0].id}`);
 	await expect(first.locator('img')).toBeVisible();
 	await expect(first).toHaveJSProperty('offsetWidth', 32);
-	await expect(sidebar.getByRole('link', { name: 'All 10 channels' })).toHaveAttribute(
-		'href',
-		'/feed/channels'
-	);
-	await expect(sidebar.getByRole('link', { name: 'Channel 7' })).toHaveCount(0);
+	await expect(sidebar.getByRole('link', { name: 'Channel 8' })).toHaveCount(0);
+	await sidebar.getByRole('button', { name: '3 more' }).click();
+	await expect(sidebar.getByRole('link', { name: 'Channel 9' })).toBeVisible();
 
 	await first.hover();
 	await expect(page.locator('[data-slot="tooltip-content"]').first()).toHaveText('Channel 1');
