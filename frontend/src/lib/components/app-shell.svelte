@@ -3,6 +3,8 @@
 	import AppHeader from '#lib/components/app-header.svelte';
 	import { createSubscriptionsQuery } from '#lib/api/subscriptions.js';
 	import AppSidebar from '#lib/components/app-sidebar.svelte';
+	import AppPlayer from '#lib/components/player/app-player.svelte';
+	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { SIDEBAR_COOKIE_NAME } from '#lib/components/ui/sidebar/constants.js';
 	import type { User } from '#lib/video.js';
@@ -25,7 +27,10 @@
 	<AppSidebar {user} channels={user ? subscriptions.data : undefined} />
 	<Sidebar.Inset class="overflow-clip md:ring-1 md:ring-sidebar-border">
 		<AppHeader />
-		<main id="main" tabindex="-1" class="flex flex-1 flex-col outline-none">
+		<main id="main" tabindex="-1" class="relative flex flex-1 flex-col outline-none">
+			{#if appPlayer.media}
+				<AppPlayer media={appPlayer.media} />
+			{/if}
 			{@render children()}
 		</main>
 	</Sidebar.Inset>
