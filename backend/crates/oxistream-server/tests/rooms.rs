@@ -93,6 +93,7 @@ fn add(video_id: &str) -> RoomOp {
         video_id: video_id.to_owned(),
         added_by: "Ada".into(),
         max_queue: 3,
+        play: false,
     }
 }
 
@@ -181,6 +182,27 @@ async fn queue_advances_once_and_respects_limits() {
     let (current, ids, playing) = queue(&repo).await;
     assert!(current.is_some() && !playing);
     assert_eq!(ids, [VIDEOS[0]]);
+
+    // Playing a video now replaces the current entry, even with a full queue.
+    repo.apply(ROOM, &add(VIDEOS[1]), now).await.unwrap();
+    repo.apply(ROOM, &add(VIDEOS[2]), now).await.unwrap();
+    let play_now = RoomOp::Add {
+        video_id: VIDEOS[1].to_owned(),
+        added_by: "Ada".into(),
+        max_queue: 3,
+        play: true,
+    };
+    repo.apply(ROOM, &play_now, now).await.unwrap();
+    let (current_now, ids, playing) = queue(&repo).await;
+    assert!(playing && current_now != current);
+    assert_eq!(ids, [VIDEOS[1], VIDEOS[1], VIDEOS[2]]);
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(
+        Some(s.queue[0].entry_id),
+        current_now,
+        "the new entry plays first"
+    );
+    assert!(s.queue[0].entry_id > s.queue[1].entry_id);
 
     assert_eq!(
         repo.apply("rrrrrrrrrrrrrrrrrrrrrX", &play, now)
@@ -423,6 +445,11 @@ async fn replicas_stay_in_sync_through_the_database() {
     let state = state_where(&mut guest, |r| r["current"]["video"]["id"] == VIDEOS[1]).await;
     assert_eq!(state["playing"], true);
     assert_eq!(state["queue"], json!([]));
+
+    let play_now = json!({ "type": "add", "video_id": VIDEOS[2], "play": true });
+    send(&mut guest, play_now).await;
+    let state = state_where(&mut host, |r| r["current"]["video"]["id"] == VIDEOS[2]).await;
+    assert!(state["playing"] == true && state["queue"] == json!([]));
 
     // Only the owner may remove participants.
     send(

@@ -6600,6 +6600,10 @@
               "type"
             ],
             "properties": {
+              "play": {
+                "type": "boolean",
+                "description": "Plays it now instead of queueing it; the current entry is dropped."
+              },
               "type": {
                 "type": "string",
                 "enum": [

@@ -1496,6 +1496,8 @@ export interface components {
             /** @enum {string} */
             type: "select";
         } | {
+            /** @description Plays it now instead of queueing it; the current entry is dropped. */
+            play?: boolean;
             /** @enum {string} */
             type: "add";
             video_id: string;
