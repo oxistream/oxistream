@@ -512,7 +512,7 @@ test('the party plays on while browsing and leaving asks first', async ({ browse
 	await browseTo(host, LONG_TOO);
 	await host.getByTestId('add-to-party').click();
 	const queue = (await openPanel(host)).getByTestId('party-queue');
-	await queue.getByRole('button', { name: 'Play now' }).click();
+	await queue.getByRole('button', { name: title(LONG_TOO) }).click();
 	await expect(guest.getByTestId('mini-player-title')).toHaveText(title(LONG_TOO));
 	await expect(guest).toHaveURL(/\/$/);
 	await expect(host).toHaveURL(watchUrl(LONG_TOO));
