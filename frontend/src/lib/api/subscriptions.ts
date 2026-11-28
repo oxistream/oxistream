@@ -9,6 +9,7 @@ import type { VideoSummary } from '#lib/video.js';
 import { blockKeys } from './blocks';
 import { api } from './client';
 import { toShort, toVideo, unwrap } from './mapping';
+import { groupKeys } from './subscription-group-list';
 import type { operations } from './schema';
 import {
 	hasPendingChannels,
@@ -25,7 +26,7 @@ export type FeedKind = Exclude<
 >;
 
 /** Narrows the subscription feed; the backend applies it, so pages stay full. */
-export type FeedFilters = { hideWatched?: boolean; channel?: string };
+export type FeedFilters = { hideWatched?: boolean; channel?: string; group?: string };
 
 const FEED_PAGE_SIZE = 30;
 // While a new channel waits for its first fetch, the list and feed are polled until it lands.
@@ -44,7 +45,8 @@ export const subscriptionKeys = {
 export function normalizeFilters(filters: FeedFilters): FeedFilters {
 	return {
 		...(filters.hideWatched ? { hideWatched: true } : {}),
-		...(filters.channel ? { channel: filters.channel } : {})
+		...(filters.channel ? { channel: filters.channel } : {}),
+		...(filters.group ? { group: filters.group } : {})
 	};
 }
 
@@ -100,7 +102,8 @@ async function fetchFeedPage(
 		kind,
 		continuation,
 		hide_watched: filters.hideWatched || undefined,
-		channel: filters.channel
+		channel: filters.channel,
+		group: filters.group
 	};
 	const page = unwrap(await api.GET('/api/v0/feed', { params: { query }, signal }));
 	return {
@@ -187,6 +190,8 @@ export function createSubscriptionMutation() {
 		) => {
 			void client.invalidateQueries({ queryKey: subscriptionKeys.all });
 			void client.invalidateQueries({ queryKey: subscriptionKeys.feed });
+			// Unsubscribing removes the channel from its groups.
+			if (!subscribe) void client.invalidateQueries({ queryKey: groupKeys.list });
 			// Subscribing lifts a block of the channel.
 			if (subscribe) void client.invalidateQueries({ queryKey: blockKeys.list });
 		}

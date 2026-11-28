@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import FunnelXIcon from '@lucide/svelte/icons/funnel-x';
 	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -13,6 +14,8 @@
 	import { withProgress } from '#lib/api/history-list.js';
 	import { uniqueBy } from '#lib/api/mapping.js';
 	import { createSettingsMutation, createSettingsQuery } from '#lib/api/settings.js';
+	import { isGroupId } from '#lib/api/subscription-group-list.js';
+	import { createSubscriptionGroupsQuery } from '#lib/api/subscription-groups.js';
 	import { hasPendingChannels } from '#lib/api/subscription-list.js';
 	import {
 		createFeedQuery,
@@ -21,6 +24,7 @@
 	} from '#lib/api/subscriptions.js';
 	import ShortRow from '#lib/components/shorts/short-row.svelte';
 	import FeedFilters from '#lib/components/subscription/feed-filters.svelte';
+	import GroupTabs from '#lib/components/subscription/group-tabs.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -44,15 +48,28 @@
 	const channel = $derived(
 		page.url.searchParams.get('channel')?.match(/^UC[\w-]{22}$/)?.[0] ?? undefined
 	);
+	const groups = createSubscriptionGroupsQuery();
+	const groupParam = $derived(page.url.searchParams.get('group') ?? undefined);
+	// A deleted group in the URL falls back to all channels.
+	const selectedGroup = $derived(
+		isGroupId(groupParam) ? groups.data?.find((g) => g.id === groupParam) : undefined
+	);
+	const group = $derived(selectedGroup?.id);
+	const groupsReady = $derived(!isGroupId(groupParam) || groups.isSuccess || groups.isError);
+	const groupChannels = $derived(
+		selectedGroup
+			? (subscriptions.data ?? []).filter((c) => selectedGroup.channelIds.includes(c.id))
+			: (subscriptions.data ?? [])
+	);
 	const filtered = $derived(hideWatched || hideShorts || channel !== undefined);
 
 	const feed = createFeedQuery(() => pending, 'videos', {
-		filters: () => ({ hideWatched, channel }),
-		enabled: () => settingsReady
+		filters: () => ({ hideWatched, channel, group }),
+		enabled: () => settingsReady && groupsReady
 	});
 	const shortsFeed = createFeedQuery(() => pending, 'shorts', {
-		filters: () => ({ channel }),
-		enabled: () => settingsReady && !hideShorts
+		filters: () => ({ channel, group }),
+		enabled: () => settingsReady && groupsReady && !hideShorts
 	});
 	const shorts = $derived(
 		hideShorts
@@ -67,11 +84,16 @@
 	const items = $derived(withProgress(listed, progress.get));
 	const noSubscriptions = $derived(subscriptions.data?.length === 0);
 
+	function feedHref(next: { group?: string; channel?: string }): string {
+		const query = [next.group && `group=${next.group}`, next.channel && `channel=${next.channel}`]
+			.filter(Boolean)
+			.join('&');
+		return query ? resolve(`/feed/subscriptions?${query}`) : resolve('/feed/subscriptions');
+	}
+
 	function setChannel(id: string | undefined) {
-		const target = id
-			? resolve(`/feed/subscriptions?channel=${id}`)
-			: resolve('/feed/subscriptions');
-		void goto(target, { reset: false });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved in feedHref
+		void goto(feedHref({ group, channel: id }), { reset: false });
 	}
 
 	function clearFilters() {
@@ -123,12 +145,15 @@
 			{/snippet}
 		</EmptyState>
 	{:else}
+		{#if groups.data?.length}
+			<GroupTabs groups={groups.data} {group} href={(id) => feedHref({ group: id })} />
+		{/if}
 		{#if subscriptions.data?.length}
 			<FeedFilters
 				{hideWatched}
 				{hideShorts}
 				{channel}
-				channels={subscriptions.data}
+				channels={groupChannels}
 				onhidewatched={(hide) => saveSettings.mutate({ feed_hide_watched: hide })}
 				onhideshorts={(hide) => saveSettings.mutate({ feed_hide_shorts: hide })}
 				onchannel={setChannel}
@@ -143,6 +168,15 @@
 		<VideoGrid loading skeletonCount={12} />
 	{:else if feed.isError && !feed.data}
 		<ErrorState onretry={() => void feed.refetch()} />
+	{:else if selectedGroup && selectedGroup.channelIds.length === 0}
+		<EmptyState icon={FolderOpenIcon} title={m.groups_empty_title()}>
+			{#snippet actions()}
+				<Button href={resolve(`/feed/channels?group=${selectedGroup.id}`)} variant="outline">
+					<UsersIcon />
+					{m.feed_manage()}
+				</Button>
+			{/snippet}
+		</EmptyState>
 	{:else if items.length === 0 && shorts.length === 0 && filtered && !pending}
 		<EmptyState icon={FunnelXIcon} title={m.feed_filtered_empty_title()}>
 			{#snippet actions()}

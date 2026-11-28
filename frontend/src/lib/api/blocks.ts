@@ -5,6 +5,7 @@ import type { ChannelSummary } from '#lib/video.js';
 import { api } from './client';
 import { pickImage, unwrap } from './mapping';
 import type { components } from './schema';
+import { groupKeys } from './subscription-group-list';
 import { subscriptionKeys } from './subscriptions';
 
 export type BlockedChannel = {
@@ -134,6 +135,7 @@ export function createBlockMutation() {
 		onSettled: () => {
 			void client.invalidateQueries({ queryKey: blockKeys.list });
 			void client.invalidateQueries({ queryKey: subscriptionKeys.all });
+			void client.invalidateQueries({ queryKey: groupKeys.list });
 			for (const key of AFFECTED) void client.invalidateQueries({ queryKey: [key] });
 			// Tabs read the first page from the channel details, so those must be fresh first.
 			void client

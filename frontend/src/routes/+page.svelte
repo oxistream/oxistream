@@ -2,7 +2,9 @@
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import { resolve } from '$app/paths';
 	import { createSettingsQuery } from '#lib/api/settings.js';
+	import { createSubscriptionGroupsQuery } from '#lib/api/subscription-groups.js';
 	import { createTrendingStatus, type TrendingCategory } from '#lib/api/trending.js';
+	import GroupSection from '#lib/components/home/group-section.svelte';
 	import GuestFallback from '#lib/components/home/guest-fallback.svelte';
 	import HomeSection from '#lib/components/home/home-section.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
@@ -21,11 +23,17 @@
 
 	const guest = $derived(session.ready && !session.user);
 	const settings = createSettingsQuery();
+	const groups = createSubscriptionGroupsQuery();
 	// Waits for the user's own layout, so the default does not flash first.
 	const ready = $derived(session.ready && (!session.user || !settings.isPending));
+	// Group rows follow the subscriptions row, or close the page without it.
+	const homeGroups = $derived(
+		session.user ? (groups.data ?? []).filter((g) => g.showOnHome && g.channelIds.length > 0) : []
+	);
 	const sections = $derived(
 		session.user ? homeSections('user', settings.data?.home_sections) : homeSections('guest')
 	);
+	const groupsAfterSubscriptions = $derived(sections.includes('subscriptions'));
 	const categories = $derived(
 		sections.map(trendingCategory).filter((c): c is TrendingCategory => c !== undefined)
 	);
@@ -59,7 +67,7 @@
 		{/each}
 	{:else if fallback}
 		<GuestFallback {recent} onremove={removeRecent} />
-	{:else if sections.length === 0}
+	{:else if sections.length === 0 && homeGroups.length === 0}
 		<EmptyState icon={HouseIcon} title={m.home_empty_title()} description={m.home_empty_body()}>
 			{#snippet actions()}
 				<Button href={resolve('/settings')} variant="outline">{m.home_empty_action()}</Button>
@@ -68,6 +76,14 @@
 	{:else}
 		{#each sections as key (key)}
 			<HomeSection {key} />
+			{#if key === 'subscriptions'}{@render groupRows()}{/if}
 		{/each}
+		{#if !groupsAfterSubscriptions}{@render groupRows()}{/if}
 	{/if}
 </div>
+
+{#snippet groupRows()}
+	{#each homeGroups as group (group.id)}
+		<GroupSection {group} />
+	{/each}
+{/snippet}
