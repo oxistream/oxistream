@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import type { Retention } from '#lib/api/retention.js';
 	import { DEFAULT_SETTINGS, type Settings, type SettingsPatch } from '#lib/api/settings.js';
 	import type { Account } from '#lib/session.svelte.js';
 	import AccountSettings from './account-settings.svelte';
@@ -30,6 +31,7 @@
 	let settings = $state<Settings>({ ...DEFAULT_SETTINGS });
 	const update = (patch: SettingsPatch) => (settings = { ...settings, ...patch });
 	let paused = $state(false);
+	let retention = $state<Retention>('forever');
 	let codecs = $state([
 		{ id: 'av1', label: 'AV1' },
 		{ id: 'vp9', label: 'VP9' },
@@ -76,7 +78,25 @@
 
 <Story name="History" asChild>
 	<SettingsSection id="history" title="History" class="max-w-3xl">
-		<HistorySettings {paused} onpause={(p) => (paused = p)} onclear={() => {}} />
+		<HistorySettings
+			{paused}
+			{retention}
+			onpause={(p) => (paused = p)}
+			onretention={(r) => (retention = r)}
+			onclear={() => {}}
+		/>
+	</SettingsSection>
+</Story>
+
+<Story name="History, operator maximum" asChild>
+	<SettingsSection id="history" title="History" class="max-w-3xl">
+		<HistorySettings
+			{paused}
+			retention="365d"
+			maxRetention="90d"
+			onpause={(p) => (paused = p)}
+			onclear={() => {}}
+		/>
 	</SettingsSection>
 </Story>
 

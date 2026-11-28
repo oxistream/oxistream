@@ -3,8 +3,11 @@ import {
 	createMutation,
 	createQueries,
 	createQuery,
+	keepPreviousData,
 	useQueryClient,
-	type InfiniteData
+	type InfiniteData,
+	type QueryClient,
+	type QueryKey
 } from '@tanstack/svelte-query';
 import type { ProgressReport } from '#lib/components/player/progress.js';
 import {
@@ -23,7 +26,12 @@ import {
 	type WatchProgress
 } from './history-list';
 import { pickImage, uniqueBy, unwrap } from './mapping';
+import type { Retention } from './retention';
+import type { components } from './schema';
 import type { VideoDetails } from './video';
+
+export type HistorySettings = components['schemas']['HistorySettings'];
+type HistorySettingsUpdate = components['schemas']['HistorySettingsUpdate'];
 
 export type HistoryPage = { items: HistoryVideo[]; continuation?: string };
 
@@ -35,6 +43,7 @@ const PROGRESS_STALE_MS = 30_000;
 export const historyKeys = {
 	all: ['history'] as const,
 	list: ['history', 'list'] as const,
+	search: (q: string) => ['history', 'list', q] as const,
 	continue: ['history', 'continue'] as const,
 	settings: ['history', 'settings'] as const,
 	progress: ['progress'] as const,
@@ -102,12 +111,13 @@ export function createProgressLookup(videoIds: () => string[]) {
 }
 
 async function fetchHistoryPage(
+	q: string,
 	continuation: string | undefined,
 	signal: AbortSignal
 ): Promise<HistoryPage> {
 	const page = unwrap(
 		await api.GET('/api/v0/history', {
-			params: { query: { limit: HISTORY_PAGE_SIZE, continuation } },
+			params: { query: { limit: HISTORY_PAGE_SIZE, continuation, q: q || undefined } },
 			signal
 		})
 	);
@@ -117,17 +127,22 @@ async function fetchHistoryPage(
 	};
 }
 
-/** Watched videos, most recent first. */
-export function createHistoryQuery() {
-	return createInfiniteQuery(() => ({
-		queryKey: historyKeys.list,
-		queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-			fetchHistoryPage(pageParam, signal),
-		initialPageParam: undefined as string | undefined,
-		getNextPageParam: (last: HistoryPage) => last.continuation,
-		enabled: session.user !== null,
-		staleTime: PROGRESS_STALE_MS
-	}));
+/** Watched videos, most recent first; with a search term, only those matching it. */
+export function createHistoryQuery(search: () => string = () => '') {
+	return createInfiniteQuery(() => {
+		const q = search().trim();
+		return {
+			queryKey: historyKeys.search(q),
+			queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+				fetchHistoryPage(q, pageParam, signal),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (last: HistoryPage) => last.continuation,
+			// Keeps the list while the next search loads.
+			placeholderData: keepPreviousData,
+			enabled: session.user !== null,
+			staleTime: PROGRESS_STALE_MS
+		};
+	});
 }
 
 /** Started but unfinished videos for the home page. */
@@ -149,8 +164,8 @@ export function createContinueWatchingQuery() {
 export function createHistorySettingsQuery() {
 	return createQuery(() => ({
 		queryKey: historyKeys.settings,
-		queryFn: async ({ signal }: { signal: AbortSignal }) =>
-			unwrap(await api.GET('/api/v0/history/settings', { signal })).paused,
+		queryFn: async ({ signal }: { signal: AbortSignal }): Promise<HistorySettings> =>
+			unwrap(await api.GET('/api/v0/history/settings', { signal })),
 		enabled: session.user !== null,
 		staleTime: 5 * 60_000
 	}));
@@ -201,7 +216,7 @@ export function createProgressReporter() {
 			saveLocalProgress(videoId, report, Date.now(), cachedLocalVideo(client, videoId));
 			return;
 		}
-		if (paused.data) return;
+		if (paused.data?.paused) return;
 		sendReport(videoId, report);
 		const saved: WatchProgress = {
 			position: report.position,
@@ -219,10 +234,9 @@ export function createProgressReporter() {
 	};
 }
 
-function withoutVideo(
-	data: InfiniteData<HistoryPage, string | undefined> | undefined,
-	videoId: string
-) {
+type HistoryData = InfiniteData<HistoryPage, string | undefined>;
+
+function withoutVideo(data: HistoryData | undefined, videoId: string) {
 	if (!data) return data;
 	return {
 		...data,
@@ -233,7 +247,7 @@ function withoutVideo(
 	};
 }
 
-function invalidateProgress(client: ReturnType<typeof useQueryClient>) {
+function invalidateProgress(client: QueryClient) {
 	void client.invalidateQueries({ queryKey: historyKeys.all });
 	void client.invalidateQueries({ queryKey: historyKeys.progress });
 }
@@ -250,18 +264,18 @@ export function createRemoveFromHistoryMutation() {
 		},
 		onMutate: async (videoId: string) => {
 			await client.cancelQueries({ queryKey: historyKeys.list });
-			const previous = client.getQueryData<InfiniteData<HistoryPage, string | undefined>>(
-				historyKeys.list
+			const previous = client.getQueriesData<HistoryData>({ queryKey: historyKeys.list });
+			client.setQueriesData<HistoryData>({ queryKey: historyKeys.list }, (data) =>
+				withoutVideo(data, videoId)
 			);
-			client.setQueryData(historyKeys.list, withoutVideo(previous, videoId));
 			return { previous };
 		},
 		onError: (
 			_error: Error,
 			_videoId: string,
-			context?: { previous?: InfiniteData<HistoryPage, string | undefined> }
+			context?: { previous?: [QueryKey, HistoryData | undefined][] }
 		) => {
-			if (context?.previous) client.setQueryData(historyKeys.list, context.previous);
+			for (const [key, data] of context?.previous ?? []) client.setQueryData(key, data);
 		},
 		onSettled: () => invalidateProgress(client)
 	}));
@@ -301,30 +315,48 @@ export function createClearHistoryMutation() {
 			if (!response.ok) unwrap({ error, response });
 		},
 		onSuccess: () => {
-			client.setQueryData(historyKeys.list, {
+			client.setQueriesData<HistoryData>({ queryKey: historyKeys.list }, () => ({
 				pages: [{ items: [] }],
 				pageParams: [undefined]
-			});
+			}));
 			client.setQueryData(historyKeys.continue, []);
 		},
 		onSettled: () => invalidateProgress(client)
 	}));
 }
 
-export function createHistoryPausedMutation() {
+function createHistorySettingsMutation<T>(
+	body: (value: T) => HistorySettingsUpdate,
+	onSaved?: (client: QueryClient) => void
+) {
 	const client = useQueryClient();
 	return createMutation(() => ({
-		mutationFn: async (paused: boolean) =>
-			unwrap(await api.PUT('/api/v0/history/settings', { body: { paused } })).paused,
-		onMutate: async (paused: boolean) => {
+		mutationFn: async (value: T) =>
+			unwrap(await api.PUT('/api/v0/history/settings', { body: body(value) })),
+		onMutate: async (value: T) => {
 			await client.cancelQueries({ queryKey: historyKeys.settings });
-			const previous = client.getQueryData<boolean>(historyKeys.settings);
-			client.setQueryData(historyKeys.settings, paused);
+			const previous = client.getQueryData<HistorySettings>(historyKeys.settings);
+			if (previous) client.setQueryData(historyKeys.settings, { ...previous, ...body(value) });
 			return { previous };
 		},
-		onError: (_error: Error, _paused: boolean, context?: { previous?: boolean }) => {
+		onError: (_error: Error, _value: T, context?: { previous?: HistorySettings }) => {
 			client.setQueryData(historyKeys.settings, context?.previous);
 		},
-		onSuccess: (paused: boolean) => client.setQueryData(historyKeys.settings, paused)
+		onSuccess: (settings: HistorySettings) => {
+			client.setQueryData(historyKeys.settings, settings);
+			onSaved?.(client);
+		}
 	}));
+}
+
+export function createHistoryPausedMutation() {
+	return createHistorySettingsMutation((paused: boolean) => ({ paused }));
+}
+
+/** A shorter retention hides older entries right away, so lists refetch. */
+export function createHistoryRetentionMutation() {
+	return createHistorySettingsMutation(
+		(retention: Retention) => ({ retention }),
+		invalidateProgress
+	);
 }

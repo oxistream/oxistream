@@ -5,9 +5,11 @@
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import { createQueryClient } from '#lib/api/query-client.js';
+	import { retentionMs } from '#lib/api/retention.js';
 	import AppShell from '#lib/components/app-shell.svelte';
 	import { authHref } from '#lib/auth/links.js';
 	import AuthLayout from '#lib/components/auth/auth-layout.svelte';
+	import { setLocalProgressMaxAge } from '#lib/components/watch/local-progress.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, getTextDirection } from '#lib/paraglide/runtime.js';
 	import { session } from '#lib/session.svelte.js';
@@ -27,6 +29,10 @@
 	const locked = $derived(
 		!authRoute && session.capabilities?.require_login === true && !session.account
 	);
+
+	$effect(() => {
+		setLocalProgressMaxAge(retentionMs(session.historyMaxRetention));
+	});
 
 	$effect(() => {
 		if (locked && session.ready) {

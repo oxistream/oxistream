@@ -75,6 +75,11 @@ class Session {
 		return this.#instance?.data?.sponsorblock ?? false;
 	}
 
+	/** Longest watch history retention users may pick; `forever` until the instance loaded. */
+	get historyMaxRetention(): InstanceInfo['history_max_retention'] {
+		return this.#instance?.data?.history_max_retention ?? 'forever';
+	}
+
 	get user(): User | null {
 		const account = this.account;
 		return account ? { id: account.id, name: account.username, username: account.username } : null;
