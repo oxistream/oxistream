@@ -13,6 +13,9 @@
 	import './videojs/video/skin';
 	import RectangleHorizontalIcon from '@lucide/svelte/icons/rectangle-horizontal';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
+	import MoonIcon from '@lucide/svelte/icons/moon';
+	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import {
 		selectPlayback,
 		selectPlaybackRate,
@@ -45,6 +48,8 @@
 		type Prefetcher
 	} from '#lib/sponsorblock/prefetch.js';
 	import SegmentOverlay from './segment-overlay.svelte';
+	import { shortcutsBlocked } from '#lib/player/shortcuts.js';
+	import { SLEEP_MODES, isSleepMode, type SleepMode } from '#lib/player/sleep-timer.svelte.js';
 
 	let {
 		src,
@@ -57,10 +62,16 @@
 		playback,
 		theater = false,
 		globalHotkeys = true,
+		basicHotkeys = false,
 		variant = 'video',
 		loop = false,
 		segments = [],
 		onsponsorblocksettings,
+		onloopchange,
+		sleep,
+		sleepLabel,
+		onsleepchange,
+		onshortcuts,
 		ontheatertoggle,
 		ontimeupdate,
 		onprogress,
@@ -88,6 +99,8 @@
 		theater?: boolean;
 		/** Keyboard shortcuts work anywhere on the page, not only while the player has focus. */
 		globalHotkeys?: boolean;
+		/** Play/pause (k) and mute (m) work anywhere on the page, e.g. for the mini player. */
+		basicHotkeys?: boolean;
 		/**
 		 * `short` is portrait with fewer controls that only show while paused, toggles playback on
 		 * any tap, and leaves arrow up/down and j/k to the page for moving between shorts.
@@ -98,6 +111,15 @@
 		segments?: PlayerSegment[];
 		/** Shows a SponsorBlock entry in the settings menu when set. */
 		onsponsorblocksettings?: () => void;
+		/** Shows a loop toggle in the settings menu when set. */
+		onloopchange?: (loop: boolean) => void;
+		/** Shows a sleep timer in the settings menu when `onsleepchange` is set. */
+		sleep?: SleepMode;
+		/** Shown next to the sleep timer entry, e.g. the minutes left. */
+		sleepLabel?: string;
+		onsleepchange?: (mode: SleepMode) => void;
+		/** Shows a keyboard shortcuts entry in the settings menu when set. */
+		onshortcuts?: () => void;
 		/** Shows a theater mode button when set. */
 		ontheatertoggle?: () => void;
 		ontimeupdate?: (currentTime: number, duration: number) => void;
@@ -121,6 +143,25 @@
 
 	const uid = $props.id();
 	const hotkeyTarget = $derived(globalHotkeys ? 'document' : 'player');
+	const basicTarget = $derived(globalHotkeys || basicHotkeys ? 'document' : 'player');
+	// Keys typed in a dialog outside the player, e.g. the shortcuts overlay, stay there.
+	let hotkeysOff = $state(false);
+	$effect(() => {
+		const check = () => (hotkeysOff = shortcutsBlocked(document.activeElement));
+		const later = () => setTimeout(check);
+		document.addEventListener('focusin', check);
+		document.addEventListener('focusout', later);
+		return () => {
+			document.removeEventListener('focusin', check);
+			document.removeEventListener('focusout', later);
+		};
+	});
+
+	function sleepOption(mode: SleepMode) {
+		if (mode === 'off') return m.player_off();
+		if (mode === 'end') return m.player_sleep_end();
+		return m.player_sleep_minutes({ minutes: mode });
+	}
 	const theaterLabel = $derived(theater ? m.player_theater_exit() : m.player_theater_enter());
 	// No CMCD: it would tag every segment request with session data.
 	const PRIVATE_DEFAULTS = {
@@ -949,6 +990,77 @@
 											</template>
 										</media-captions-radio-group>
 									</media-menu-content>
+									{#if onsleepchange}
+										<media-menu-item
+											commandfor="{uid}-sleep"
+											class="media-menu-trigger-item"
+											data-testid="player-sleep"
+										>
+											<MoonIcon
+												class="media-menu-trigger-item-icon oxi-menu-icon"
+												aria-hidden="true"
+											/>
+											<span>{m.player_sleep()}</span>
+											<span class="media-menu-hint">
+												<span class="media-menu-hint-label">
+													{sleepLabel ?? sleepOption(sleep ?? 'off')}
+												</span>
+												<media-icon name="chevron" class="media-menu-forward-chevron"> </media-icon>
+											</span>
+										</media-menu-item>
+										<media-menu-content class="media-menu-content" id="{uid}-sleep">
+											<media-menu-item class="media-menu-back-item">
+												<media-icon name="chevron" class="media-menu-back-chevron"> </media-icon>
+												<span>{m.player_sleep()}</span>
+											</media-menu-item>
+											<media-menu-separator class="media-menu-separator"> </media-menu-separator>
+											<media-menu-radio-group
+												class="media-menu-radio-group"
+												aria-label={m.player_sleep()}
+												value={sleep ?? 'off'}
+												onvalue-change={(event: CustomEvent<{ value: string }>) => {
+													if (isSleepMode(event.detail.value)) onsleepchange(event.detail.value);
+												}}
+											>
+												{#each SLEEP_MODES as mode (mode)}
+													<media-menu-radio-item
+														class="media-menu-radio-item"
+														value={mode}
+														data-testid="player-sleep-{mode}"
+													>
+														<span>{sleepOption(mode)}</span>
+														<media-menu-item-indicator
+															force-mount
+															class="media-menu-item-indicator"
+														>
+															<media-icon name="check" class="media-menu-radio-item-icon">
+															</media-icon>
+														</media-menu-item-indicator>
+													</media-menu-radio-item>
+												{/each}
+											</media-menu-radio-group>
+										</media-menu-content>
+									{/if}
+									{#if onloopchange}
+										<media-menu-checkbox-item
+											class="media-menu-trigger-item oxi-loop-item"
+											data-testid="player-loop"
+											checked={loop}
+											onchecked-change={(event: CustomEvent<{ checked: boolean }>) =>
+												onloopchange(event.detail.checked)}
+										>
+											<RepeatIcon
+												class="media-menu-trigger-item-icon oxi-menu-icon"
+												aria-hidden="true"
+											/>
+											<span>{m.player_loop()}</span>
+											<span class="media-menu-hint">
+												<span class="media-menu-hint-label">
+													{loop ? m.player_on() : m.player_off()}
+												</span>
+											</span>
+										</media-menu-checkbox-item>
+									{/if}
 									{#if onsponsorblocksettings}
 										<media-menu-item
 											class="media-menu-trigger-item oxi-sponsorblock-item"
@@ -958,6 +1070,21 @@
 										>
 											<ShieldCheckIcon class="media-menu-trigger-item-icon" aria-hidden="true" />
 											<span>{m.sponsorblock_title()}</span>
+											<span class="media-menu-hint"></span>
+										</media-menu-item>
+									{/if}
+									{#if onshortcuts}
+										<media-menu-item
+											class="media-menu-trigger-item"
+											data-testid="player-shortcuts"
+											role="menuitem"
+											onselect={onshortcuts}
+										>
+											<KeyboardIcon
+												class="media-menu-trigger-item-icon oxi-menu-icon"
+												aria-hidden="true"
+											/>
+											<span>{m.shortcuts_title()}</span>
 											<span class="media-menu-hint"></span>
 										</media-menu-item>
 									{/if}
@@ -1075,27 +1202,57 @@
 						: undefined}
 				/>
 			{/if}
-			<media-hotkey target={hotkeyTarget} keys="Space" action="togglePaused"> </media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys="Space" action="togglePaused" disabled={hotkeysOff}>
+			</media-hotkey>
 			{#if variant === 'video'}
-				<media-hotkey target={hotkeyTarget} keys="k" action="togglePaused"> </media-hotkey>
+				<media-hotkey target={basicTarget} keys="k" action="togglePaused" disabled={hotkeysOff}>
+				</media-hotkey>
 			{/if}
-			<media-hotkey target={hotkeyTarget} keys="m" action="toggleMuted"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="ArrowRight" action="seekStep"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="ArrowLeft" action="seekStep"> </media-hotkey>
+			<media-hotkey target={basicTarget} keys="m" action="toggleMuted" disabled={hotkeysOff}>
+			</media-hotkey>
+			<media-hotkey
+				target={hotkeyTarget}
+				keys="ArrowRight"
+				action="seekStep"
+				value={5}
+				disabled={hotkeysOff}
+			>
+			</media-hotkey>
+			<media-hotkey
+				target={hotkeyTarget}
+				keys="ArrowLeft"
+				action="seekStep"
+				value={-5}
+				disabled={hotkeysOff}
+			>
+			</media-hotkey>
 			{#if variant === 'video'}
-				<media-hotkey target={hotkeyTarget} keys="l" action="seekStep"> </media-hotkey>
-				<media-hotkey target={hotkeyTarget} keys="j" action="seekStep"> </media-hotkey>
+				<media-hotkey target={hotkeyTarget} keys="l" action="seekStep" disabled={hotkeysOff}>
+				</media-hotkey>
+				<media-hotkey target={hotkeyTarget} keys="j" action="seekStep" disabled={hotkeysOff}>
+				</media-hotkey>
 				<media-hotkey keys="ArrowUp" action="volumeStep"> </media-hotkey>
 				<media-hotkey keys="ArrowDown" action="volumeStep"> </media-hotkey>
 			{/if}
-			<media-hotkey target={hotkeyTarget} keys="0-9" action="seekToPercent"> </media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys="0-9" action="seekToPercent" disabled={hotkeysOff}>
+			</media-hotkey>
 			<media-hotkey keys="Home" action="seekToPercent" value="0"> </media-hotkey>
 			<media-hotkey keys="End" action="seekToPercent" value="100"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys=">" action="speedUp"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="<" action="speedDown"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="f" action="toggleFullscreen"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="c" action="toggleSubtitles"> </media-hotkey>
-			<media-hotkey target={hotkeyTarget} keys="i" action="togglePictureInPicture"> </media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys=">" action="speedUp" disabled={hotkeysOff}>
+			</media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys="<" action="speedDown" disabled={hotkeysOff}>
+			</media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys="f" action="toggleFullscreen" disabled={hotkeysOff}>
+			</media-hotkey>
+			<media-hotkey target={hotkeyTarget} keys="c" action="toggleSubtitles" disabled={hotkeysOff}>
+			</media-hotkey>
+			<media-hotkey
+				target={hotkeyTarget}
+				keys="i"
+				action="togglePictureInPicture"
+				disabled={hotkeysOff}
+			>
+			</media-hotkey>
 			{#if variant === 'short'}
 				<media-gesture type="tap" action="togglePaused"> </media-gesture>
 			{:else}
@@ -1267,7 +1424,8 @@
 		border-radius: 9999px;
 	}
 
-	.oxi-player :global(.oxi-sponsorblock-item svg) {
+	.oxi-player :global(.oxi-sponsorblock-item svg),
+	.oxi-player :global(.oxi-menu-icon) {
 		width: 1.125rem;
 		height: 1.125rem;
 	}

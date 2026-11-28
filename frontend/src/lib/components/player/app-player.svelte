@@ -14,6 +14,16 @@
 	import MiniPlayerBar from './mini-player-bar.svelte';
 	import MiniPlayerOverlay from './mini-player-overlay.svelte';
 	import Player from './player.svelte';
+	import ShortcutsDialog from './shortcuts-dialog.svelte';
+	import { matchShortcut } from '#lib/player/shortcuts.js';
+	import {
+		positionState,
+		setSessionActions,
+		setSessionMedia,
+		setSessionPlaying,
+		setSessionPosition
+	} from '#lib/player/media-session.js';
+	import type { SleepMode } from '#lib/player/sleep-timer.svelte.js';
 
 	let { media }: { media: PlayerMedia } = $props();
 
@@ -32,6 +42,11 @@
 		// The dialog cannot show above a fullscreen player.
 		if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
 		sponsorBlockOpen = true;
+	}
+
+	async function openShortcuts() {
+		if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+		appPlayer.shortcutsOpen = true;
 	}
 
 	// Shorts bring their own player, so this one waits out of sight. A party's video plays on
@@ -103,11 +118,111 @@
 	function ended() {
 		appPlayer.paused = true;
 		media.events?.onended?.();
-		if (!appPlayer.claim) appPlayer.ended = !appPlayer.next();
+		if (appPlayer.claim) return;
+		appPlayer.ended = appPlayer.sleep.ended() || !appPlayer.next();
+	}
+
+	// Loop and sleep timer would act for everyone in a party, so it has neither.
+	function setLoop(on: boolean) {
+		appPlayer.loop = on;
+		if (on && appPlayer.sleep.mode === 'end') appPlayer.sleep.set('off');
+	}
+
+	function setSleep(mode: SleepMode) {
+		appPlayer.sleep.set(mode);
+		if (mode === 'end') appPlayer.loop = false;
+	}
+
+	let now = $state(Date.now());
+	$effect(() => {
+		if (appPlayer.sleep.deadline === null) return;
+		now = Date.now();
+		const timer = setInterval(() => (now = Date.now()), 15_000);
+		return () => clearInterval(timer);
+	});
+	const sleepLabel = $derived.by(() => {
+		const deadline = appPlayer.sleep.deadline;
+		if (deadline === null) return undefined;
+		const minutes = Math.max(1, Math.ceil((deadline - now) / 60_000));
+		return m.player_sleep_minutes({ minutes });
+	});
+
+	// Shift+N, Shift+P and ? on the watch page; the player handles the other keys.
+	$effect(() => {
+		const onkeydown = (event: KeyboardEvent) => {
+			if (mode !== 'inline') return;
+			const shortcut = matchShortcut(event);
+			if (shortcut === 'help') {
+				event.preventDefault();
+				void openShortcuts();
+			} else if (shortcut === 'next' && appPlayer.hasNext) {
+				event.preventDefault();
+				appPlayer.next();
+			} else if (shortcut === 'previous' && appPlayer.hasPrevious) {
+				event.preventDefault();
+				appPlayer.previous();
+			}
+		};
+		document.addEventListener('keydown', onkeydown);
+		return () => document.removeEventListener('keydown', onkeydown);
+	});
+
+	// Lock screen and media keys. In a party, play and pause go through its sync like any other
+	// input; members who may not control it are snapped back, so they get no seeking.
+	const mediaSession = $derived(mode !== 'hidden' && !silenced && !media.problem);
+	$effect(() => {
+		if (!mediaSession) return;
+		setSessionMedia({ title: media.title, artist: media.channel?.name, artwork: media.poster });
+		return () => setSessionMedia(null);
+	});
+	$effect(() => {
+		if (!mediaSession) return;
+		const mayControl = appPlayer.claim?.mayControl?.() ?? true;
+		setSessionActions({
+			play: () => appPlayer.play(),
+			pause: () => appPlayer.pause(),
+			seekTo: mayControl ? (seconds) => appPlayer.setTime(seconds) : undefined,
+			position: () => appPlayer.position(),
+			next: appPlayer.hasNext ? () => appPlayer.next() : undefined,
+			previous: appPlayer.hasPrevious ? () => appPlayer.previous() : undefined
+		});
+		return () => setSessionActions(null);
+	});
+	$effect(() => {
+		if (!mediaSession) return;
+		setSessionPlaying(!appPlayer.paused);
+		return () => setSessionPlaying(null);
+	});
+
+	let reported = { at: 0, position: 0, rate: 1, duration: -1 };
+	// Play, pause and seeks change what the system extrapolates, so the next update is sent.
+	const resetPosition = () => (reported.duration = -1);
+	$effect(() => {
+		void appPlayer.generation;
+		resetPosition();
+		return () => setSessionPosition(null);
+	});
+	/** Position for the system's progress bar, sent when it differs from what it extrapolates. */
+	function reportPosition(position: number, duration: number) {
+		if (!mediaSession) return;
+		const rate = appPlayer.mediaElement()?.playbackRate ?? 1;
+		const at = performance.now();
+		const moving = appPlayer.paused ? 0 : reported.rate;
+		const expected = reported.position + ((at - reported.at) / 1000) * moving;
+		if (
+			duration === reported.duration &&
+			rate === reported.rate &&
+			Math.abs(expected - position) < 1
+		) {
+			return;
+		}
+		reported = { at, position, rate, duration };
+		setSessionPosition(positionState(position, duration, rate));
 	}
 </script>
 
 <SponsorBlockDialog bind:open={sponsorBlockOpen} />
+<ShortcutsDialog bind:open={appPlayer.shortcutsOpen} />
 
 <div
 	bind:this={host}
@@ -143,6 +258,13 @@
 					playback={media.playback}
 					theater={options.theater ?? false}
 					globalHotkeys={mode === 'inline'}
+					basicHotkeys={mode === 'mini'}
+					loop={appPlayer.loop}
+					onloopchange={appPlayer.claim ? undefined : setLoop}
+					sleep={appPlayer.sleep.mode}
+					{sleepLabel}
+					onsleepchange={appPlayer.claim ? undefined : setSleep}
+					onshortcuts={openShortcuts}
 					autoplay={media.autoplay ?? true}
 					{segments}
 					externalRate={media.externalRate}
@@ -150,16 +272,24 @@
 					ontheatertoggle={options.ontheatertoggle}
 					onprogress={media.trackProgress === false ? undefined : reportProgress(media.videoId)}
 					onplay={(time) => {
+						resetPosition();
 						appPlayer.paused = false;
 						appPlayer.ended = false;
 						media.events?.onplay?.(time);
 					}}
 					onpause={(time) => {
+						resetPosition();
 						appPlayer.paused = true;
 						media.events?.onpause?.(time);
 					}}
-					onseeked={media.events?.onseeked}
-					ontimeupdate={media.events?.ontimeupdate}
+					onseeked={(time) => {
+						resetPosition();
+						media.events?.onseeked?.(time);
+					}}
+					ontimeupdate={(time, duration) => {
+						reportPosition(time, duration);
+						media.events?.ontimeupdate?.(time, duration);
+					}}
 					onended={ended}
 					{silenced}
 				/>
