@@ -1787,6 +1787,10 @@ export interface components {
             /** @enum {string} */
             type: "state";
         } | {
+            entries: components["schemas"]["QueueEntry"][];
+            /** @enum {string} */
+            type: "history";
+        } | {
             /**
              * Format: int64
              * @description Milliseconds since the Unix epoch.

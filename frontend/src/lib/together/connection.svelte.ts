@@ -41,6 +41,8 @@ export function socketUrl(roomId: string, location: Location = window.location):
 export class RoomConnection {
 	status = $state<ConnectionStatus>('connecting');
 	room = $state<RoomState | null>(null);
+	/** Played entries, newest first. */
+	history = $state.raw<RoomQueueEntry[]>([]);
 	participantId = $state<string | null>(null);
 	isOwner = $state(false);
 	/** The last error the server reported for something this client sent. */
@@ -152,6 +154,9 @@ export class RoomConnection {
 				break;
 			case 'state':
 				if (!this.room || message.room.revision >= this.room.revision) this.room = message.room;
+				break;
+			case 'history':
+				this.history = message.entries;
 				break;
 			case 'added':
 				this.lastAdded = {

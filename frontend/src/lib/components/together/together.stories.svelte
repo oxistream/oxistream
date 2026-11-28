@@ -4,6 +4,7 @@
 	import { mockVideos } from '#lib/mocks/videos.js';
 	import JoinForm from './join-form.svelte';
 	import PartyElsewhere from './party-elsewhere.svelte';
+	import PartyHistory from './party-history.svelte';
 	import PartyMembers from './party-members.svelte';
 	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyPick from './party-pick.svelte';
@@ -41,6 +42,17 @@
 <Story name="Queue empty" asChild>
 	<div class="max-w-sm">
 		<PartyQueue queue={[]} />
+	</div>
+</Story>
+
+<Story name="History" asChild>
+	<div class="max-w-sm">
+		<PartyHistory
+			history={mockRoomQueue}
+			queued={new Set([mockRoomQueue[0].video.id])}
+			onplay={() => {}}
+			onqueue={() => {}}
+		/>
 	</div>
 </Story>
 

@@ -27,7 +27,7 @@
 	<Sheet.Root bind:open={party.sheetOpen}>
 		<Sheet.Content
 			side="right"
-			class="gap-0 bg-sidebar p-0 text-sidebar-foreground"
+			class="gap-0 bg-sidebar p-0 text-sidebar-foreground data-[side=right]:w-[calc(100%-2rem)]"
 			data-testid="party-sheet"
 		>
 			<PartyPanel open={party.sheetOpen} dialog onclose={() => (party.sheetOpen = false)} />

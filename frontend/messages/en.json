@@ -745,6 +745,8 @@
 	"party_autoplay": "Autoplay",
 	"party_autoplay_added": "Added by autoplay",
 	"party_up_next": "Up next",
+	"party_history": "History",
+	"party_history_empty": "Nothing played yet.",
 	"party_progress": "Playback position",
 	"party_ok": "OK",
 	"queue_heading": "Up next",
