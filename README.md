@@ -36,7 +36,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open `http://localhost:8080` and register. The first account becomes the admin.
+Open `http://localhost:8080` and register. The first local account becomes the admin.
 
 ## Documentation
 

@@ -18,15 +18,15 @@ Rules:
 
 !!! tip "SSO-only instances"
 
-    With local accounts off and OIDC on, the instance is SSO-only.
+    With local accounts off and OIDC on, the instance is SSO-only. It then needs `OXISTREAM_OIDC_ADMIN_GROUP`, or the server does not start, see [admin role from groups](#admin-role-from-groups).
 
 ## First admin
 
-The first account to be created becomes admin, whether it registers locally or signs in through OIDC for the first time. A table lock prevents two first users.
+The first local account to register becomes admin, if no other account exists yet. A table lock prevents two first users. Accounts created through OIDC never become admin this way, their role comes from the [admin group](#admin-role-from-groups).
 
 !!! warning "Register right after the first start"
 
-    On an instance others can reach, anyone who registers first becomes the admin.
+    On an instance others can reach, anyone who registers first becomes the admin. An SSO sign-in also creates an account, so register the local admin before anyone signs in through SSO.
 
 Admins manage other users in the [admin pages](../administration/index.md).
 
@@ -90,7 +90,7 @@ Without it (the default), anonymous visitors can search, watch and join parties.
     2.  The exact issuer from the provider's discovery document. Setting the issuer and the client ID enables OIDC.
     3.  Omit it for public clients.
     4.  The button reads "Sign in with Example ID".
-    5.  Optional. Members become admins, everyone else becomes a user, on every sign-in. See [admin role from groups](#admin-role-from-groups).
+    5.  Members become admins, everyone else becomes a user, on every sign-in. Required when local accounts are off. See [admin role from groups](#admin-role-from-groups).
 
 All OIDC variables are listed in [Configuration](../configuration.md#oidc).
 
@@ -108,9 +108,12 @@ Discovery runs in the background and retries with backoff (1 s, doubling up to 1
 
 ### Admin role from groups
 
-With `OXISTREAM_OIDC_ADMIN_GROUP` set, the role is synced on every sign-in. Members of the group become admin, everyone else becomes a user. The groups are read from `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`) in the ID token, or from userinfo if the claim is missing there. Dotted paths reach nested claims.
+OIDC users become admins only through the identity provider, never by being the first account.
 
-The last active admin is never demoted by sync. Without an admin group, roles are managed only in the admin pages. With one, sync overrides changes made there on the user's next sign-in.
+- With `OXISTREAM_OIDC_ADMIN_GROUP` set, the role is synced on every sign-in. Members of the group become admin, everyone else becomes a user. The provider decides: sync also demotes the last admin, and it overrides changes made in the admin pages on the user's next sign-in.
+- Without it, OIDC users are created as users and their role is never synced. Admins promote them in the [admin pages](../administration/index.md), and that sticks. The first admin is then a local account, so with `OXISTREAM_AUTH_LOCAL_ENABLED=false` the admin group is required and the server does not start without it.
+
+The groups are read from `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`) in the ID token, or from userinfo if the claim is missing there. Dotted paths reach nested claims.
 
 !!! warning "Exact match"
 

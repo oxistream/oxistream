@@ -58,7 +58,7 @@ OIDC is enabled when both `OXISTREAM_OIDC_ISSUER` and `OXISTREAM_OIDC_CLIENT_ID`
 | `OXISTREAM_OIDC_CLIENT_SECRET` | – | no | Client secret. Omit it for public clients. |
 | `OXISTREAM_OIDC_SCOPES` | `openid profile email` | no | Space-separated scopes. `openid` is always added. |
 | `OXISTREAM_OIDC_NAME` | `SSO` | no | Label of the sign-in button ("Sign in with …"). |
-| `OXISTREAM_OIDC_ADMIN_GROUP` | – | no | Members of this group are admins. Must match a claim value exactly. When unset, roles are not synced. |
+| `OXISTREAM_OIDC_ADMIN_GROUP` | – | without local accounts | Members of this group are admins, everyone else is a user, synced on every sign-in. Must match a claim value exactly. When unset, OIDC users are created as users and their role is not synced. Required when `OXISTREAM_AUTH_LOCAL_ENABLED=false`. |
 | `OXISTREAM_OIDC_GROUPS_CLAIM` | `groups` | no | Claim that holds the groups. Dotted paths such as `realm_access.roles` work. |
 
 ## YouTube

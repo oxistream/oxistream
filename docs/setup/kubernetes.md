@@ -20,7 +20,7 @@ helm install oxistream oci://ghcr.io/OWNER/charts/oxistream --version X.Y.Z \
   --set image.repository=ghcr.io/OWNER/oxistream ...
 ```
 
-`image.repository` is required. The image tag defaults to the chart's `appVersion`. Migrations run at startup. The first account to register becomes admin.
+`image.repository` is required. The image tag defaults to the chart's `appVersion`. Migrations run at startup. The first local account to register becomes admin.
 
 ## With CloudNativePG
 
