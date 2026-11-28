@@ -29,6 +29,8 @@ docker run -p 8080:8080 \
 
 `OXISTREAM_DATABASE_URL` and `OXISTREAM_PROXY_SECRET` (at least 32 characters, shared across replicas) are required. Set `OXISTREAM_PUBLIC_URL` behind a reverse proxy, and `OXISTREAM_COOKIE_SECURE=false` only for plain-HTTP testing. The image runs as a non-root user on distroless without a shell, so there is no `HEALTHCHECK`; probe `/healthz` (liveness) and `/readyz` (database and OIDC discovery) instead. `/var/lib/oxistream` holds RustyPipe's client cache and may be mounted as a volume.
 
+For a ready-made setup with PostgreSQL, see [`deploy/compose`](deploy/compose/README.md).
+
 ## License
 
 [AGPL-3.0-or-later](LICENSE)
