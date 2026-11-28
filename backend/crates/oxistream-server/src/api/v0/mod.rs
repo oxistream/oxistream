@@ -9,6 +9,7 @@ use crate::AppState;
 use crate::retention::Retention;
 
 mod account;
+mod admin;
 mod auth;
 mod blocks;
 mod cursor;
@@ -51,6 +52,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(settings::router())
         .merge(feed_token::router())
         .merge(account::router())
+        .merge(admin::router())
         .merge(shorts::router())
         .merge(rooms::router())
 }

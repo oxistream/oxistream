@@ -19,6 +19,7 @@ mod rooms;
 mod sessions;
 mod settings;
 mod sponsorblock;
+mod stats;
 mod subscriptions;
 mod users;
 mod videos;
@@ -59,14 +60,15 @@ pub use settings::{
     PgUserSettingsRepository, SettingsUpdate, UserSettings, UserSettingsRepository,
 };
 pub use sponsorblock::{PgSponsorBlockSettingsRepository, SponsorBlockSettingsRepository};
+pub use stats::{InstanceCounts, PgStatsRepository, StatsRepository};
 pub use subscriptions::{
     Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
     FeedKind, FeedStatus, FeedVideo, Image, ImportedChannel, PgChannelRepository,
     PgSubscriptionRepository, Subscription, SubscriptionRepository,
 };
 pub use users::{
-    DeleteOutcome, Identity, NewUser, PgUserRepository, Role, User, UserCredentials,
-    UserRepository, UsernameCandidates,
+    AdminUpdate, DeleteOutcome, Identity, NewUser, PgUserRepository, Role, User, UserCredentials,
+    UserListQuery, UserOverview, UserPage, UserRepository, UsernameCandidates,
 };
 pub use uuid::Uuid;
 pub use videos::{PgVideoRepository, Video, VideoRepository, VideoUpsert};

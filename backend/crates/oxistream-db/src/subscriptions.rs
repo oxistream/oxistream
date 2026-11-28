@@ -223,6 +223,9 @@ pub trait ChannelRepository: Send + Sync {
     async fn prune_unsubscribed(&self) -> Result<u64, Error>;
 
     async fn status(&self) -> Result<FeedStatus, Error>;
+
+    /// Subscribed channels not checked since `checked_before`.
+    async fn due_count(&self, checked_before: OffsetDateTime) -> Result<i64, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -535,6 +538,17 @@ impl ChannelRepository for PgChannelRepository {
              FROM channels c \
              WHERE EXISTS (SELECT 1 FROM subscriptions s WHERE s.channel_id = c.id)",
         )
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
+    async fn due_count(&self, checked_before: OffsetDateTime) -> Result<i64, Error> {
+        Ok(sqlx::query_scalar(
+            "SELECT count(*) FROM channels c \
+             WHERE EXISTS (SELECT 1 FROM subscriptions s WHERE s.channel_id = c.id) \
+                AND (c.checked_at IS NULL OR c.checked_at < $1)",
+        )
+        .bind(checked_before)
         .fetch_one(&self.pool)
         .await?)
     }
