@@ -89,6 +89,12 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
   - ENV: `OXISTREAM_AUTH_LOCAL_ENABLED`, `OXISTREAM_REGISTRATION_ENABLED` (both default `true`), `OXISTREAM_COOKIE_SECURE` (default `true`, `false` only for plain-HTTP dev).
 - `OXISTREAM_REQUIRE_LOGIN` (default `false`): anonymous users may search and watch. Subscriptions, playlists and history need an account; anonymous progress lives in localStorage.
 
+### Admin
+
+- `/api/v0/admin/*` via the `AdminUser` extractor: 401 anonymous, 403 (`forbidden`) for non-admins. Frontend `/admin` (users) and `/admin/status`; the sidebar entry shows for admins only.
+- Users: paginated list (`q`, `limit`, `offset`; newest first) with auth method, last seen (latest session), subscription count. `PATCH /admin/users/{id}` sets `role` / `disabled`, `DELETE` reuses the account deletion. Admins cannot change their own account there (409 `own_account`); the last active admin is never demoted or disabled (409 `last_admin`, under the users table lock). Disabling ends all sessions. OIDC group sync may change the role again on next sign-in.
+- Status: version (+ `OXISTREAM_GIT_SHA` at build time), uptime, DB reachability and version, counts, feed worker (lock held anywhere = running; due/pending/failing; last run of this replica's worker), player cache entries, botguard, auth/OIDC discovery, SponsorBlock, trending region, rate limiting.
+
 ### Watch history
 
 - `GET /api/v0/history?q=` searches title and channel name (case-insensitive substring, `LIKE` wildcards escaped), same pagination; the UI debounces and keeps `?q=` in the URL.
