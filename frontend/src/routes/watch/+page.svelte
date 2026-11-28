@@ -39,6 +39,7 @@
 	import RelatedVideos from '#lib/components/watch/related-videos.svelte';
 	import VideoDetailsSkeleton from '#lib/components/watch/video-details-skeleton.svelte';
 	import VideoDetails from '#lib/components/watch/video-details.svelte';
+	import WatchPanel from '#lib/components/watch/watch-panel.svelte';
 	import { videoPoster, watchMedia } from '#lib/components/watch/watch-media.js';
 	import UpNext from '#lib/components/queue/up-next.svelte';
 	import { createSettingsQuery, playbackPreferences } from '#lib/api/settings.js';
@@ -173,6 +174,11 @@
 
 	// The app-wide player keeps playing across pages; this page only loads it for a new video.
 	const playing = $derived(videoId !== null && appPlayer.media?.videoId === videoId);
+	/**
+	 * Chapters and transcript seek like the player: in a party only for members who may control
+	 * it, since others would be snapped back.
+	 */
+	const canSeek = $derived(playing && (!party.active || party.canControl));
 	/**
 	 * The party holds the player and plays another video (or none yet), so this page cannot
 	 * load its own; the party's video goes on in the mini player.
@@ -355,6 +361,14 @@
 			{/if}
 
 			<div class="watch-side">
+				{#if details}
+					<WatchPanel
+						video={details}
+						time={playing ? appPlayer.time : null}
+						showing={playing ? appPlayer.captions : null}
+						onseek={canSeek ? (seconds) => appPlayer.seek(seconds) : undefined}
+					/>
+				{/if}
 				{#if !party.active && appPlayer.queue.length > 0}
 					<UpNext />
 				{/if}

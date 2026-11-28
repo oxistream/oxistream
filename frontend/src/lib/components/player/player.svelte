@@ -5,6 +5,8 @@
 		label: string;
 		url: string;
 	};
+
+	export type PlayerChapter = { start: number; end?: number; title: string };
 </script>
 
 <script lang="ts">
@@ -55,6 +57,7 @@
 		src,
 		poster,
 		subtitles = [],
+		chapters = [],
 		storyboard,
 		startTime = 0,
 		autoplay = false,
@@ -79,6 +82,7 @@
 		onplay,
 		onpause,
 		onseeked,
+		oncaptionschange,
 		externalRate = false,
 		silenced = false,
 		class: className
@@ -87,6 +91,8 @@
 		src: string;
 		poster?: string;
 		subtitles?: PlayerSubtitle[];
+		/** Shown on the progress bar. */
+		chapters?: PlayerChapter[];
 		/** WebVTT thumbnails track for seek previews. */
 		storyboard?: string;
 		/** Seconds to start from, e.g. from `?t=`; a function is read once the media can seek. */
@@ -131,6 +137,8 @@
 		onplay?: (currentTime: number) => void;
 		onpause?: (currentTime: number) => void;
 		onseeked?: (currentTime: number) => void;
+		/** The `id` of the subtitles showing, or `null` with captions off. */
+		oncaptionschange?: (id: string | null) => void;
 		/**
 		 * The speed is set with `setRate`, e.g. to stay in sync in a watch room: the saved speed is
 		 * neither applied nor overwritten, and the speed menu is hidden.
@@ -272,6 +280,20 @@
 		if (!lastSkip) return;
 		const timer = setTimeout(() => (lastSkip = null), SKIPPED_NOTICE_MS);
 		return () => clearTimeout(timer);
+	});
+
+	// Video.js splits the progress bar at chapter cues and names the chapter under the pointer.
+	$effect(() => {
+		if (!chapters.length) return;
+		const track = player.store.addTextTrack({
+			kind: 'chapters',
+			cues: chapters.map((c) => ({
+				startTime: c.start,
+				endTime: c.end !== undefined && Number.isFinite(c.end) ? c.end : undefined,
+				text: c.title
+			}))
+		});
+		return () => track.remove();
 	});
 
 	/** Jumps to `seconds` and keeps playing, as when a timestamp in the description is clicked. */
@@ -416,6 +438,20 @@
 			}
 		};
 
+		let captions: string | null = null;
+		const reportCaptions = () => {
+			const showing = selectTextTrack(store.state)?.textTrackList.find(
+				(t) => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing'
+			);
+			const id = showing
+				? (subtitles.find((s) => s.label === showing.label && s.lang === showing.language)?.id ??
+					null)
+				: null;
+			if (id === captions) return;
+			captions = id;
+			oncaptionschange?.(id);
+		};
+
 		const unbridgeAudio = bridgeDashAudioTracks(media as unknown as AudioTrackHost);
 		const unsubscribe = store.subscribe(() => {
 			paused = selectPlayback(store.state)?.paused ?? true;
@@ -424,6 +460,7 @@
 			restoreCaptions();
 			applyDefaultQuality();
 			persist();
+			reportCaptions();
 		});
 
 		// Loading media resets the playback rate, so rate and start time wait for the metadata.

@@ -253,6 +253,7 @@
 					src={manifestUrl(media.videoId)}
 					poster={media.poster}
 					subtitles={media.subtitles}
+					chapters={media.chapters}
 					storyboard={media.storyboard}
 					startTime={media.startTime ?? 0}
 					playback={media.playback}
@@ -284,9 +285,12 @@
 					}}
 					onseeked={(time) => {
 						resetPosition();
+						appPlayer.time = time;
 						media.events?.onseeked?.(time);
 					}}
+					oncaptionschange={(id) => (appPlayer.captions = id)}
 					ontimeupdate={(time, duration) => {
+						appPlayer.time = time;
 						reportPosition(time, duration);
 						media.events?.ontimeupdate?.(time, duration);
 					}}
