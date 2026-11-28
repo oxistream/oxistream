@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use std::time::Duration;
 
-use sqlx::PgPool;
-use sqlx::postgres::{PgListener, PgNotification};
+use sqlx::postgres::{PgListener, PgNotification, PgRow};
+use sqlx::{PgPool, Row};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -9,6 +10,8 @@ use crate::{Error, Video, VideoUpsert};
 
 /// Notifications carry the ID of a room that changed or was deleted.
 pub const ROOM_CHANNEL: &str = "watch_rooms";
+/// Notifications carry a participant's new status.
+pub const STATUS_CHANNEL: &str = "watch_room_status";
 /// Played entries a room keeps as its history.
 pub const MAX_HISTORY: i64 = 100;
 
@@ -48,7 +51,59 @@ pub struct RoomEntry {
     pub video: Video,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+/// How well a participant's player keeps up with the room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncState {
+    Synced,
+    Buffering,
+    Behind,
+}
+
+/// Where a participant is in the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// On the watch page of the room's video.
+    Watching,
+    Browsing,
+    Shorts,
+}
+
+macro_rules! text_enum {
+    ($ty:ident { $($variant:ident => $text:literal),+ $(,)? }) => {
+        impl $ty {
+            pub fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $text),+
+                }
+            }
+        }
+
+        impl FromStr for $ty {
+            type Err = String;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s {
+                    $($text => Ok(Self::$variant),)+
+                    _ => Err(format!("unknown {} {s:?}", stringify!($ty))),
+                }
+            }
+        }
+    };
+}
+
+text_enum!(SyncState { Synced => "synced", Buffering => "buffering", Behind => "behind" });
+text_enum!(Place { Watching => "watching", Browsing => "browsing", Shorts => "shorts" });
+
+/// What a participant last reported about itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ParticipantStatus {
+    pub sync: Option<SyncState>,
+    pub place: Option<Place>,
+    /// Grows with every change, so the newest of several copies wins.
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Participant {
     pub id: Uuid,
     /// `u:<user id>` or `g:<hash of the guest key>`.
@@ -56,6 +111,34 @@ pub struct Participant {
     pub user_id: Option<Uuid>,
     pub display_name: String,
     pub joined_at: OffsetDateTime,
+    pub status: ParticipantStatus,
+}
+
+fn text_column<T: FromStr<Err = String>>(row: &PgRow, column: &str) -> sqlx::Result<Option<T>> {
+    row.try_get::<Option<String>, _>(column)?
+        .map(|text| text.parse())
+        .transpose()
+        .map_err(|err: String| sqlx::Error::ColumnDecode {
+            index: column.into(),
+            source: err.into(),
+        })
+}
+
+impl sqlx::FromRow<'_, PgRow> for Participant {
+    fn from_row(row: &PgRow) -> sqlx::Result<Self> {
+        Ok(Self {
+            id: row.try_get("id")?,
+            key: row.try_get("key")?,
+            user_id: row.try_get("user_id")?,
+            display_name: row.try_get("display_name")?,
+            joined_at: row.try_get("joined_at")?,
+            status: ParticipantStatus {
+                sync: text_column(row, "sync")?,
+                place: text_column(row, "place")?,
+                revision: row.try_get("status_revision")?,
+            },
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,6 +299,15 @@ pub trait RoomRepository: Send + Sync {
     ) -> Result<JoinOutcome, Error>;
 
     async fn leave(&self, participant_id: Uuid) -> Result<(), Error>;
+
+    /// Stores what a participant reports about itself, if it changed, and tells all replicas.
+    /// Neither the room's revision nor its activity change.
+    async fn set_status(
+        &self,
+        participant_id: Uuid,
+        sync: Option<SyncState>,
+        place: Option<Place>,
+    ) -> Result<(), Error>;
 
     /// Keeps participants and their rooms from being cleaned up.
     async fn heartbeat(&self, participants: &[Uuid], rooms: &[String]) -> Result<(), Error>;
@@ -830,7 +922,8 @@ impl RoomRepository for PgRoomRepository {
         .fetch_all(&mut *tx)
         .await?;
         let participants = sqlx::query_as::<_, Participant>(
-            "SELECT id, key, user_id, display_name, joined_at FROM watch_room_participants \
+            "SELECT id, key, user_id, display_name, joined_at, sync, place, status_revision \
+             FROM watch_room_participants \
              WHERE room_id = $1 ORDER BY joined_at, id",
         )
         .bind(id)
@@ -943,6 +1036,25 @@ impl RoomRepository for PgRoomRepository {
         Ok(())
     }
 
+    async fn set_status(
+        &self,
+        participant_id: Uuid,
+        sync: Option<SyncState>,
+        place: Option<Place>,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "UPDATE watch_room_participants \
+             SET sync = $2, place = $3, status_revision = status_revision + 1 \
+             WHERE id = $1 AND (sync IS DISTINCT FROM $2 OR place IS DISTINCT FROM $3)",
+        )
+        .bind(participant_id)
+        .bind(sync.map(SyncState::as_str))
+        .bind(place.map(Place::as_str))
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn heartbeat(&self, participants: &[Uuid], rooms: &[String]) -> Result<(), Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("UPDATE watch_room_participants SET seen_at = now() WHERE id = ANY($1)")
@@ -1001,6 +1113,12 @@ impl RoomRepository for PgRoomRepository {
 pub enum RoomEvent {
     /// The room changed or was deleted.
     Changed(String),
+    /// A participant of the room reported a new status.
+    Status {
+        room: String,
+        participant: Uuid,
+        status: ParticipantStatus,
+    },
     /// The connection was lost and re-established; notifications may have been missed.
     Reconnected,
 }
@@ -1013,23 +1131,99 @@ pub struct RoomListener {
 impl RoomListener {
     pub async fn connect(pool: &PgPool) -> Result<Self, Error> {
         let mut listener = PgListener::connect_with(pool).await?;
-        listener.listen(ROOM_CHANNEL).await?;
+        listener.listen_all([ROOM_CHANNEL, STATUS_CHANNEL]).await?;
         Ok(Self { listener })
     }
 
     pub async fn recv(&mut self) -> Result<RoomEvent, Error> {
-        Ok(match self.listener.try_recv().await? {
-            Some(notification) => event(&notification),
-            None => RoomEvent::Reconnected,
-        })
+        loop {
+            let Some(notification) = self.listener.try_recv().await? else {
+                return Ok(RoomEvent::Reconnected);
+            };
+            if let Some(event) = event(&notification) {
+                return Ok(event);
+            }
+        }
     }
 
     /// An event already received, without waiting.
     pub fn next_buffered(&mut self) -> Option<RoomEvent> {
-        self.listener.next_buffered().map(|n| event(&n))
+        while let Some(notification) = self.listener.next_buffered() {
+            if let Some(event) = event(&notification) {
+                return Some(event);
+            }
+        }
+        None
     }
 }
 
-fn event(notification: &PgNotification) -> RoomEvent {
-    RoomEvent::Changed(notification.payload().to_owned())
+fn event(notification: &PgNotification) -> Option<RoomEvent> {
+    let payload = notification.payload();
+    if notification.channel() == STATUS_CHANNEL {
+        parse_status(payload)
+    } else {
+        Some(RoomEvent::Changed(payload.to_owned()))
+    }
+}
+
+/// Parses `<room> <participant> <revision> <sync or -> <place or ->`.
+fn parse_status(payload: &str) -> Option<RoomEvent> {
+    fn optional<T: FromStr>(part: &str) -> Result<Option<T>, T::Err> {
+        (part != "-").then(|| part.parse()).transpose()
+    }
+    let mut parts = payload.split(' ');
+    let room = parts.next()?.to_owned();
+    let participant = parts.next()?.parse().ok()?;
+    let revision = parts.next()?.parse().ok()?;
+    let sync = optional(parts.next()?).ok()?;
+    let place = optional(parts.next()?).ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(RoomEvent::Status {
+        room,
+        participant,
+        status: ParticipantStatus {
+            sync,
+            place,
+            revision,
+        },
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_payloads_parse() {
+        let id = Uuid::from_u128(7);
+        assert_eq!(
+            parse_status(&format!("room {id} 3 behind shorts")),
+            Some(RoomEvent::Status {
+                room: "room".into(),
+                participant: id,
+                status: ParticipantStatus {
+                    sync: Some(SyncState::Behind),
+                    place: Some(Place::Shorts),
+                    revision: 3,
+                },
+            })
+        );
+        assert_eq!(
+            parse_status(&format!("room {id} 1 - watching")),
+            Some(RoomEvent::Status {
+                room: "room".into(),
+                participant: id,
+                status: ParticipantStatus {
+                    sync: None,
+                    place: Some(Place::Watching),
+                    revision: 1,
+                },
+            })
+        );
+        assert_eq!(parse_status(&format!("room {id} 1 lost watching")), None);
+        assert_eq!(parse_status(&format!("room {id} 1 - - extra")), None);
+        assert_eq!(parse_status("room nope 1 - -"), None);
+    }
 }

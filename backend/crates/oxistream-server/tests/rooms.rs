@@ -14,9 +14,10 @@ use tower::ServiceExt;
 use common::{isolated_test_pool, state_with_pool, unique_suffix};
 use futures_util::{SinkExt, StreamExt};
 use oxistream_db::{
-    Error, JoinOutcome, NewParticipant, NewSession, NewUser, OpOutcome, PgPool, PgRoomRepository,
-    PgSessionRepository, PgUserRepository, PgVideoRepository, RoomOp, RoomRepository,
-    SessionRepository, User, UserRepository, Uuid, VideoRepository, VideoUpsert,
+    Error, JoinOutcome, NewParticipant, NewSession, NewUser, OpOutcome, ParticipantStatus, PgPool,
+    PgRoomRepository, PgSessionRepository, PgUserRepository, PgVideoRepository, Place, RoomOp,
+    RoomRepository, SessionRepository, SyncState, User, UserRepository, Uuid, VideoRepository,
+    VideoUpsert,
 };
 use oxistream_server::auth::cookie;
 use oxistream_server::rooms::{RelatedSource, Rooms};
@@ -1196,4 +1197,127 @@ async fn sockets_send_the_history_only_when_it_changes() {
     .await
     .unwrap();
     assert_eq!(next["type"], "state");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn statuses_change_without_a_new_revision() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    repo.create(owner.id, ROOM, None, 10).await.unwrap();
+    let a = guest("g:a");
+    repo.join(ROOM, &a, 10).await.unwrap();
+    let revision = repo.get(ROOM).await.unwrap().unwrap().revision;
+    let status = |s: &oxistream_db::RoomSnapshot| s.participants[0].status;
+    assert_eq!(
+        status(&repo.snapshot(ROOM).await.unwrap().unwrap()),
+        ParticipantStatus::default()
+    );
+
+    repo.set_status(a.id, Some(SyncState::Buffering), Some(Place::Shorts))
+        .await
+        .unwrap();
+    // A repeat changes nothing.
+    repo.set_status(a.id, Some(SyncState::Buffering), Some(Place::Shorts))
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(
+        status(&s),
+        ParticipantStatus {
+            sync: Some(SyncState::Buffering),
+            place: Some(Place::Shorts),
+            revision: 1,
+        }
+    );
+    repo.set_status(a.id, None, Some(Place::Browsing))
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(
+        status(&s),
+        ParticipantStatus {
+            sync: None,
+            place: Some(Place::Browsing),
+            revision: 2,
+        }
+    );
+    assert_eq!(s.room.revision, revision);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn statuses_reach_other_replicas_coalesced() {
+    let db = isolated_test_pool().await;
+    cache_videos(&db.pool).await;
+    let owner = user(&db.pool).await;
+    let token = session(&db.pool, &owner).await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    repo.create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 10)
+        .await
+        .unwrap();
+    let (_, a) = replica(&db.pool).await;
+    let (_, b) = replica(&db.pool).await;
+
+    let mut host = connect(&a, ROOM, Some(&token)).await;
+    send(&mut host, json!({ "type": "join" })).await;
+    expect(&mut host, "welcome").await;
+    let mut guest = connect(&b, ROOM, None).await;
+    send(
+        &mut guest,
+        json!({ "type": "join", "name": "Grace", "guest_key": "guest-key-0123456789" }),
+    )
+    .await;
+    let guest_id = expect(&mut guest, "welcome").await["participant_id"].clone();
+    let state = state_where(&mut host, |r| {
+        r["participants"].as_array().unwrap().len() == 2
+    })
+    .await;
+    assert_eq!(state["participants"][1]["sync"], Value::Null);
+    assert_eq!(state["participants"][1]["place"], Value::Null);
+    let revision = state["revision"].clone();
+
+    // The guest on replica B reports; the host on replica A hears of it without a new state.
+    let synced = json!({ "type": "status", "sync": "synced", "place": "watching" });
+    send(&mut guest, synced.clone()).await;
+    let status = expect(&mut host, "status").await;
+    assert_eq!(status["participant"], guest_id);
+    assert_eq!(status["sync"], "synced");
+    assert_eq!(status["place"], "watching");
+    assert_eq!(status["revision"], 1);
+
+    // Repeats are dropped and quick changes coalesced: only the latest goes out.
+    send(&mut guest, synced).await;
+    send(
+        &mut guest,
+        json!({ "type": "status", "sync": "buffering", "place": "watching" }),
+    )
+    .await;
+    send(&mut guest, json!({ "type": "status", "place": "shorts" })).await;
+    let status = expect(&mut host, "status").await;
+    assert_eq!(status["sync"], Value::Null);
+    assert_eq!(status["place"], "shorts");
+    assert_eq!(status["revision"], 2);
+
+    send(&mut guest, json!({ "type": "status", "place": "nowhere" })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "invalid");
+
+    // Whoever joins later gets the statuses with the state, still at the same revision.
+    let mut late = connect(&a, ROOM, None).await;
+    send(
+        &mut late,
+        json!({ "type": "join", "name": "Ada", "guest_key": "guest-key-abcdefghij" }),
+    )
+    .await;
+    let state = state_where(&mut late, |r| {
+        r["participants"].as_array().unwrap().len() == 3
+    })
+    .await;
+    assert_eq!(state["participants"][1]["place"], "shorts");
+    assert_eq!(state["participants"][1]["status_revision"], 2);
+    assert_eq!(
+        state["revision"].as_i64().unwrap(),
+        revision.as_i64().unwrap() + 1
+    );
 }

@@ -6712,6 +6712,24 @@
           }
         }
       },
+      "MemberPlace": {
+        "type": "string",
+        "description": "Where a participant is in the app.",
+        "enum": [
+          "watching",
+          "browsing",
+          "shorts"
+        ]
+      },
+      "MemberSync": {
+        "type": "string",
+        "description": "How well a participant's player keeps up with the room.",
+        "enum": [
+          "synced",
+          "buffering",
+          "behind"
+        ]
+      },
       "MoveItem": {
         "type": "object",
         "required": [
@@ -7444,6 +7462,36 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "What this participant's player and page are doing, for everyone's member list. Send it\non change; the server keeps the latest and passes it on at most once per second.",
+            "required": [
+              "place",
+              "type"
+            ],
+            "properties": {
+              "place": {
+                "$ref": "#/components/schemas/MemberPlace"
+              },
+              "sync": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/MemberSync",
+                    "description": "`null` while there is nothing to play."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
           }
         ],
         "description": "Sent by clients. The first message must be `join`; positions are in seconds."
@@ -7548,7 +7596,8 @@
           "id",
           "name",
           "is_owner",
-          "is_guest"
+          "is_guest",
+          "status_revision"
         ],
         "properties": {
           "id": {
@@ -7563,6 +7612,33 @@
           },
           "name": {
             "type": "string"
+          },
+          "place": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MemberPlace",
+                "description": "`null` until reported."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status_revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Grows with every status change."
+          },
+          "sync": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MemberSync",
+                "description": "`null` until reported, or while there is nothing to play."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -7705,6 +7781,51 @@
                 "type": "string",
                 "enum": [
                   "added"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A participant's status changed. It replaces the one in `participants` if `revision` is\nhigher than that one's `status_revision`.",
+            "required": [
+              "participant",
+              "revision",
+              "type"
+            ],
+            "properties": {
+              "participant": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "place": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/MemberPlace"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "sync": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/MemberSync"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "status"
                 ]
               }
             }

@@ -1,6 +1,6 @@
 //! Messages of the watch room WebSocket, JSON text frames tagged by `type`.
 
-use oxistream_db::{RoomEntry, RoomSnapshot, Uuid};
+use oxistream_db::{ParticipantStatus, Place, RoomEntry, RoomSnapshot, SyncState, Uuid};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -83,6 +83,74 @@ pub enum RoomClientMessage {
     Kick {
         participant: Uuid,
     },
+    /// What this participant's player and page are doing, for everyone's member list. Send it
+    /// on change; the server keeps the latest and passes it on at most once per second.
+    Status {
+        /// `null` while there is nothing to play.
+        #[serde(default)]
+        sync: Option<MemberSync>,
+        place: MemberPlace,
+    },
+}
+
+/// How well a participant's player keeps up with the room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberSync {
+    Synced,
+    Buffering,
+    /// More than a second off, or unable to play.
+    Behind,
+}
+
+/// Where a participant is in the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberPlace {
+    /// On the watch page of the room's video.
+    Watching,
+    Browsing,
+    Shorts,
+}
+
+impl From<MemberSync> for SyncState {
+    fn from(sync: MemberSync) -> Self {
+        match sync {
+            MemberSync::Synced => Self::Synced,
+            MemberSync::Buffering => Self::Buffering,
+            MemberSync::Behind => Self::Behind,
+        }
+    }
+}
+
+impl From<SyncState> for MemberSync {
+    fn from(sync: SyncState) -> Self {
+        match sync {
+            SyncState::Synced => Self::Synced,
+            SyncState::Buffering => Self::Buffering,
+            SyncState::Behind => Self::Behind,
+        }
+    }
+}
+
+impl From<MemberPlace> for Place {
+    fn from(place: MemberPlace) -> Self {
+        match place {
+            MemberPlace::Watching => Self::Watching,
+            MemberPlace::Browsing => Self::Browsing,
+            MemberPlace::Shorts => Self::Shorts,
+        }
+    }
+}
+
+impl From<Place> for MemberPlace {
+    fn from(place: Place) -> Self {
+        match place {
+            Place::Watching => Self::Watching,
+            Place::Browsing => Self::Browsing,
+            Place::Shorts => Self::Shorts,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -137,6 +205,14 @@ pub enum RoomServerMessage {
         added: u32,
         skipped: u32,
     },
+    /// A participant's status changed. It replaces the one in `participants` if `revision` is
+    /// higher than that one's `status_revision`.
+    Status {
+        participant: Uuid,
+        sync: Option<MemberSync>,
+        place: Option<MemberPlace>,
+        revision: i64,
+    },
     /// The owner removed this participant; the connection closes.
     Kicked,
     /// The room was closed or expired; the connection closes.
@@ -182,6 +258,21 @@ pub struct RoomParticipant {
     pub name: String,
     pub is_owner: bool,
     pub is_guest: bool,
+    /// `null` until reported, or while there is nothing to play.
+    pub sync: Option<MemberSync>,
+    /// `null` until reported.
+    pub place: Option<MemberPlace>,
+    /// Grows with every status change.
+    pub status_revision: i64,
+}
+
+pub fn status_message(participant: Uuid, status: ParticipantStatus) -> RoomServerMessage {
+    RoomServerMessage::Status {
+        participant,
+        sync: status.sync.map(Into::into),
+        place: status.place.map(Into::into),
+        revision: status.revision,
+    }
 }
 
 pub fn unix_ms(at: time::OffsetDateTime) -> i64 {
@@ -230,6 +321,9 @@ pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Roo
                 name: p.display_name.clone(),
                 is_owner: p.user_id == Some(room.owner_id),
                 is_guest: p.user_id.is_none(),
+                sync: p.status.sync.map(Into::into),
+                place: p.status.place.map(Into::into),
+                status_revision: p.status.revision,
             })
             .collect(),
         autoplay: room.autoplay,
