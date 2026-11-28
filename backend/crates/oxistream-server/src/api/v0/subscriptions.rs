@@ -35,6 +35,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(export_subscriptions))
         .routes(routes!(list_subscriptions))
         .routes(routes!(subscription_state, subscribe, unsubscribe))
+        .routes(routes!(visit_channel))
         .routes(routes!(feed))
 }
 
@@ -51,6 +52,8 @@ pub struct SubscribedChannel {
     pub verified: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub subscribed_at: OffsetDateTime,
+    /// The channel published videos since the user last opened its page.
+    pub has_new: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -84,6 +87,7 @@ impl SubscribedChannel {
             subscriber_count: channel.subscriber_count.and_then(|c| u64::try_from(c).ok()),
             verified: channel.verified,
             subscribed_at: subscription.subscribed_at,
+            has_new: subscription.has_new,
             id: channel.id,
             name: channel.name,
             handle: channel.handle,
@@ -231,6 +235,31 @@ async fn unsubscribe(
         .subscriptions
         .unsubscribe(user.id, &channel_id)
         .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if
+/// not subscribed, too.
+#[utoipa::path(
+    put,
+    path = "/subscriptions/{channel_id}/visit",
+    tag = "subscriptions",
+    security(("session" = [])),
+    params(("channel_id" = String, Path, description = "YouTube channel ID (`UC…`)")),
+    responses(
+        (status = NO_CONTENT, description = "Visit recorded"),
+        (status = BAD_REQUEST, description = "Invalid channel ID", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+    )
+)]
+async fn visit_channel(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(channel_id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    check_channel_id(&channel_id)?;
+    state.subscriptions.visit(user.id, &channel_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -37,6 +37,9 @@ pub struct Subscription {
     #[sqlx(flatten)]
     pub channel: Channel,
     pub subscribed_at: OffsetDateTime,
+    pub last_visited_at: OffsetDateTime,
+    /// The channel published a video since the last visit that the user did not hide.
+    pub has_new: bool,
 }
 
 /// A video in a user's feed.
@@ -107,6 +110,9 @@ pub trait SubscriptionRepository: Send + Sync {
     async fn unsubscribe(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error>;
 
     async fn is_subscribed(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error>;
+
+    /// Records that the user opened the channel's page. Returns whether a subscription existed.
+    async fn visit(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error>;
 
     /// All subscriptions of a user, ordered by channel name.
     async fn list(&self, user_id: Uuid) -> Result<Vec<Subscription>, Error>;
@@ -239,8 +245,16 @@ impl PgSubscriptionRepository {
     }
 }
 
+// Upcoming videos are not uploads yet. Blocking a channel ends its subscription, so blocks need
+// no check here.
 const SUBSCRIPTION_COLUMNS: &str = "c.id, c.name, c.handle, c.avatar, c.subscriber_count, \
-    c.verified, c.fetched_at, c.checked_at, c.last_error, s.created_at AS subscribed_at";
+    c.verified, c.fetched_at, c.checked_at, c.last_error, s.created_at AS subscribed_at, \
+    s.last_visited_at, \
+    EXISTS (SELECT 1 FROM channel_videos v \
+        WHERE v.channel_id = s.channel_id AND v.sort_at > s.last_visited_at \
+            AND NOT v.is_upcoming \
+            AND NOT EXISTS (SELECT 1 FROM hidden_videos h \
+                WHERE h.user_id = s.user_id AND h.video_id = v.video_id)) AS has_new";
 
 #[async_trait::async_trait]
 impl SubscriptionRepository for PgSubscriptionRepository {
@@ -334,6 +348,19 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .bind(channel_id)
         .fetch_one(&self.pool)
         .await?)
+    }
+
+    async fn visit(&self, user_id: Uuid, channel_id: &str) -> Result<bool, Error> {
+        Ok(sqlx::query(
+            "UPDATE subscriptions SET last_visited_at = now() \
+             WHERE user_id = $1 AND channel_id = $2",
+        )
+        .bind(user_id)
+        .bind(channel_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected()
+            > 0)
     }
 
     async fn list(&self, user_id: Uuid) -> Result<Vec<Subscription>, Error> {
@@ -434,6 +461,16 @@ impl ChannelRepository for PgChannelRepository {
         videos: &[ChannelVideoUpsert],
     ) -> Result<(), Error> {
         let mut tx = self.pool.begin().await?;
+        // Videos of a channel's first fetch, such as undated shorts stamped with the fetch time,
+        // are not new to its subscribers.
+        sqlx::query(
+            "UPDATE subscriptions s SET last_visited_at = now() \
+             FROM channels c \
+             WHERE c.id = $1 AND c.fetched_at IS NULL AND s.channel_id = c.id",
+        )
+        .bind(&channel.id)
+        .execute(&mut *tx)
+        .await?;
         sqlx::query(
             "INSERT INTO channels \
                 (id, name, handle, avatar, subscriber_count, verified, fetched_at, checked_at) \

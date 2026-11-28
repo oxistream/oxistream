@@ -6201,6 +6201,66 @@
         ]
       }
     },
+    "/api/v0/subscriptions/{channel_id}/visit": {
+      "put": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if\nnot subscribed, too.",
+        "operationId": "visit_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "YouTube channel ID (`UC…`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Visit recorded"
+          },
+          "400": {
+            "description": "Invalid channel ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/trending": {
       "get": {
         "tags": [
@@ -10053,7 +10113,8 @@
           "id",
           "avatar",
           "verified",
-          "subscribed_at"
+          "subscribed_at",
+          "has_new"
         ],
         "properties": {
           "avatar": {
@@ -10067,6 +10128,10 @@
               "string",
               "null"
             ]
+          },
+          "has_new": {
+            "type": "boolean",
+            "description": "The channel published videos since the user last opened its page."
           },
           "id": {
             "type": "string"
