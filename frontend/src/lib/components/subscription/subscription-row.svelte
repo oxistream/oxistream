@@ -1,6 +1,7 @@
 <script lang="ts">
 	import BellPlusIcon from '@lucide/svelte/icons/bell-plus';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { SubscribedChannel } from '#lib/api/subscription-list.js';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
@@ -15,12 +16,15 @@
 		channel,
 		subscribed = true,
 		ontoggle,
+		actions,
 		class: className
 	}: {
 		channel: SubscribedChannel;
 		/** `false` right after unsubscribing here, so the row can offer to undo it. */
 		subscribed?: boolean;
 		ontoggle?: (channel: SubscribedChannel) => void;
+		/** Shown before the subscribe toggle. */
+		actions?: Snippet;
 		class?: string;
 	} = $props();
 
@@ -59,7 +63,7 @@
 	>
 		<a
 			{href}
-			class="flex min-w-0 items-center gap-1 self-start rounded-sm text-sm font-semibold transition-colors duration-(--motion-in) ease-ui hover:text-primary"
+			class="flex max-w-full min-w-0 items-center gap-1 self-start rounded-sm text-sm font-semibold transition-colors duration-(--motion-in) ease-ui hover:text-primary"
 		>
 			{#if channel.name}
 				<span class="truncate">{channel.name}</span>
@@ -87,6 +91,7 @@
 			{/if}
 		</p>
 	</div>
+	{@render actions?.()}
 	{#if ontoggle}
 		{#if subscribed}
 			<Button
