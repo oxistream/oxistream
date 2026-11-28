@@ -1,0 +1,11 @@
+{{- if .Values.ingress.enabled }}
+Oxistream: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ (first .Values.ingress.hosts).host }}/
+{{- else if .Values.httpRoute.enabled }}
+Oxistream: https://{{ first .Values.httpRoute.hostnames }}/
+{{- else }}
+Access Oxistream with:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "oxistream.fullname" . }} 8080:{{ .Values.service.port }}
+Over plain HTTP, sign-in needs config.OXISTREAM_COOKIE_SECURE=false.
+{{- end }}
+
+The first account to register becomes admin.

@@ -31,6 +31,10 @@ docker run -p 8080:8080 \
 
 For a ready-made setup with PostgreSQL, see [`deploy/compose`](deploy/compose/README.md).
 
+## Kubernetes
+
+A Helm chart with CloudNativePG example values lives in [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md).
+
 ## License
 
 [AGPL-3.0-or-later](LICENSE)

@@ -1,0 +1,40 @@
+# Oxistream on a CloudNativePG cluster (see cnpg-cluster.yaml), behind an Ingress with TLS.
+image:
+  repository: ghcr.io/example/oxistream
+
+replicaCount: 2
+
+database:
+  cnpgCluster: oxistream-db
+
+config:
+  OXISTREAM_LOG_FORMAT: json
+  OXISTREAM_PUBLIC_URL: https://oxistream.example.com
+  OXISTREAM_TRUSTED_PROXY_HEADER: x-forwarded-for
+
+proxySecret:
+  # kubectl create secret generic oxistream-proxy --from-literal=proxy-secret="$(openssl rand -base64 48)"
+  existingSecret: oxistream-proxy
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+  hosts:
+    - host: oxistream.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: oxistream-tls
+      hosts:
+        - oxistream.example.com
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway

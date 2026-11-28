@@ -1,0 +1,5 @@
+# Minimal values for CI: everything else stays at its default.
+image:
+  repository: ghcr.io/example/oxistream
+database:
+  url: postgres://oxistream:oxistream@postgres:5432/oxistream

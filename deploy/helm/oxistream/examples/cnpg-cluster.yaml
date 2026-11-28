@@ -1,0 +1,23 @@
+# CloudNativePG cluster for Oxistream. Requires the CloudNativePG operator.
+# The operator creates the `oxistream-db-app` secret, whose `uri` key the chart reads.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: oxistream-db
+spec:
+  # 1 for a homelab, 3 for a primary with two replicas.
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.7-minimal-trixie
+  storage:
+    size: 10Gi
+    # storageClass: standard
+  bootstrap:
+    initdb:
+      database: oxistream
+      owner: oxistream
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
