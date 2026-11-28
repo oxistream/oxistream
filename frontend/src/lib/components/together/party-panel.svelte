@@ -99,6 +99,21 @@
 				: m.party_batch_added({ added: formatNumber(lastAdded.added, locale) })
 			: null
 	);
+	const presenceMessage = $derived.by(() => {
+		const notice = party.presence;
+		if (!notice) return '';
+		const [first, second] = notice.names;
+		const joined = notice.kind === 'joined';
+		if (notice.names.length === 1) {
+			return joined ? m.party_joined_one({ name: first }) : m.party_left_one({ name: first });
+		}
+		if (notice.names.length === 2) {
+			return joined ? m.party_joined_two({ first, second }) : m.party_left_two({ first, second });
+		}
+		const name = notice.names.at(-1)!;
+		const count = formatNumber(notice.names.length - 1, locale);
+		return joined ? m.party_joined_many({ name, count }) : m.party_left_many({ name, count });
+	});
 	/** Videos playing or queued, marked where they can be added. */
 	const queued = $derived(
 		new Set([...(party.current ? [party.current] : []), ...queue].map((e) => e.video.id))
@@ -139,7 +154,15 @@
 	<span class="text-xs text-muted-foreground tabular-nums">{formatNumber(value, locale)}</span>
 {/snippet}
 
-<div class="flex min-h-0 flex-1 flex-col" data-testid="party-panel">
+<div class="relative flex min-h-0 flex-1 flex-col" data-testid="party-panel">
+	<!-- Floats over the bottom, so nothing moves while it comes and goes. -->
+	<p
+		class="pointer-events-none absolute inset-x-3 bottom-3 z-20 truncate rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md empty:hidden"
+		role="status"
+		data-testid="party-presence"
+	>
+		{party.active ? presenceMessage : ''}
+	</p>
 	<!-- The sheet's own close button sits in the top corner, so the row ends before it. -->
 	<header class={cn('flex h-16 shrink-0 items-center gap-1 p-2 ps-4', dialog && 'pe-13')}>
 		{#if dialog}
@@ -315,6 +338,7 @@
 						meId={party.connection?.participantId}
 						canKick={party.isOwner}
 						onkick={(person) => party.send({ type: 'kick', participant: person.id })}
+						onresync={party.sync ? () => party.resync() : undefined}
 					/>
 				</Tabs.Content>
 			</Tabs.Root>

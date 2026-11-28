@@ -10,6 +10,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { session } from '#lib/session.svelte.js';
 	import { party, type PartyEnd } from '#lib/together/party.svelte.js';
+	import { placeOf } from '#lib/together/presence.js';
 	import SyncReadout from './sync-readout.svelte';
 
 	party.overlay = overlay;
@@ -58,6 +59,19 @@
 			positionAt: room.position_at
 		};
 		untrack(() => sync.update(playback));
+	});
+
+	$effect(() => {
+		const place = placeOf(page.route.id, page.url.searchParams.get('v'), currentId);
+		const sync = currentId ? (party.sync?.health ?? null) : null;
+		void party.connection;
+		untrack(() => party.report(place, sync));
+	});
+
+	$effect(() => {
+		void party.participants.map((p) => p.id).join();
+		void party.connection?.participantId;
+		untrack(() => party.observe());
 	});
 
 	$effect(() => {

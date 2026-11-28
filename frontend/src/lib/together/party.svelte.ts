@@ -12,10 +12,13 @@ import { appPlayer, type ClaimOptions, type PlayerClaim } from '#lib/player/app-
 import {
 	RoomConnection,
 	type ConnectionStatus,
+	type MemberPlace,
+	type MemberSync,
 	type RoomClientMessage,
 	type RoomQueueEntry
 } from './connection.svelte';
 import { PartySync } from './party-sync.svelte';
+import { PresenceNotices, StatusReporter, type PresenceNotice } from './presence';
 import { guestKey } from './sync';
 
 const OWNER = 'party';
@@ -98,6 +101,11 @@ export class Party {
 	ended = $state<PartyEnd | null>(null);
 	/** Drawn over the video while in a party, set by the party host. */
 	overlay: ClaimOptions['overlay'];
+	/** Who just joined or left, for a few seconds. */
+	presence = $state.raw<PresenceNotice | null>(null);
+
+	#reporter: StatusReporter | null = null;
+	#notices: PresenceNotices | null = null;
 
 	#claim: (PlayerClaim & ClaimOptions) | null = null;
 	/** `undefined` until the first state is shown. */
@@ -184,7 +192,27 @@ export class Party {
 		const connection = new RoomConnection(id, name ? { name, guestKey: guestKey() } : {});
 		connection.connect();
 		this.connection = connection;
+		this.#reporter = new StatusReporter((status) => connection.reportStatus(status));
+		this.#notices = new PresenceNotices((notice) => (this.presence = notice));
 		writeSaved({ id, name });
+	}
+
+	/** Tells the others how this player keeps up and where this tab is; call on every change. */
+	report(place: MemberPlace, sync: MemberSync | null) {
+		this.#reporter?.update({ sync, place });
+	}
+
+	/** Follows the participants of every state, for join and leave notices. */
+	observe() {
+		const connection = this.connection;
+		if (connection?.room) {
+			this.#notices?.update(connection.room.participants, connection.participantId);
+		}
+	}
+
+	/** Jumps this player to where the party is. */
+	resync() {
+		this.sync?.resync();
 	}
 
 	/** Joins a party just created with `videoId`, continuing where that video plays now. */
@@ -354,6 +382,11 @@ export class Party {
 	#reset() {
 		this.sync?.destroy();
 		this.sync = null;
+		this.#reporter?.destroy();
+		this.#reporter = null;
+		this.#notices?.destroy();
+		this.#notices = null;
+		this.presence = null;
 		this.#claim?.release();
 		this.#claim = null;
 		appPlayer.stop();

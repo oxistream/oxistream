@@ -39,8 +39,40 @@ export const mockRoomQueue: RoomQueueEntry[] = [
 ];
 
 export const mockParticipants: RoomParticipant[] = [
-	{ id: 'p-mara', name: 'mara', is_owner: true, is_guest: false },
-	{ id: 'p-jonas', name: 'jonas', is_owner: false, is_guest: false },
-	{ id: 'p-grace', name: 'Grace', is_owner: false, is_guest: true },
-	{ id: 'p-ada', name: 'Ada Lovelace-Byron of Ockham', is_owner: false, is_guest: true }
+	{
+		id: 'p-mara',
+		name: 'mara',
+		is_owner: true,
+		is_guest: false,
+		sync: 'synced',
+		place: 'watching',
+		status_revision: 3
+	},
+	{
+		id: 'p-jonas',
+		name: 'jonas',
+		is_owner: false,
+		is_guest: false,
+		sync: 'buffering',
+		place: 'browsing',
+		status_revision: 5
+	},
+	{
+		id: 'p-grace',
+		name: 'Grace',
+		is_owner: false,
+		is_guest: true,
+		sync: 'behind',
+		place: 'shorts',
+		status_revision: 2
+	},
+	{
+		id: 'p-ada',
+		name: 'Ada Lovelace-Byron of Ockham',
+		is_owner: false,
+		is_guest: true,
+		sync: null,
+		place: null,
+		status_revision: 0
+	}
 ];
