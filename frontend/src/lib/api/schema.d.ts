@@ -324,7 +324,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Videos of subscribed channels, newest first. */
+        /**
+         * Videos of subscribed channels, newest first. Videos the user is not interested in are left
+         *     out.
+         */
         get: operations["feed"];
         put?: never;
         post?: never;
@@ -349,6 +352,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/hidden-videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a video as not interesting. It is left out of the subscription feed, "Continue
+         *     watching" and trending. Idempotent.
+         */
+        put: operations["hide"];
+        post?: never;
+        /** Show a hidden video again. Succeeds if it is not hidden, too. */
+        delete: operations["unhide"];
         options?: never;
         head?: never;
         patch?: never;
@@ -438,7 +462,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Mark a video as watched: it moves to the top of the history, finished. Recorded even while
+         *     the history is paused, as the user asked for it. Not for shorts, which have no history.
+         */
+        put: operations["mark_watched"];
         post?: never;
         /** Remove one video from the watch history. Succeeds if it is not in there, too. */
         delete: operations["delete_entry"];
@@ -1505,6 +1533,14 @@ export interface components {
             /** @description Signed logout token (JWT) from the provider. */
             logout_token: string;
         };
+        /** @description Marks a video as watched. */
+        MarkWatched: {
+            /**
+             * Format: double
+             * @description Used when the video has no history entry yet; else the cached metadata's duration.
+             */
+            duration_seconds?: number | null;
+        };
         /**
          * @description Where a participant is in the app.
          * @enum {string}
@@ -1921,6 +1957,10 @@ export interface components {
              * @description Video height to start with; `null` for adaptive quality.
              */
             default_quality: number | null;
+            /** @description The subscription feed leaves out shorts. */
+            feed_hide_shorts: boolean;
+            /** @description The subscription feed leaves out finished videos. */
+            feed_hide_watched: boolean;
             /**
              * @description Enabled home page section keys in order; `null` for the default layout. Clients ignore
              *     keys they do not know.
@@ -1943,6 +1983,8 @@ export interface components {
              * @description One of 144, 240, 360, 480, 720, 1080, 1440, 2160, 4320.
              */
             default_quality?: number | null;
+            feed_hide_shorts?: boolean;
+            feed_hide_watched?: boolean;
             /** @description At most 32 distinct keys of lowercase letters, digits and dashes. */
             home_sections?: string[] | null;
             /**
@@ -3218,6 +3260,10 @@ export interface operations {
                 limit?: number;
                 /** @description Defaults to `all`. */
                 kind?: "all" | "videos" | "shorts";
+                /** @description Leave out finished videos. */
+                hide_watched?: boolean;
+                /** @description Only videos of this subscribed channel (`UC…`). */
+                channel?: string;
             };
             header?: never;
             path?: never;
@@ -3233,7 +3279,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedPage"];
                 };
             };
-            /** @description Invalid continuation, limit or kind */
+            /** @description Invalid continuation, limit, kind or channel */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3276,6 +3322,102 @@ export interface operations {
             };
             /** @description Unknown or revoked token, or disabled user */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hidden */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unhide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not hidden anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid video ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3533,6 +3675,68 @@ export interface operations {
                 };
             };
             /** @description Retention above the instance maximum */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mark_watched: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube video ID */
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkWatched"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoProgress"];
+                };
+            };
+            /** @description Invalid video ID or body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown duration, or a short */
             422: {
                 headers: {
                     [name: string]: unknown;

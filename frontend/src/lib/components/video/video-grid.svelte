@@ -17,6 +17,7 @@
 		now,
 		label,
 		removal,
+		hideable = false,
 		class: className
 	}: {
 		videos?: VideoSummary[];
@@ -30,6 +31,8 @@
 		now?: Date;
 		label?: string;
 		removal?: VideoRemoval;
+		/** Offers "Not interested", for listings that leave hidden videos out. */
+		hideable?: boolean;
 		class?: string;
 	} = $props();
 </script>
@@ -56,7 +59,7 @@
 	<ul class="video-list" data-layout={layout} aria-label={label} {@attach scroller}>
 		{#each videos as video (video.id)}
 			<li class="min-w-0">
-				<VideoCard {video} {headingLevel} {showChannel} {now} {removal} />
+				<VideoCard {video} {headingLevel} {showChannel} {now} {removal} {hideable} />
 			</li>
 		{/each}
 	</ul>

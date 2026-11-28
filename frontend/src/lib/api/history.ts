@@ -5,6 +5,7 @@ import {
 	createQuery,
 	keepPreviousData,
 	useQueryClient,
+	type Query,
 	type InfiniteData,
 	type QueryClient,
 	type QueryKey
@@ -28,7 +29,9 @@ import {
 import { pickImage, uniqueBy, unwrap } from './mapping';
 import type { Retention } from './retention';
 import type { components } from './schema';
+import { isHidingWatched } from './subscriptions';
 import type { VideoDetails } from './video';
+import { withoutVideo as withoutCachedVideo } from './video-cache';
 
 export type HistorySettings = components['schemas']['HistorySettings'];
 type HistorySettingsUpdate = components['schemas']['HistorySettingsUpdate'];
@@ -279,6 +282,42 @@ export function createRemoveFromHistoryMutation() {
 		},
 		onSettled: () => invalidateProgress(client)
 	}));
+}
+
+/**
+ * Marks a video as watched, or unwatched by removing it from the history, and drops a newly
+ * watched video from loaded feeds that hide watched videos. Rejects when the server refuses.
+ */
+export async function setWatched(
+	client: QueryClient,
+	video: { id: string; durationSeconds?: number },
+	watched: boolean
+) {
+	const path = { video_id: video.id };
+	const hidingWatched = { predicate: (query: Query) => isHidingWatched(query.queryKey) };
+	try {
+		if (watched) {
+			const progress = unwrap(
+				await api.PUT('/api/v0/history/{video_id}', {
+					params: { path },
+					body: { duration_seconds: video.durationSeconds || undefined }
+				})
+			);
+			client.setQueryData(historyKeys.video(video.id), toProgress(progress));
+			client.setQueriesData(hidingWatched, (data: unknown) =>
+				data === undefined ? data : withoutCachedVideo(data, video.id)
+			);
+		} else {
+			const { response, error } = await api.DELETE('/api/v0/history/{video_id}', {
+				params: { path }
+			});
+			if (!response.ok) unwrap({ error, response });
+			client.setQueryData(historyKeys.video(video.id), null);
+		}
+	} finally {
+		invalidateProgress(client);
+		void client.invalidateQueries(hidingWatched);
+	}
 }
 
 /** Hides one video from "Continue watching" until it is watched again; the history keeps it. */

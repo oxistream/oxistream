@@ -42,6 +42,16 @@
 	{#if children}
 		{@render children()}
 	{:else}
-		<VideoGrid {videos} {loading} {now} skeletonCount={5} layout="row" label={title} {removal} />
+		<!-- Every home row leaves hidden videos out. -->
+		<VideoGrid
+			{videos}
+			{loading}
+			{now}
+			skeletonCount={5}
+			layout="row"
+			label={title}
+			{removal}
+			hideable
+		/>
 	{/if}
 </section>

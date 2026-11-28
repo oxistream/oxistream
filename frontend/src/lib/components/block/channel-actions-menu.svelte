@@ -9,7 +9,10 @@
 	import { cn } from '#lib/utils.js';
 	import QueueMenuItems from '#lib/components/queue/queue-menu-items.svelte';
 	import AddToPartyMenuItem from '#lib/components/together/add-to-party-menu-item.svelte';
+	import NotInterestedMenuItem from '#lib/components/video/not-interested-menu-item.svelte';
+	import WatchedMenuItem from '#lib/components/video/watched-menu-item.svelte';
 	import type { QueueVideo } from '#lib/player/queue.svelte.js';
+	import type { VideoSummary } from '#lib/video.js';
 	import BlockMenuItem from './block-menu-item.svelte';
 
 	let {
@@ -18,6 +21,7 @@
 		variant = 'default',
 		size = 'icon-sm',
 		video,
+		hideable = false,
 		removeLabel,
 		onremove,
 		onblocked,
@@ -28,8 +32,13 @@
 		/** `overlay` sits over video, as in the shorts player. */
 		variant?: 'default' | 'overlay';
 		size?: 'icon-sm' | 'icon' | 'icon-lg';
-		/** Offers queueing this video, or adding it to the party this tab is in. */
-		video?: QueueVideo;
+		/**
+		 * Offers queueing this video, or adding it to the party this tab is in, and to signed-in
+		 * users marking it as watched.
+		 */
+		video?: QueueVideo & Pick<VideoSummary, 'isLive' | 'isShort' | 'isUpcoming'>;
+		/** Offers "Not interested", for listings that leave hidden videos out. */
+		hideable?: boolean;
 		/** Offers removing the video from the list it is shown in. */
 		removeLabel?: string;
 		onremove?: () => void;
@@ -39,6 +48,16 @@
 
 	const removable = $derived(removeLabel !== undefined && onremove !== undefined);
 	const blockable = $derived(session.user !== null && channel.id !== '');
+	// Shorts and streams have no history.
+	const markable = $derived(
+		session.user !== null &&
+			video !== undefined &&
+			!video.isShort &&
+			!video.isLive &&
+			!video.isUpcoming
+	);
+	const notInterested = $derived(session.user !== null && video !== undefined && hideable);
+	const personal = $derived(markable || notInterested || removable);
 </script>
 
 {#if video || removable || blockable}
@@ -61,7 +80,13 @@
 			{#if video}
 				<QueueMenuItems {video} />
 				<AddToPartyMenuItem videoId={video.id} />
-				{#if removable || blockable}<DropdownMenu.Separator />{/if}
+				{#if personal || blockable}<DropdownMenu.Separator />{/if}
+			{/if}
+			{#if markable && video}
+				<WatchedMenuItem {video} />
+			{/if}
+			{#if notInterested && video}
+				<NotInterestedMenuItem videoId={video.id} />
 			{/if}
 			{#if removable}
 				<DropdownMenu.Item onSelect={onremove} data-testid="remove-from-list">
@@ -69,6 +94,7 @@
 					{removeLabel}
 				</DropdownMenu.Item>
 			{/if}
+			{#if personal && blockable}<DropdownMenu.Separator />{/if}
 			{#if blockable}
 				<BlockMenuItem {channel} {onblocked} />
 			{/if}

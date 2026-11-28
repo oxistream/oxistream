@@ -3,6 +3,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { chipActiveClass, chipClass as chip } from '#lib/components/filter-chip.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import {
@@ -74,9 +75,6 @@
 	function set(key: SearchFilter, value: string) {
 		apply({ ...filters, [key]: value === '' ? undefined : value });
 	}
-
-	const chip =
-		'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-muted px-3 text-sm font-medium text-foreground transition-colors duration-(--motion-in) ease-ui outline-none hover:bg-muted-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97]';
 </script>
 
 {#if offered.length > 0}
@@ -92,11 +90,7 @@
 			{@const label = group.options.find((o) => o.value === value)?.label()}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger
-					class={cn(
-						chip,
-						label &&
-							'bg-foreground text-background hover:bg-foreground/85 dark:hover:bg-foreground/90'
-					)}
+					class={cn(chip, label && chipActiveClass)}
 					aria-label={`${group.name()}: ${label ?? group.any()}`}
 					data-testid="search-filter-{key}"
 				>

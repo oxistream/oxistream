@@ -1,14 +1,18 @@
 <script lang="ts">
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
+	import FunnelXIcon from '@lucide/svelte/icons/funnel-x';
 	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { useQueryClient } from '@tanstack/svelte-query';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { createProgressLookup } from '#lib/api/history.js';
 	import { withProgress } from '#lib/api/history-list.js';
 	import { uniqueBy } from '#lib/api/mapping.js';
+	import { createSettingsMutation, createSettingsQuery } from '#lib/api/settings.js';
 	import { hasPendingChannels } from '#lib/api/subscription-list.js';
 	import {
 		createFeedQuery,
@@ -16,6 +20,7 @@
 		subscriptionKeys
 	} from '#lib/api/subscriptions.js';
 	import ShortRow from '#lib/components/shorts/short-row.svelte';
+	import FeedFilters from '#lib/components/subscription/feed-filters.svelte';
 	import PageHeader from '#lib/components/page-header.svelte';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -29,10 +34,30 @@
 	const client = useQueryClient();
 	const subscriptions = createSubscriptionsQuery();
 	const pending = $derived(subscriptions.data ? hasPendingChannels(subscriptions.data) : false);
-	const feed = createFeedQuery(() => pending);
-	const shortsFeed = createFeedQuery(() => pending, 'shorts');
+
+	// Filter toggles follow the account; the channel lives in the URL, so it can be linked.
+	const settings = createSettingsQuery();
+	const saveSettings = createSettingsMutation();
+	const settingsReady = $derived(settings.isSuccess || settings.isError);
+	const hideWatched = $derived(settings.data?.feed_hide_watched ?? false);
+	const hideShorts = $derived(settings.data?.feed_hide_shorts ?? false);
+	const channel = $derived(
+		page.url.searchParams.get('channel')?.match(/^UC[\w-]{22}$/)?.[0] ?? undefined
+	);
+	const filtered = $derived(hideWatched || hideShorts || channel !== undefined);
+
+	const feed = createFeedQuery(() => pending, 'videos', {
+		filters: () => ({ hideWatched, channel }),
+		enabled: () => settingsReady
+	});
+	const shortsFeed = createFeedQuery(() => pending, 'shorts', {
+		filters: () => ({ channel }),
+		enabled: () => settingsReady && !hideShorts
+	});
 	const shorts = $derived(
-		uniqueBy(shortsFeed.data?.pages.flatMap((p) => p.items) ?? [], (short) => short.id)
+		hideShorts
+			? []
+			: uniqueBy(shortsFeed.data?.pages.flatMap((p) => p.items) ?? [], (short) => short.id)
 	);
 
 	const listed = $derived(
@@ -41,6 +66,18 @@
 	const progress = createProgressLookup(() => listed.map((v) => v.id));
 	const items = $derived(withProgress(listed, progress.get));
 	const noSubscriptions = $derived(subscriptions.data?.length === 0);
+
+	function setChannel(id: string | undefined) {
+		const target = id
+			? resolve(`/feed/subscriptions?channel=${id}`)
+			: resolve('/feed/subscriptions');
+		void goto(target, { reset: false });
+	}
+
+	function clearFilters() {
+		saveSettings.mutate({ feed_hide_watched: false, feed_hide_shorts: false });
+		setChannel(undefined);
+	}
 
 	// The last pending channel just landed: load the feed once more to pick up its videos.
 	let wasPending = false;
@@ -85,10 +122,35 @@
 				</Button>
 			{/snippet}
 		</EmptyState>
-	{:else if feed.isPending || subscriptions.isPending}
+	{:else}
+		{#if subscriptions.data?.length}
+			<FeedFilters
+				{hideWatched}
+				{hideShorts}
+				{channel}
+				channels={subscriptions.data}
+				onhidewatched={(hide) => saveSettings.mutate({ feed_hide_watched: hide })}
+				onhideshorts={(hide) => saveSettings.mutate({ feed_hide_shorts: hide })}
+				onchannel={setChannel}
+			/>
+		{/if}
+		{@render content()}
+	{/if}
+</div>
+
+{#snippet content()}
+	{#if feed.isPending || subscriptions.isPending}
 		<VideoGrid loading skeletonCount={12} />
 	{:else if feed.isError && !feed.data}
 		<ErrorState onretry={() => void feed.refetch()} />
+	{:else if items.length === 0 && shorts.length === 0 && filtered && !pending}
+		<EmptyState icon={FunnelXIcon} title={m.feed_filtered_empty_title()}>
+			{#snippet actions()}
+				<Button variant="outline" onclick={clearFilters} data-testid="feed-filters-reset">
+					{m.search_filters_clear()}
+				</Button>
+			{/snippet}
+		</EmptyState>
 	{:else if items.length === 0 && shorts.length === 0}
 		<EmptyState
 			icon={pending ? HourglassIcon : TvMinimalPlayIcon}
@@ -111,7 +173,7 @@
 				<ShortRow {shorts} label={m.feed_shorts()} />
 			</section>
 		{/if}
-		<VideoGrid videos={items} label={m.nav_subscriptions()} />
+		<VideoGrid videos={items} label={m.nav_subscriptions()} hideable />
 		<InfiniteLoader
 			hasMore={feed.hasNextPage}
 			loading={feed.isFetchingNextPage}
@@ -120,4 +182,4 @@
 			endLabel={m.feed_end()}
 		/>
 	{/if}
-</div>
+{/snippet}

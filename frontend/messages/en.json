@@ -771,5 +771,19 @@
 	"queue_item_actions": "Actions for {title}",
 	"queue_next": "Next video",
 	"queue_show": "Show queue",
-	"queue_hide": "Hide queue"
+	"queue_hide": "Hide queue",
+	"feed_filters_label": "Feed filters",
+	"feed_filter_hide_watched": "Hide watched",
+	"feed_filter_hide_shorts": "Hide shorts",
+	"feed_filter_channel": "Channel",
+	"feed_filter_all_channels": "All channels",
+	"feed_filter_channel_search": "Search channels",
+	"feed_filter_no_channels": "No matching channels",
+	"feed_filtered_empty_title": "No matching videos",
+	"video_mark_watched": "Mark as watched",
+	"video_mark_unwatched": "Mark as unwatched",
+	"video_not_interested": "Not interested",
+	"video_hidden": "Video hidden",
+	"video_action_failed": "That did not work",
+	"action_undo": "Undo"
 }
