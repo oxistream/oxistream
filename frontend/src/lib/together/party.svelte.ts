@@ -144,6 +144,10 @@ export class Party {
 		return this.room?.current ?? null;
 	}
 
+	get history() {
+		return this.connection?.history ?? [];
+	}
+
 	get participants() {
 		return this.room?.participants ?? [];
 	}

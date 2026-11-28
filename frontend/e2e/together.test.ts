@@ -102,6 +102,9 @@ type FakeEntry = {
 class FakeRoom {
 	sockets = new Map<WebSocketRoute, { id: string; name: string; owner: boolean }>();
 	queue: FakeEntry[] = [];
+	/** Played entries, newest first, one per video. */
+	history: FakeEntry[] = [];
+	historyChanged = false;
 	current: number | null = null;
 	autoplay = false;
 	/** Every video queued so far, which autoplay does not repeat. */
@@ -121,11 +124,19 @@ class FakeRoom {
 		this.seen.add(videoId);
 		this.queue.push({ id, video: summary(videoId), added_by: autoplay ? '' : by, autoplay });
 		if (play) {
-			this.queue = this.queue.filter((e) => e.id !== this.current);
+			this.retire(this.current);
 			this.current = id;
 			this.setPosition(0, true);
 		}
 		this.current ??= id;
+	}
+
+	retire(entry: number | null) {
+		const played = this.queue.find((e) => e.id === entry);
+		if (!played) return;
+		this.queue = this.queue.filter((e) => e !== played);
+		this.history = [played, ...this.history.filter((e) => e.video.id !== played.video.id)];
+		this.historyChanged = true;
 	}
 
 	upcoming() {
@@ -166,8 +177,13 @@ class FakeRoom {
 
 	broadcast() {
 		this.revision++;
+		const history = JSON.stringify({ type: 'history', entries: this.history });
 		const message = JSON.stringify({ type: 'state', room: this.state() });
-		for (const socket of this.sockets.keys()) socket.send(message);
+		for (const socket of this.sockets.keys()) {
+			if (this.historyChanged) socket.send(history);
+			socket.send(message);
+		}
+		this.historyChanged = false;
 	}
 
 	setPosition(position: number, playing = this.playing, at = Date.now()) {
@@ -186,6 +202,7 @@ class FakeRoom {
 				socket.send(
 					JSON.stringify({ type: 'welcome', participant_id: id, is_owner: owner, server_time: at })
 				);
+				socket.send(JSON.stringify({ type: 'history', entries: this.history }));
 				return this.broadcast();
 			}
 			case 'ping':
@@ -202,8 +219,7 @@ class FakeRoom {
 				return this.broadcast();
 			case 'select': {
 				if (!this.queue.some((e) => e.id === message.entry)) return;
-				const previous = this.current;
-				this.queue = this.queue.filter((e) => e.id !== previous);
+				this.retire(this.current);
 				this.current = message.entry!;
 				this.setPosition(0, this.playing);
 				return this.broadcast();
@@ -243,7 +259,7 @@ class FakeRoom {
 				if (message.entry !== this.current) return;
 				{
 					const next = this.upNext();
-					this.queue = this.queue.filter((e) => e.id !== message.entry);
+					this.retire(message.entry);
 					this.current = this.queue[0]?.id ?? null;
 					if (!this.current && next) this.add(next, '', false, true);
 				}
@@ -1085,6 +1101,56 @@ test('the now playing card shows progress, and autoplay continues with a related
 	await hostPanel.getByTestId('party-autoplay').click();
 	await expect(guestPanel.getByTestId('party-up-next')).toHaveCount(0);
 	await expect(guestPanel.getByTestId('party-queue')).toContainText('Nothing up next.');
+
+	await hostContext.close();
+	await guestContext.close();
+});
+
+test('played videos stay in the history, to play or queue again', async ({ browser }) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom();
+	room.add(SECOND, 'Grace');
+	room.add(LONG, 'Grace');
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+	const ids = () => room.state().queue.map((e) => e.video.id);
+
+	const guestPanel = await openPanel(guest);
+	await guestPanel.getByTestId('party-tab-history').click();
+	await expect(guestPanel.getByTestId('party-history')).toContainText('Nothing played yet.');
+
+	// Playing another entry moves the current one to the history, for everyone.
+	await guestPanel.getByTestId('party-tab-queue').click();
+	await guestPanel
+		.getByTestId('party-queue-item')
+		.filter({ hasText: title(SECOND) })
+		.click();
+	await expect(guestPanel.getByTestId('party-current')).toContainText(title(SECOND));
+	await guestPanel.getByTestId('party-tab-history').click();
+	const guestHistory = guestPanel.getByTestId('party-history-item');
+	await expect(guestHistory).toHaveCount(1);
+	await expect(guestHistory.first()).toContainText(title(FIRST));
+	await expect(guestHistory.first()).toContainText('Added by mara');
+
+	// The menu queues it again, once.
+	const hostPanel = await openPanel(host);
+	await hostPanel.getByTestId('party-tab-history').click();
+	await hostPanel.getByTestId('party-history-menu').first().click();
+	await host.getByTestId('party-history-queue').click();
+	await expect.poll(ids).toEqual([LONG, FIRST]);
+	await hostPanel.getByTestId('party-history-menu').first().click();
+	await expect(host.getByTestId('party-history-queue')).toHaveAttribute('data-disabled', '');
+	await expect(host.getByTestId('party-history-queue')).toHaveText('Already in the queue');
+	await host.keyboard.press('Escape');
+
+	// Clicking one plays it again for everyone; the newest comes first.
+	await guestHistory.first().click();
+	await expect(hostPanel.getByTestId('party-current')).toContainText(title(FIRST));
+	await expect.poll(ids).toEqual([LONG]);
+	const hostHistory = hostPanel.getByTestId('party-history-item');
+	await expect(hostHistory).toHaveCount(2);
+	await expect(hostHistory.first()).toContainText(title(SECOND));
+	await expect(hostHistory.first()).toContainText('Added by Grace');
+	await expect(hostHistory.nth(1)).toContainText(title(FIRST));
 
 	await hostContext.close();
 	await guestContext.close();

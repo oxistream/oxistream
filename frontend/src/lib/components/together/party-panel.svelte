@@ -31,6 +31,7 @@
 	import { initials } from '#lib/video.js';
 	import { addErrorMessage } from './errors.js';
 	import PartyAdd from './party-add.svelte';
+	import PartyHistory from './party-history.svelte';
 	import PartyLibrary from './party-library.svelte';
 	import PartyMembers from './party-members.svelte';
 	import PartyNowPlaying from './party-now-playing.svelte';
@@ -59,7 +60,7 @@
 	const create = createCreateRoomMutation();
 	const closeRoom = createCloseRoomMutation();
 	let endOpen = $state(false);
-	let tab = $state<'queue' | 'members'>('queue');
+	let tab = $state<'queue' | 'history' | 'members'>('queue');
 	let now = $state(Date.now());
 
 	$effect(() => {
@@ -238,11 +239,14 @@
 			<Tabs.Root bind:value={tab} class="gap-1">
 				<Tabs.List
 					variant="line"
-					class="sticky top-0 z-10 w-full shrink-0 justify-start bg-sidebar px-2"
+					class="sticky top-0 z-10 w-full shrink-0 [scrollbar-width:none] justify-start gap-0.5 overflow-x-auto bg-sidebar px-1"
 				>
 					<Tabs.Trigger value="queue" class="flex-none px-1.5" data-testid="party-tab-queue">
 						{m.party_queue()}
 						{@render count(queue.length)}
+					</Tabs.Trigger>
+					<Tabs.Trigger value="history" class="flex-none px-1.5" data-testid="party-tab-history">
+						{m.party_history()}
 					</Tabs.Trigger>
 					<Tabs.Trigger value="members" class="flex-none px-1.5" data-testid="party-tab-members">
 						{m.party_members()}
@@ -296,6 +300,14 @@
 					{#if upNext}
 						<PartyUpNext video={upNext} onplay={() => party.playNow(upNext.id)} />
 					{/if}
+				</Tabs.Content>
+				<Tabs.Content value="history">
+					<PartyHistory
+						history={party.history}
+						{queued}
+						onplay={(entry) => party.playNow(entry.video.id)}
+						onqueue={(entry) => party.add(entry.video.id)}
+					/>
 				</Tabs.Content>
 				<Tabs.Content value="members">
 					<PartyMembers
