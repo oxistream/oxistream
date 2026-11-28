@@ -1,5 +1,57 @@
-import type { RoomParticipant, RoomQueueEntry } from '#lib/together/connection.svelte.js';
+import type {
+	RoomChatMessage,
+	RoomParticipant,
+	RoomQueueEntry
+} from '#lib/together/connection.svelte.js';
+import type { FloatingReaction } from '#lib/together/party.svelte.js';
 import { mockVideos } from './videos';
+
+const chatStart = Date.UTC(2026, 10, 28, 19, 30);
+
+export const mockChat: RoomChatMessage[] = [
+	{
+		id: 1,
+		name: 'mara',
+		is_owner: true,
+		is_guest: false,
+		own: true,
+		text: 'Starting in a minute',
+		sent_at: chatStart
+	},
+	{
+		id: 2,
+		name: 'Grace',
+		is_owner: false,
+		is_guest: true,
+		own: false,
+		text: 'ready',
+		sent_at: chatStart + 40_000
+	},
+	{
+		id: 3,
+		name: 'Grace',
+		is_owner: false,
+		is_guest: true,
+		own: false,
+		text: 'can we watch the second one after this? the intro of that one is great',
+		sent_at: chatStart + 55_000
+	},
+	{
+		id: 4,
+		name: 'Ada Lovelace-Byron of Ockham',
+		is_owner: false,
+		is_guest: true,
+		own: false,
+		text: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ#averyveryverylongunbrokenfragment',
+		sent_at: chatStart + 120_000
+	}
+];
+
+export const mockFloating: FloatingReaction[] = [
+	{ key: 1, reaction: 'heart', x: 20 },
+	{ key: 2, reaction: 'laugh', x: 48 },
+	{ key: 3, reaction: 'fire', x: 76 }
+];
 
 function entry(index: number, addedBy: string): RoomQueueEntry {
 	const v = mockVideos[index];
@@ -7,6 +59,7 @@ function entry(index: number, addedBy: string): RoomQueueEntry {
 		id: 100 + index,
 		added_by: addedBy,
 		autoplay: false,
+		own: addedBy === 'mara',
 		video: {
 			id: v.id,
 			title: v.title,

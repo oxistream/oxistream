@@ -17,14 +17,18 @@
 		revision = 0,
 		onselect,
 		onremove,
+		canRemove = () => true,
 		onmove,
 		class: className
 	}: {
 		queue: RoomQueueEntry[];
 		/** Of the room `queue` belongs to; a newer one replaces a pending reorder. */
 		revision?: number;
+		/** Makes entries clickable, to play them now. */
 		onselect?: (entry: RoomQueueEntry) => void;
 		onremove?: (entry: RoomQueueEntry) => void;
+		/** Whether `entry` shows a remove button. */
+		canRemove?: (entry: RoomQueueEntry) => boolean;
 		/** Shows drag handles; `to` is the new index in `queue`. */
 		onmove?: (entry: RoomQueueEntry, to: number) => void;
 		class?: string;
@@ -143,6 +147,12 @@
 			{#each shown as item (item.id)}
 				{@const video = toVideo(item.video)}
 				{@const index = ordered.indexOf(item)}
+				{@const removable = onremove !== undefined && canRemove(item)}
+				{@const rowClass = cn(
+					'flex min-w-0 flex-1 items-start gap-2 rounded-md p-1.5 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring',
+					onmove && 'ps-0.5',
+					removable && 'pe-8'
+				)}
 				<li
 					class={cn(
 						'group/video relative flex rounded-md transition-colors hover:bg-sidebar-accent',
@@ -163,15 +173,7 @@
 							<GripVerticalIcon class="size-4" />
 						</button>
 					{/if}
-					<button
-						type="button"
-						class={cn(
-							'flex min-w-0 flex-1 items-start gap-2 rounded-md p-1.5 pe-8 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring',
-							onmove && 'ps-0.5'
-						)}
-						title={m.party_play_now_hint()}
-						onclick={() => onselect?.(item)}
-					>
+					{#snippet content()}
 						<VideoThumbnail
 							src={video.thumbnailUrl}
 							durationSeconds={video.durationSeconds}
@@ -186,17 +188,32 @@
 									: m.party_added_by({ name: item.added_by })}
 							</span>
 						</span>
-					</button>
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						class="absolute end-1.5 top-1.5 text-muted-foreground hover:text-destructive"
-						aria-label={m.party_remove()}
-						title={m.party_remove()}
-						onclick={() => onremove?.(item)}
-					>
-						<XIcon />
-					</Button>
+					{/snippet}
+					{#if onselect}
+						<button
+							type="button"
+							class={rowClass}
+							title={m.party_play_now_hint()}
+							onclick={() => onselect(item)}
+						>
+							{@render content()}
+						</button>
+					{:else}
+						<div class={rowClass}>{@render content()}</div>
+					{/if}
+					{#if removable}
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							class="absolute end-1.5 top-1.5 text-muted-foreground hover:text-destructive"
+							aria-label={m.party_remove()}
+							title={m.party_remove()}
+							onclick={() => onremove?.(item)}
+							data-testid="party-queue-remove"
+						>
+							<XIcon />
+						</Button>
+					{/if}
 				</li>
 			{/each}
 		</ol>

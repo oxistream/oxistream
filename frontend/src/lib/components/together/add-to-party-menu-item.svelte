@@ -7,7 +7,7 @@
 	let { videoId }: { videoId: string } = $props();
 </script>
 
-{#if party.active}
+{#if party.active && party.canAdd}
 	<DropdownMenu.Item
 		disabled={party.status !== 'open'}
 		onSelect={() => party.add(videoId)}

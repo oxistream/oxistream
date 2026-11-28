@@ -33,7 +33,7 @@
 	}
 </script>
 
-{#if party.active && !playing}
+{#if party.active && party.canAdd && !playing}
 	<Button
 		variant="secondary"
 		size="sm"

@@ -206,4 +206,34 @@ describe('RoomConnection', () => {
 		expect(conn.lastError).toBeNull();
 		conn.disconnect();
 	});
+
+	it('keeps the chat in order and passes reactions on', () => {
+		const conn = new RoomConnection('room', {});
+		const reactions: unknown[] = [];
+		conn.onreaction = (event) => reactions.push(event);
+		conn.connect();
+		const socket = FakeSocket.instances[0];
+		socket.open();
+		socket.receive(welcome);
+		const message = (id: number) => ({
+			id,
+			name: 'Grace',
+			is_owner: false,
+			is_guest: true,
+			own: false,
+			text: `message ${id}`,
+			sent_at: id
+		});
+		socket.receive({ type: 'chat_history', messages: [message(1), message(2)] });
+		socket.receive({ type: 'chat', message: message(2) });
+		socket.receive({ type: 'chat', message: message(3) });
+		expect(conn.chat.map((m) => m.id)).toEqual([1, 2, 3]);
+		// A reconnect sends the whole chat again.
+		socket.receive({ type: 'chat_history', messages: [message(3)] });
+		expect(conn.chat.map((m) => m.id)).toEqual([3]);
+
+		socket.receive({ type: 'reaction', participant: 'p2', reaction: 'clap' });
+		expect(reactions).toEqual([{ participant: 'p2', reaction: 'clap' }]);
+		conn.disconnect();
+	});
 });

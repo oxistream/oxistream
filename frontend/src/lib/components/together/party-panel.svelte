@@ -5,6 +5,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ShuffleIcon from '@lucide/svelte/icons/shuffle';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import {
@@ -26,11 +27,13 @@
 	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { appPlayer } from '#lib/player/app-player.svelte.js';
 	import { session } from '#lib/session.svelte.js';
+	import type { RoomPermission } from '#lib/together/connection.svelte.js';
 	import { party } from '#lib/together/party.svelte.js';
 	import { cn } from '#lib/utils.js';
 	import { initials } from '#lib/video.js';
 	import { addErrorMessage } from './errors.js';
 	import PartyAdd from './party-add.svelte';
+	import PartyChat from './party-chat.svelte';
 	import PartyHistory from './party-history.svelte';
 	import PartyLibrary from './party-library.svelte';
 	import PartyMembers from './party-members.svelte';
@@ -60,12 +63,27 @@
 	const create = createCreateRoomMutation();
 	const closeRoom = createCloseRoomMutation();
 	let endOpen = $state(false);
-	let tab = $state<'queue' | 'history' | 'members'>('queue');
 	let now = $state(Date.now());
 
 	$effect(() => {
 		if (open && !party.active && session.user) void rooms.refetch();
 	});
+
+	$effect(() => {
+		if (!open || party.tab !== 'chat') return;
+		void party.chat.length;
+		untrack(() => party.markChatRead());
+	});
+
+	const unread = $derived(party.unread);
+	const permissionOptions: { value: RoomPermission; label: () => string }[] = [
+		{ value: 'everyone', label: m.party_permission_everyone },
+		{ value: 'host', label: m.party_permission_host }
+	];
+	const permissionGroups = [
+		{ key: 'control', label: m.party_permission_control },
+		{ key: 'add', label: m.party_permission_add }
+	] as const;
 
 	const queue = $derived(party.room?.queue ?? []);
 	const upNext = $derived(party.room?.up_next ?? null);
@@ -157,7 +175,10 @@
 <div class="relative flex min-h-0 flex-1 flex-col" data-testid="party-panel">
 	<!-- Floats over the bottom, so nothing moves while it comes and goes. -->
 	<p
-		class="pointer-events-none absolute inset-x-3 bottom-3 z-20 truncate rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md empty:hidden"
+		class={cn(
+			'pointer-events-none absolute inset-x-3 bottom-3 z-20 truncate rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md empty:hidden',
+			party.tab === 'chat' && 'bottom-24'
+		)}
 		role="status"
 		data-testid="party-presence"
 	>
@@ -180,7 +201,7 @@
 					class="me-1 flex rounded-full outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 					aria-label="{m.party_show_members()} ({formatNumber(participants.length, locale)})"
 					title={m.party_show_members()}
-					onclick={() => (tab = 'members')}
+					onclick={() => (party.tab = 'members')}
 					data-testid="party-avatars"
 				>
 					<Avatar.Group class="*:data-[slot=avatar]:ring-sidebar">
@@ -222,6 +243,24 @@
 							{m.party_leave()}
 						</DropdownMenu.Item>
 						{#if party.isOwner}
+							{#each permissionGroups as group (group.key)}
+								<DropdownMenu.Separator />
+								<DropdownMenu.Label>{group.label()}</DropdownMenu.Label>
+								<DropdownMenu.RadioGroup
+									value={party.permissions[group.key]}
+									onValueChange={(value) =>
+										party.setPermissions({ [group.key]: value as RoomPermission })}
+								>
+									{#each permissionOptions as option (option.value)}
+										<DropdownMenu.RadioItem
+											value={option.value}
+											data-testid="party-permission-{group.key}-{option.value}"
+										>
+											{option.label()}
+										</DropdownMenu.RadioItem>
+									{/each}
+								</DropdownMenu.RadioGroup>
+							{/each}
 							<DropdownMenu.Separator />
 							<DropdownMenu.Item
 								variant="destructive"
@@ -259,7 +298,7 @@
 				{addedMessage ?? ''}
 			</p>
 
-			<Tabs.Root bind:value={tab} class="gap-1">
+			<Tabs.Root bind:value={party.tab} class="gap-1">
 				<Tabs.List
 					variant="line"
 					class="sticky top-0 z-10 w-full shrink-0 [scrollbar-width:none] justify-start gap-0.5 overflow-x-auto bg-sidebar px-1"
@@ -267,6 +306,22 @@
 					<Tabs.Trigger value="queue" class="flex-none px-1.5" data-testid="party-tab-queue">
 						{m.party_queue()}
 						{@render count(queue.length)}
+					</Tabs.Trigger>
+					<Tabs.Trigger value="chat" class="flex-none px-1.5" data-testid="party-tab-chat">
+						{m.party_chat()}
+						{#if unread > 0}
+							<span
+								class="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.625rem] leading-none font-semibold text-primary-foreground tabular-nums"
+								data-testid="party-chat-unread"
+							>
+								<span aria-hidden="true">
+									{unread > 99 ? '99+' : formatNumber(unread, locale)}
+								</span>
+								<span class="sr-only">
+									{m.party_chat_unread({ count: formatNumber(unread, locale) })}
+								</span>
+							</span>
+						{/if}
 					</Tabs.Trigger>
 					<Tabs.Trigger value="history" class="flex-none px-1.5" data-testid="party-tab-history">
 						{m.party_history()}
@@ -277,57 +332,82 @@
 					</Tabs.Trigger>
 				</Tabs.List>
 				<Tabs.Content value="queue" class="flex flex-col gap-1">
-					<div class="flex flex-col gap-1 px-1 pt-1">
-						<PartyAdd {queued} onadd={(id) => party.add(id)} />
-						<div class="flex items-center gap-1">
-							{#if session.user}
-								<PartyLibrary
-									{queued}
-									onadd={(id) => party.add(id)}
-									onaddmany={(ids) => party.addMany(ids)}
-								/>
+					{@const library = session.user !== null && party.canAdd}
+					{#if party.canAdd || party.canControl}
+						<div class="flex flex-col gap-1 px-1 pt-1">
+							{#if party.canAdd}
+								<PartyAdd {queued} onadd={(id) => party.add(id)} />
 							{/if}
-							<Button
-								variant="ghost"
-								size="sm"
-								class="ms-auto whitespace-nowrap text-muted-foreground hover:text-foreground"
-								disabled={queue.length < 2}
-								onclick={() => party.shuffle()}
-								data-testid="party-shuffle"
-							>
-								<ShuffleIcon />
-								{m.party_shuffle()}
-							</Button>
-							<label
-								class="flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground"
-							>
-								{m.party_autoplay()}
-								<Switch
-									size="sm"
-									checked={party.room?.autoplay ?? false}
-									onCheckedChange={(enabled) => party.setAutoplay(enabled)}
-									data-testid="party-autoplay"
-								/>
-							</label>
+							{#if library || party.canControl}
+								<div class="flex items-center gap-1">
+									{#if library}
+										<PartyLibrary
+											{queued}
+											onadd={(id) => party.add(id)}
+											onaddmany={(ids) => party.addMany(ids)}
+										/>
+									{/if}
+									{#if party.canControl}
+										<Button
+											variant="ghost"
+											size="sm"
+											class="ms-auto whitespace-nowrap text-muted-foreground hover:text-foreground"
+											disabled={queue.length < 2}
+											onclick={() => party.shuffle()}
+											data-testid="party-shuffle"
+										>
+											<ShuffleIcon />
+											{m.party_shuffle()}
+										</Button>
+										<label
+											class="flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground"
+										>
+											{m.party_autoplay()}
+											<Switch
+												size="sm"
+												checked={party.room?.autoplay ?? false}
+												onCheckedChange={(enabled) => party.setAutoplay(enabled)}
+												data-testid="party-autoplay"
+											/>
+										</label>
+									{/if}
+								</div>
+							{/if}
 						</div>
-					</div>
+					{/if}
 					{#if queue.length > 0 || !upNext}
 						<PartyQueue
 							{queue}
 							revision={party.room?.revision}
-							onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
+							onselect={party.canControl
+								? (entry) => party.send({ type: 'select', entry: entry.id })
+								: undefined}
 							onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
-							onmove={(entry, to) => party.move(entry.id, to)}
+							canRemove={(entry) => party.canControl || entry.own}
+							onmove={party.canControl ? (entry, to) => party.move(entry.id, to) : undefined}
 						/>
 					{/if}
 					{#if upNext}
-						<PartyUpNext video={upNext} onplay={() => party.playNow(upNext.id)} />
+						<PartyUpNext
+							video={upNext}
+							onplay={party.canPlayNow(upNext.id) ? () => party.playNow(upNext.id) : undefined}
+						/>
 					{/if}
+				</Tabs.Content>
+				<Tabs.Content value="chat">
+					<PartyChat
+						messages={party.chat}
+						disabled={party.status !== 'open'}
+						onsend={(text) => party.sendChat(text)}
+						onreact={(reaction) => party.react(reaction)}
+					/>
 				</Tabs.Content>
 				<Tabs.Content value="history">
 					<PartyHistory
 						history={party.history}
 						{queued}
+						canPlay={(entry) => party.canPlayNow(entry.video.id)}
+						canQueue={party.canAdd}
 						onplay={(entry) => party.playNow(entry.video.id)}
 						onqueue={(entry) => party.add(entry.video.id)}
 					/>

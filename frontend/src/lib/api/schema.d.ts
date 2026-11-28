@@ -1660,6 +1660,11 @@ export interface components {
             autoplay: boolean;
             /** Format: int64 */
             id: number;
+            /**
+             * @description Queued by this participant, or before with the same account or guest key; they may
+             *     always remove it.
+             */
+            own: boolean;
             /** @description `channel` is always set; view counts and dates are not. */
             video: components["schemas"]["VideoSummary"];
         };
@@ -1679,6 +1684,21 @@ export interface components {
          * @enum {string}
          */
         Retention: "1d" | "7d" | "14d" | "30d" | "90d" | "180d" | "365d" | "forever";
+        RoomChatMessage: {
+            /** Format: int64 */
+            id: number;
+            is_guest: boolean;
+            is_owner: boolean;
+            name: string;
+            /** @description Sent by this participant, or before with the same account or guest key. */
+            own: boolean;
+            /**
+             * Format: int64
+             * @description Milliseconds since the Unix epoch.
+             */
+            sent_at: number;
+            text: string;
+        };
         /** @description Sent by clients. The first message must be `join`; positions are in seconds. */
         RoomClientMessage: {
             /** @description Random 16 to 128 URL-safe characters a guest keeps, so a removal sticks. */
@@ -1771,6 +1791,19 @@ export interface components {
             /** @enum {string} */
             type: "kick";
         } | {
+            add?: components["schemas"]["RoomPermission"] | null;
+            control?: components["schemas"]["RoomPermission"] | null;
+            /** @enum {string} */
+            type: "permissions";
+        } | {
+            text: string;
+            /** @enum {string} */
+            type: "chat";
+        } | {
+            reaction: components["schemas"]["RoomReaction"];
+            /** @enum {string} */
+            type: "react";
+        } | {
             place: components["schemas"]["MemberPlace"];
             sync?: components["schemas"]["MemberSync"] | null;
             /** @enum {string} */
@@ -1828,6 +1861,23 @@ export interface components {
             status_revision: number;
             sync?: components["schemas"]["MemberSync"] | null;
         };
+        /**
+         * @description Who besides the owner may do something.
+         * @enum {string}
+         */
+        RoomPermission: "everyone" | "host";
+        /** @description What participants other than the owner may do. */
+        RoomPermissions: {
+            /** @description Queue videos; playing one now needs `control` too. */
+            add: components["schemas"]["RoomPermission"];
+            /**
+             * @description Play, pause, seek, skip, pick, reorder, shuffle, toggle autoplay and remove others'
+             *     entries.
+             */
+            control: components["schemas"]["RoomPermission"];
+        };
+        /** @enum {string} */
+        RoomReaction: "heart" | "laugh" | "wow" | "sad" | "clap" | "fire";
         /** @description Sent by the server. */
         RoomServerMessage: {
             is_owner: boolean;
@@ -1870,6 +1920,20 @@ export interface components {
             /** @enum {string} */
             type: "added";
         } | {
+            messages: components["schemas"]["RoomChatMessage"][];
+            /** @enum {string} */
+            type: "chat_history";
+        } | {
+            message: components["schemas"]["RoomChatMessage"];
+            /** @enum {string} */
+            type: "chat";
+        } | {
+            /** Format: uuid */
+            participant: string;
+            reaction: components["schemas"]["RoomReaction"];
+            /** @enum {string} */
+            type: "reaction";
+        } | {
             /** Format: uuid */
             participant: string;
             place?: components["schemas"]["MemberPlace"] | null;
@@ -1892,6 +1956,7 @@ export interface components {
             /** @description Username of the owner. */
             owner: string;
             participants: components["schemas"]["RoomParticipant"][];
+            permissions: components["schemas"]["RoomPermissions"];
             playing: boolean;
             /**
              * Format: double

@@ -42,6 +42,8 @@ export type PartySyncOptions = {
 	clockStats?: () => { offset: number; rtt: number | null };
 	/** Keeps the sync readout up to date. */
 	debug?: boolean;
+	/** Whether this user may steer the party; if not, the player snaps back to it instead. */
+	canControl?: () => boolean;
 	/** `at` is the server time at which the position was read. */
 	onplay: (position: number, at: number) => void;
 	onpause: (position: number) => void;
@@ -365,9 +367,14 @@ export class PartySync {
 		this.#reportedUntil = localNow() + REPORT_GRACE_MS;
 	}
 
+	#mayControl() {
+		return this.#options.canControl?.() ?? true;
+	}
+
 	#handlePlay(position: number) {
 		this.blocked = false;
-		if (this.#playback.playing) return;
+		// Not allowed to, the next sync pauses it again.
+		if (this.#playback.playing || !this.#mayControl()) return;
 		this.#reported();
 		this.#options.onplay(position, this.#options.serverNow());
 	}
@@ -375,6 +382,12 @@ export class PartySync {
 	#handlePause(position: number) {
 		if (!this.#playback.playing) return;
 		if (this.#duration > 0 && position >= this.#duration - END_SLACK) return;
+		if (!this.#mayControl()) {
+			// Resumed once the pause is through; a play sent earlier would be lost to it.
+			this.#playTriedAt = localNow();
+			this.#player()?.play();
+			return;
+		}
 		this.#reported();
 		this.#options.onpause(position);
 	}
@@ -382,6 +395,7 @@ export class PartySync {
 	/** Small seeks without input on the player are noise; with input they are followed. */
 	#reportSeek(position: number, input = false) {
 		if (!input && Math.abs(position - this.#target()) <= SEEK_THRESHOLD) return;
+		if (!this.#mayControl()) return this.resync();
 		this.#reported();
 		this.#options.onseek(position, this.#options.serverNow());
 	}

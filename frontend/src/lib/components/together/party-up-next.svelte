@@ -11,6 +11,7 @@
 		class: className
 	}: {
 		video: NonNullable<RoomState['up_next']>;
+		/** Makes it clickable, to play it now. */
 		onplay?: () => void;
 		class?: string;
 	} = $props();
@@ -30,12 +31,7 @@
 	>
 		{m.party_up_next()}
 	</h3>
-	<button
-		type="button"
-		class="group/video flex min-w-0 items-start gap-2 rounded-md p-1.5 text-start transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring"
-		title={m.party_play_now_hint()}
-		onclick={onplay}
-	>
+	{#snippet content()}
 		<VideoThumbnail
 			src={video.thumbnailUrl}
 			durationSeconds={video.durationSeconds}
@@ -46,5 +42,19 @@
 			<span class="truncate text-xs text-muted-foreground">{video.channel.name}</span>
 			<span class="truncate text-xs text-muted-foreground">{m.party_autoplay()}</span>
 		</span>
-	</button>
+	{/snippet}
+	{#if onplay}
+		<button
+			type="button"
+			class="group/video flex min-w-0 items-start gap-2 rounded-md p-1.5 text-start transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring"
+			title={m.party_play_now_hint()}
+			onclick={onplay}
+		>
+			{@render content()}
+		</button>
+	{:else}
+		<div class="group/video flex min-w-0 items-start gap-2 rounded-md p-1.5">
+			{@render content()}
+		</div>
+	{/if}
 </section>

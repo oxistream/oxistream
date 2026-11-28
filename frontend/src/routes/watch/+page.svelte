@@ -316,8 +316,10 @@
 						queued={partyQueued}
 						disabled={partyBusy}
 						error={partyError}
-						onplaynow={() => partyRequestSend('play')}
-						onqueue={() => partyRequestSend('queue')}
+						onplaynow={videoId && party.canPlayNow(videoId)
+							? () => partyRequestSend('play')
+							: undefined}
+						onqueue={party.canAdd ? () => partyRequestSend('queue') : undefined}
 						class="watch-frame"
 					/>
 				{:else}

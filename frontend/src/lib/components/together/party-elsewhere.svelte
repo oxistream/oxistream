@@ -26,7 +26,7 @@
 		/** E.g. while not connected or while a request is on its way. */
 		disabled?: boolean;
 		error?: string | null;
-		/** Shows "Play now" and "Add to queue" when set. */
+		/** Each shows its button when set. */
 		onplaynow?: () => void;
 		onqueue?: () => void;
 		class?: string;
@@ -51,35 +51,39 @@
 				{playing ? m.party_elsewhere_playing({ title: playing }) : m.party_elsewhere_empty()}
 			</p>
 		</div>
-		{#if onplaynow && onqueue}
+		{#if onplaynow || onqueue}
 			<div class="mt-1 flex flex-wrap justify-center gap-2">
-				<Button
-					size="sm"
-					class="rounded-full px-3.5"
-					title={m.party_play_now_hint()}
-					{disabled}
-					onclick={onplaynow}
-					data-testid="party-play-now"
-				>
-					<PlayIcon class="fill-current" />
-					{m.party_play_now()}
-				</Button>
-				<Button
-					variant="secondary"
-					size="sm"
-					class={cn('rounded-full px-3.5', queued && 'disabled:opacity-100')}
-					disabled={disabled || queued !== null}
-					onclick={onqueue}
-					data-testid="party-queue-add"
-				>
-					{#if queued}
-						<CheckIcon />
-						{queued === 'added' ? m.party_queued() : m.party_already_queued()}
-					{:else}
-						<ListPlusIcon />
-						{m.party_queue_add()}
-					{/if}
-				</Button>
+				{#if onplaynow}
+					<Button
+						size="sm"
+						class="rounded-full px-3.5"
+						title={m.party_play_now_hint()}
+						{disabled}
+						onclick={onplaynow}
+						data-testid="party-play-now"
+					>
+						<PlayIcon class="fill-current" />
+						{m.party_play_now()}
+					</Button>
+				{/if}
+				{#if onqueue}
+					<Button
+						variant="secondary"
+						size="sm"
+						class={cn('rounded-full px-3.5', queued && 'disabled:opacity-100')}
+						disabled={disabled || queued !== null}
+						onclick={onqueue}
+						data-testid="party-queue-add"
+					>
+						{#if queued}
+							<CheckIcon />
+							{queued === 'added' ? m.party_queued() : m.party_already_queued()}
+						{:else}
+							<ListPlusIcon />
+							{m.party_queue_add()}
+						{/if}
+					</Button>
+				{/if}
 			</div>
 			{#if error}
 				<p class="text-xs font-medium text-red-300" role="alert">{error}</p>
