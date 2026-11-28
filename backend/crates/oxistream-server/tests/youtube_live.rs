@@ -182,10 +182,14 @@ async fn live_items_report_viewers_not_views() {
         .filter(|item| item["is_live"] == true)
         .collect();
     assert_ne!(live.len(), 0, "no live items in {json:#}");
-    for item in live {
+    for item in &live {
         assert!(item["view_count"].is_null(), "{item:#}");
-        assert!(item["viewers"].as_u64().is_some(), "{item:#}");
     }
+    // YouTube leaves out the viewer count on some streams.
+    assert!(
+        live.iter().any(|item| item["viewers"].as_u64().is_some()),
+        "no viewers in {live:#?}"
+    );
 }
 
 #[tokio::test]
