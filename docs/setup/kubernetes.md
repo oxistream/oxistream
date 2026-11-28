@@ -80,20 +80,24 @@ Also:
 - Set `OXISTREAM_TRUSTED_PROXY_HEADER` (e.g. `x-forwarded-for`), so rate limiting sees client IPs instead of the controller's.
 - Over plain HTTP, sign-in needs `OXISTREAM_COOKIE_SECURE=false`.
 
-See [Reverse proxy](../reverse-proxy.md) for the reasons.
+See [Reverse proxy](../advanced/reverse-proxy.md) for the reasons.
 
 ## Multiple replicas
 
 Replicas are stateless and coordinate through PostgreSQL. A few conditions apply:
 
-- All replicas must share `OXISTREAM_PROXY_SECRET`. The chart's Secret takes care of this. GitOps tools that render with `helm template` would regenerate the secret on every render, so set `proxySecret.value` or `proxySecret.existingSecret` explicitly.
+- All replicas must share `OXISTREAM_PROXY_SECRET`. The chart's Secret takes care of this.
 - YouTube binds stream URLs to the IP that fetched them. All pods must leave through a single egress IP, such as one NAT gateway or egress gateway.
 - Nodes must be NTP-synced. Watch party sync uses each replica's wall clock.
 - Background jobs use advisory locks, and replicas sync watch parties via `LISTEN`/`NOTIFY`. Connect to PostgreSQL directly (CloudNativePG's `-rw` service) or through a session-mode pooler. A transaction-mode pooler does not work.
 - Each replica opens up to `OXISTREAM_DATABASE_MAX_CONNECTIONS` (default 10) connections.
 
-Details are in [Operations](../operations.md#multiple-replicas).
+!!! warning "GitOps"
+
+    Tools that render with `helm template`, such as Argo CD, would regenerate the proxy secret on every render. Set `proxySecret.value` or `proxySecret.existingSecret` explicitly.
+
+Details are in [Replicas and rate limiting](../advanced/scaling.md#multiple-replicas).
 
 ## Metrics
 
-Prometheus metrics are served at `/metrics` on the `http` port. See [Operations](../operations.md#metrics).
+Prometheus metrics are served at `/metrics` on the `http` port. See [Monitoring](../administration/monitoring.md#metrics).

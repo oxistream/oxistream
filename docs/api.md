@@ -7,7 +7,7 @@ Every running instance documents its own HTTP API:
 | `/api/docs` | Scalar UI |
 | `/api/openapi.json` | OpenAPI document |
 
-The same document is committed as [`backend/openapi.json`](https://github.com/oxistream/oxistream/blob/main/backend/openapi.json), and `oxistream-server openapi` prints it. The frontend's types are generated from it, see [Development](development.md#api-types).
+The same document is committed as [`backend/openapi.json`](https://github.com/oxistream/oxistream/blob/main/backend/openapi.json), and `oxistream-server openapi` prints it. The frontend's types are generated from it, see [Development](development/index.md#api-types).
 
 ## Versioning
 
@@ -35,7 +35,7 @@ The API lives under `/api/v0` until the first stable release, and will move to `
 
 - Sessions use the `oxistream_session` cookie (security scheme `session` in the OpenAPI document). Get one with `POST /api/v0/auth/login` or `register`, or through the OIDC flow at `GET /api/v0/auth/oidc/login`. End it with `POST /api/v0/auth/logout`.
 - `GET /api/v0/auth/me` returns the current user.
-- Non-GET requests need an `Origin` or `Referer` header of the instance, otherwise 403. See [Reverse proxy](reverse-proxy.md#origin-check). Non-browser clients have to send it themselves:
+- Non-GET requests need an `Origin` or `Referer` header of the instance, otherwise 403. See [Reverse proxy](advanced/reverse-proxy.md#origin-check). Non-browser clients have to send it themselves:
 
   ```sh
   curl -c jar -H 'Origin: https://oxistream.example.com' -H 'Content-Type: application/json' \
@@ -44,13 +44,13 @@ The API lives under `/api/v0` until the first stable release, and will move to `
   ```
 
 - Endpoints that need a user return 401 without a session. Admin endpoints return 403 for non-admins.
-- `/api` and `/proxy` are [rate-limited](operations.md#rate-limiting) per client IP. Over the limit, they return 429 with `Retry-After`.
+- `/api` and `/proxy` are [rate-limited](advanced/scaling.md#rate-limiting) per client IP. Over the limit, they return 429 with `Retry-After`.
 
 The Atom feed (`GET /api/v0/feed/atom/{token}`) uses its token instead of a session. Create the token with `POST /api/v0/settings/feed-token`. The full URL is returned only once.
 
 ## Proxy URLs
 
-Responses never contain YouTube media URLs. They contain signed `/proxy/...` URLs with `exp` and `sig` parameters. Use them as they are: they expire, and changing them breaks the signature. See [Architecture](architecture.md#stream-proxy).
+Responses never contain YouTube media URLs. They contain signed `/proxy/...` URLs with `exp` and `sig` parameters. Use them as they are: they expire, and changing them breaks the signature. See [Architecture](development/architecture.md#stream-proxy).
 
 ## Watch party WebSocket
 
@@ -58,7 +58,7 @@ Responses never contain YouTube media URLs. They contain signed `/proxy/...` URL
 
 The handshake must carry an `Origin` of the instance. Guests may always connect, also when the instance requires login.
 
-With require-login, a guest that joined calls `POST /api/v0/rooms/{id}/guest` with its `guest_key` to get the `oxistream_party` cookie, and again every 30 s. The cookie lets it use the API and the proxy while it is in the room. `DELETE /api/v0/rooms/{id}/guest` clears it. See [party guests](authentication.md#party-guests).
+With require-login, a guest that joined calls `POST /api/v0/rooms/{id}/guest` with its `guest_key` to get the `oxistream_party` cookie, and again every 30 s. The cookie lets it use the API and the proxy while it is in the room. `DELETE /api/v0/rooms/{id}/guest` clears it. See [party guests](advanced/authentication.md#party-guests).
 
 Messages are JSON text frames tagged by `type`. Positions are in seconds, and times in milliseconds since the Unix epoch. Both message unions are in the OpenAPI document as `RoomClientMessage` and `RoomServerMessage`.
 

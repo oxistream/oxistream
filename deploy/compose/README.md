@@ -9,4 +9,4 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Setup, upgrades and backups: [docs/install/compose.md](../../docs/install/compose.md). Variables: [docs/configuration.md](../../docs/configuration.md). TLS and reverse proxies: [docs/reverse-proxy.md](../../docs/reverse-proxy.md).
+Setup, upgrades and backups: [docs/setup/compose.md](../../docs/setup/compose.md). Variables: [docs/configuration.md](../../docs/configuration.md). TLS and reverse proxies: [docs/advanced/reverse-proxy.md](../../docs/advanced/reverse-proxy.md).

@@ -9,4 +9,4 @@ helm install oxistream oci://ghcr.io/OWNER/charts/oxistream --version X.Y.Z \
   --set config.OXISTREAM_PUBLIC_URL=https://oxistream.example.com
 ```
 
-Installation, CloudNativePG, all values, ingress and multiple replicas: [docs/install/kubernetes.md](../../../docs/install/kubernetes.md). Variables for `config`: [docs/configuration.md](../../../docs/configuration.md). Every value is also commented in [`values.yaml`](values.yaml).
+Installation, CloudNativePG, all values, ingress and multiple replicas: [docs/setup/kubernetes.md](../../../docs/setup/kubernetes.md). Variables for `config`: [docs/configuration.md](../../../docs/configuration.md). Every value is also commented in [`values.yaml`](values.yaml).

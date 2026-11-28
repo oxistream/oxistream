@@ -1,6 +1,9 @@
 # Administration
 
-The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first account on an instance is an admin, see [Authentication](authentication.md#first-admin).
+The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first account on an instance is an admin, see [Authentication](../advanced/authentication.md#first-admin).
+
+
+Keeping the instance running is covered in [Upgrades and backups](upgrades.md) and [Monitoring](monitoring.md).
 
 ## Users
 
@@ -46,8 +49,8 @@ Counts and feed fields are empty while the database is unreachable.
 
 Things to look for:
 
-- Botguard "not found": PO tokens are unavailable, and playback may fail. See [Operations](operations.md#botguard).
-- Many failing channels, or a last run stopped by blocking: YouTube is throttling the instance's IP. See [Operations](operations.md#youtube-blocks-and-403s).
+- Botguard "not found": PO tokens are unavailable, and playback may fail. See [Botguard](../troubleshooting.md#botguard).
+- Many failing channels, or a last run stopped by blocking: YouTube is throttling the instance's IP. See [YouTube blocks](../troubleshooting.md#youtube-blocks-and-403s).
 - SSO enabled but not discovered: the provider is unreachable or the issuer is wrong. `/readyz` fails as well.
 
 The same data is available as JSON from `GET /api/v0/admin/status`.

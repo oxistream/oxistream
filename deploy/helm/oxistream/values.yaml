@@ -13,7 +13,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# More than one replica needs a shared proxy secret, a single egress IP and NTP-synced nodes (see docs/install/kubernetes.md).
+# More than one replica needs a shared proxy secret, a single egress IP and NTP-synced nodes (see docs/setup/kubernetes.md).
 replicaCount: 1
 
 # Non-secret OXISTREAM_* environment variables, rendered into a ConfigMap.

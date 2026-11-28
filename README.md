@@ -40,7 +40,7 @@ Open `http://localhost:8080` and register. The first account becomes the admin.
 
 ## Documentation
 
-The [documentation](https://oxistream.github.io/oxistream/overview/) ([source](docs/overview.md)) covers installation (Docker, Compose, Kubernetes), configuration, reverse proxies, authentication, administration, operations, privacy, development and releasing.
+The [documentation](https://oxistream.github.io/oxistream/) ([source](docs/)) covers setup (Docker, Compose, Kubernetes), usage, configuration, administration, reverse proxies, authentication, replicas, privacy, the API, development, a FAQ and troubleshooting.
 
 Deployment files live in [`deploy/compose`](deploy/compose/README.md) and [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md). Release images are published as `ghcr.io/OWNER/oxistream`.
 

@@ -16,13 +16,19 @@ Rules:
 - Changing the password signs out the account's other sessions.
 - With rate limiting on, login and registration attempts are limited to a burst of 10 per client IP (one more every 6 s) and 5 per username (one more every 30 s).
 
-With local accounts off and OIDC on, the instance is SSO-only.
+!!! tip "SSO-only instances"
+
+    With local accounts off and OIDC on, the instance is SSO-only.
 
 ## First admin
 
-The first account to be created becomes admin, whether it registers locally or signs in through OIDC for the first time. A table lock prevents two first users. On a fresh instance, register right after the first start.
+The first account to be created becomes admin, whether it registers locally or signs in through OIDC for the first time. A table lock prevents two first users.
 
-Admins manage other users in the [admin pages](administration.md).
+!!! warning "Register right after the first start"
+
+    On an instance others can reach, anyone who registers first becomes the admin.
+
+Admins manage other users in the [admin pages](../administration/index.md).
 
 ## Sessions
 
@@ -54,33 +60,39 @@ Guests can join a watch party through its invite link (`/party/{id}`). Once in, 
 - Leaving the party clears the cookie. Removal by the host and the end of the party lock the guest out right away (within the 5 s cache); a dropped connection does after 2 minutes.
 - The SPA sends guests to sign in once they are out of the party. Removed guests and guests of an ended party first see why on the invite page.
 
-Without it (the default), anonymous visitors can search, watch and join parties. Subscriptions, playlists, history and starting parties need an account. See [what guests can do](user-guide.md#guests-and-accounts).
+Without it (the default), anonymous visitors can search, watch and join parties. Subscriptions, playlists, history and starting parties need an account. See [what guests can do](../usage/index.md#guests-and-accounts).
 
 ## OIDC
 
 ### Setup
 
-1. Create a client at the provider using the authorization code flow. The client may be confidential or public. Oxistream always uses PKCE.
-2. Register these URIs, with `{PUBLIC_URL}` being your `OXISTREAM_PUBLIC_URL`:
+1.  Create a client at the provider using the authorization code flow. The client may be confidential or public. Oxistream always uses PKCE.
+2.  Register these URIs, with `{PUBLIC_URL}` being your `OXISTREAM_PUBLIC_URL`:
 
-   | Setting | Value |
-   | --- | --- |
-   | Redirect URI | `{PUBLIC_URL}/api/v0/auth/oidc/callback` |
-   | Post-logout redirect URI | `{PUBLIC_URL}/` |
-   | Back-channel logout URL (optional) | `{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout`, with "session required" so that logout tokens carry `sid` |
+    | Setting | Value |
+    | --- | --- |
+    | Redirect URI | `{PUBLIC_URL}/api/v0/auth/oidc/callback` |
+    | Post-logout redirect URI | `{PUBLIC_URL}/` |
+    | Back-channel logout URL (optional) | `{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout`, with "session required" so that logout tokens carry `sid` |
 
-3. Configure Oxistream:
+3.  Configure Oxistream:
 
-   ```sh
-   OXISTREAM_PUBLIC_URL=https://oxistream.example.com
-   OXISTREAM_OIDC_ISSUER=https://id.example.com/realms/main
-   OXISTREAM_OIDC_CLIENT_ID=oxistream
-   OXISTREAM_OIDC_CLIENT_SECRET=...          # omit for public clients
-   OXISTREAM_OIDC_NAME="Example ID"          # button: "Sign in with Example ID"
-   OXISTREAM_OIDC_ADMIN_GROUP=oxistream-admins
-   ```
+    ```sh
+    OXISTREAM_PUBLIC_URL=https://oxistream.example.com # (1)!
+    OXISTREAM_OIDC_ISSUER=https://id.example.com/realms/main # (2)!
+    OXISTREAM_OIDC_CLIENT_ID=oxistream
+    OXISTREAM_OIDC_CLIENT_SECRET=... # (3)!
+    OXISTREAM_OIDC_NAME="Example ID" # (4)!
+    OXISTREAM_OIDC_ADMIN_GROUP=oxistream-admins # (5)!
+    ```
 
-All OIDC variables are listed in [Configuration](configuration.md#oidc).
+    1.  Required with OIDC. The redirect URIs above are built from it.
+    2.  The exact issuer from the provider's discovery document. Setting the issuer and the client ID enables OIDC.
+    3.  Omit it for public clients.
+    4.  The button reads "Sign in with Example ID".
+    5.  Optional. Members become admins, everyone else becomes a user, on every sign-in. See [admin role from groups](#admin-role-from-groups).
+
+All OIDC variables are listed in [Configuration](../configuration.md#oidc).
 
 Discovery runs in the background and retries with backoff (1 s, doubling up to 1 min). `/readyz` returns 503 "OIDC provider not discovered" until it succeeds. Local sign-in works in the meantime.
 
@@ -100,7 +112,11 @@ With `OXISTREAM_OIDC_ADMIN_GROUP` set, the role is synced on every sign-in. Memb
 
 The last active admin is never demoted by sync. Without an admin group, roles are managed only in the admin pages. With one, sync overrides changes made there on the user's next sign-in.
 
-The value must match a claim value exactly:
+!!! warning "Exact match"
+
+    The value must match a claim value exactly, including a leading `/` for Keycloak's full group paths.
+
+Typical claims:
 
 | Provider | Typical claim | Notes |
 | --- | --- | --- |
