@@ -1,8 +1,3 @@
----
-title: Authentication
-nav_order: 6
----
-
 # Authentication
 
 Oxistream supports local accounts (username and password) and exactly one OpenID Connect provider. Each can be turned on or off. Sessions live in the database. There are no JWT sessions.

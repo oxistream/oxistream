@@ -1,8 +1,3 @@
----
-title: User guide
-nav_order: 2
----
-
 # User guide
 
 Oxistream lets you watch YouTube without a Google account. All video, images and subtitles come through your Oxistream instance. Some features need an account on the instance, see [Guests and accounts](#guests-and-accounts).

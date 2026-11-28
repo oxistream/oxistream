@@ -11,6 +11,7 @@ Self-hosted, privacy-friendly YouTube frontend inspired by Invidious and Piped. 
 - Comments only where non-obvious logic needs explaining. No long comments or prose.
 - Always use the latest stable versions of dependencies; verify on crates.io/npm before adding, never assume from memory.
 - User, operator and developer docs live in `docs/`; update them with every user-visible or config change.
+  - MkDocs with Material (`mkdocs.yml`, versions pinned in `requirements-docs.txt`, MkDocs 1.x only), landing page from `overrides/home.html`, built with `mkdocs build --strict` and deployed to GitHub Pages via Actions (`pages.yml`). Links to files outside `docs/` are absolute GitHub URLs.
 - License: AGPL-3.0-or-later (required by RustyPipe's GPL-3.0). Do not add dependencies with incompatible licenses.
 
 ## Git workflow

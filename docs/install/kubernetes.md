@@ -1,12 +1,6 @@
----
-title: Kubernetes
-parent: Installation
-nav_order: 3
----
-
 # Kubernetes
 
-The Helm chart in [`deploy/helm/oxistream`](../../deploy/helm/oxistream) deploys Oxistream on Kubernetes 1.29 or newer, with Helm 3 or 4. The chart does not include PostgreSQL (18 or newer is required). The examples use [CloudNativePG](https://cloudnative-pg.io).
+The Helm chart in [`deploy/helm/oxistream`](https://github.com/oxistream/oxistream/tree/main/deploy/helm/oxistream) deploys Oxistream on Kubernetes 1.29 or newer, with Helm 3 or 4. The chart does not include PostgreSQL (18 or newer is required). The examples use [CloudNativePG](https://cloudnative-pg.io).
 
 ## Install
 
@@ -41,11 +35,11 @@ helm install oxistream ./deploy/helm/oxistream \
   --set image.repository=ghcr.io/OWNER/oxistream
 ```
 
-[`examples/cnpg-cluster.yaml`](../../deploy/helm/oxistream/examples/cnpg-cluster.yaml) creates a PostgreSQL 18 `Cluster` named `oxistream-db` with database and owner `oxistream`.
+[`examples/cnpg-cluster.yaml`](https://github.com/oxistream/oxistream/blob/main/deploy/helm/oxistream/examples/cnpg-cluster.yaml) creates a PostgreSQL 18 `Cluster` named `oxistream-db` with database and owner `oxistream`.
 
 With `database.cnpgCluster: oxistream-db`, the chart reads the `uri` key of the operator-generated `oxistream-db-app` secret. That key points to the read-write service. Raise `instances` to 3 for a primary with two standbys.
 
-[`examples/values-cnpg.yaml`](../../deploy/helm/oxistream/examples/values-cnpg.yaml) runs two replicas behind ingress-nginx with TLS.
+[`examples/values-cnpg.yaml`](https://github.com/oxistream/oxistream/blob/main/deploy/helm/oxistream/examples/values-cnpg.yaml) runs two replicas behind ingress-nginx with TLS.
 
 ## Values
 
@@ -78,7 +72,7 @@ Pods roll when `config` or the chart's own secret values change. After changing 
 
 ## Ingress
 
-Watch parties use WebSockets, and the stream proxy serves long responses with range requests. Most controllers pass WebSocket upgrades by default. Where the controller allows it, raise idle timeouts and turn off response buffering. [`examples/values-cnpg.yaml`](../../deploy/helm/oxistream/examples/values-cnpg.yaml) shows the ingress-nginx annotations.
+Watch parties use WebSockets, and the stream proxy serves long responses with range requests. Most controllers pass WebSocket upgrades by default. Where the controller allows it, raise idle timeouts and turn off response buffering. [`examples/values-cnpg.yaml`](https://github.com/oxistream/oxistream/blob/main/deploy/helm/oxistream/examples/values-cnpg.yaml) shows the ingress-nginx annotations.
 
 Also:
 

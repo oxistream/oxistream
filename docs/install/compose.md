@@ -1,12 +1,6 @@
----
-title: Docker Compose
-parent: Installation
-nav_order: 2
----
-
 # Docker Compose
 
-[`deploy/compose/`](../../deploy/compose) runs Oxistream with PostgreSQL 18. By default the app listens on `127.0.0.1:8080` only.
+[`deploy/compose/`](https://github.com/oxistream/oxistream/tree/main/deploy/compose) runs Oxistream with PostgreSQL 18. By default the app listens on `127.0.0.1:8080` only.
 
 ## Quickstart
 
@@ -24,7 +18,7 @@ Open `http://localhost:8080`. The first account to register becomes admin.
 
 ## Settings
 
-[`.env.example`](../../deploy/compose/.env.example) lists every setting, with its default in a comment. Each variable is described in [Configuration](../configuration.md). Compose builds `OXISTREAM_DATABASE_URL` from `POSTGRES_PASSWORD`. The image already sets `OXISTREAM_BIND`, `OXISTREAM_BOTGUARD_BIN` and `OXISTREAM_YOUTUBE_CACHE_DIR`.
+[`.env.example`](https://github.com/oxistream/oxistream/blob/main/deploy/compose/.env.example) lists every setting, with its default in a comment. Each variable is described in [Configuration](../configuration.md). Compose builds `OXISTREAM_DATABASE_URL` from `POSTGRES_PASSWORD`. The image already sets `OXISTREAM_BIND`, `OXISTREAM_BOTGUARD_BIN` and `OXISTREAM_YOUTUBE_CACHE_DIR`.
 
 Two variables only affect Compose:
 

@@ -1,0 +1,41 @@
+{% extends "main.html" %}
+
+{% block tabs %}{% endblock %}
+
+{% block hero %}
+  {% if "navigation.tabs" in features %}
+    {% include "partials/tabs.html" %}
+  {% endif %}
+  <section class="ox-hero">
+    <div class="ox-wrap">
+      <div class="ox-hero__text">
+        <p class="ox-brand">
+          <span class="ox-brand__mark">{% include ".icons/oxistream/logo.svg" %}</span>
+          Oxistream
+        </p>
+        <h1 class="ox-hero__title">Self-hosted YouTube frontend for homelabs and public instances</h1>
+        <p class="ox-hero__lead">
+          Search, subscriptions, playlists, history and watch parties with accounts for everyone on your instance.
+          Video, audio, thumbnails and subtitles stream through your server, without a Google account.
+        </p>
+        <div class="ox-hero__actions">
+          <a href="{{ 'overview/' | url }}" class="md-button md-button--primary">Read the docs</a>
+          <a href="{{ config.repo_url }}" class="md-button">Get the source on GitHub</a>
+        </div>
+        <p class="ox-hero__fact">One container image for amd64 and arm64, with PostgreSQL 18 or newer. AGPL-3.0.</p>
+      </div>
+      <div class="ox-shot">
+        <img class="ox-shot__img ox-shot__img--light" src="{{ 'images/home-light.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page with continue watching and trending rows" loading="lazy" decoding="async">
+        <img class="ox-shot__img ox-shot__img--dark" src="{{ 'images/home-dark.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page in dark mode" loading="lazy" decoding="async">
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block container %}
+  <div class="md-content ox-home" data-md-component="content">
+    <article class="md-content__inner md-typeset">
+      {{ page.content }}
+    </article>
+  </div>
+{% endblock %}

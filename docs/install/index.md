@@ -1,10 +1,3 @@
----
-title: Installation
-nav_order: 3
-has_children: true
-permalink: /install/
----
-
 # Installation
 
 Oxistream is a single container image that needs PostgreSQL 18 or newer.
