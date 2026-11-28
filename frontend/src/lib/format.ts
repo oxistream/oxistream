@@ -101,3 +101,26 @@ export function formatDate(date: Date | string, locale: string): string {
 	const value = typeof date === 'string' ? new Date(date) : date;
 	return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(value);
 }
+
+/** Compact uptime with the two largest units: "3d 4h", "12m". */
+export function formatUptime(totalSeconds: number, locale: string): string {
+	const total = Math.max(0, Math.floor(totalSeconds));
+	const parts: [number, string][] = [
+		[Math.floor(total / 86_400), 'day'],
+		[Math.floor((total % 86_400) / 3600), 'hour'],
+		[Math.floor((total % 3600) / 60), 'minute']
+	];
+	const first = parts.findIndex(([value]) => value > 0);
+	if (first === -1) return formatUnit(0, 'minute', locale);
+	return parts
+		.slice(first, first + 2)
+		.filter(([value], i) => i === 0 || value > 0)
+		.map(([value, unit]) => formatUnit(value, unit, locale))
+		.join(' ');
+}
+
+function formatUnit(value: number, unit: string, locale: string): string {
+	return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(
+		value
+	);
+}

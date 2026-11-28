@@ -42,7 +42,11 @@
 		? 'var(--party-sidebar-width)'
 		: '0.5rem'};"
 >
-	<AppSidebar {user} channels={user ? subscriptions.data : undefined} />
+	<AppSidebar
+		{user}
+		admin={session.account?.role === 'admin'}
+		channels={user ? subscriptions.data : undefined}
+	/>
 	<Sidebar.Inset
 		class="overflow-clip transition-[margin] duration-200 ease-linear group-data-[party-sidebar=open]/sidebar-wrapper:me-0! motion-reduce:transition-none md:ring-1 md:ring-sidebar-border"
 	>
