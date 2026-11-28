@@ -42,6 +42,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/admin/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Instance status: build, database, feed worker and configuration. Caches and the feed
+         *     worker's last run are those of the replica that answers. Admins only.
+         */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users, newest first. Admins only. */
+        get: operations["list_users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v0/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a user with everything they own, ending their sessions. Admins delete their own
+         *     account via `DELETE /account`.
+         */
+        delete: operations["delete_user"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a user's role or disable them. Admins cannot change their own account, and the last
+         *     active admin is never demoted or disabled. With an OIDC admin group, the role of single
+         *     sign-on users is synced again on their next sign-in.
+         */
+        patch: operations["update_user"];
+        trace?: never;
+    };
     "/api/v0/auth/login": {
         parameters: {
             query?: never;
@@ -1304,6 +1366,63 @@ export interface components {
              */
             skip_queued?: boolean;
         };
+        /** @enum {string} */
+        AdminRole: "user" | "admin";
+        AdminStatus: {
+            auth: components["schemas"]["AuthStatus"];
+            /** @description `null` if `rustypipe-botguard` was not found. */
+            botguard_version?: string | null;
+            counts?: components["schemas"]["InstanceCounts"] | null;
+            database: components["schemas"]["DatabaseStatus"];
+            feed: components["schemas"]["FeedWorkerStatus"];
+            /** @description Commit the server was built from, if known. */
+            git_sha?: string | null;
+            /**
+             * Format: int64
+             * @description Cached player responses of this replica.
+             */
+            player_cache_entries: number;
+            rate_limit: boolean;
+            sponsorblock: boolean;
+            /** Format: date-time */
+            started_at: string;
+            /** @description ISO country code of the trending pages. */
+            trending_region: string;
+            /** Format: int64 */
+            uptime_seconds: number;
+            version: string;
+        };
+        AdminUserEntry: {
+            auth_method: components["schemas"]["AuthMethod"];
+            /** Format: date-time */
+            created_at: string;
+            disabled: boolean;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Most recent activity of any session; `null` without sessions.
+             */
+            last_seen_at?: string | null;
+            role: components["schemas"]["UserRole"];
+            /** Format: int64 */
+            subscriptions: number;
+            username: string;
+        };
+        AdminUserPage: {
+            /**
+             * Format: int64
+             * @description Users matching the search.
+             */
+            total: number;
+            users: components["schemas"]["AdminUserEntry"][];
+        };
+        /** @description Fields to change; absent fields stay as they are. */
+        AdminUserUpdate: {
+            /** @description Disabling ends all of the user's sessions. */
+            disabled?: boolean | null;
+            role?: components["schemas"]["AdminRole"] | null;
+        };
         AudioTrack: {
             /** @description YouTube's track ID, e.g. `en.4`. */
             id: string;
@@ -1328,6 +1447,16 @@ export interface components {
             /** @description New local accounts can be created. */
             registration_enabled: boolean;
             /** @description Anonymous users cannot use the API or proxy. */
+            require_login: boolean;
+        };
+        /** @enum {string} */
+        AuthMethod: "local" | "oidc";
+        AuthStatus: {
+            local_enabled: boolean;
+            /** @description Provider discovery succeeded; `false` without single sign-on. */
+            oidc_discovered: boolean;
+            oidc_enabled: boolean;
+            registration_enabled: boolean;
             require_login: boolean;
         };
         /** @description A channel the signed-in user blocked. */
@@ -1422,6 +1551,11 @@ export interface components {
             /** @description 3 to 32 letters, digits, dots, dashes or underscores. Case-insensitive for sign-in. */
             username: string;
         };
+        DatabaseStatus: {
+            reachable: boolean;
+            /** @description Postgres `server_version`. */
+            version?: string | null;
+        };
         /**
          * @description A short to discover. YouTube sends no title or channel name with it; load them with
          *     `GET /videos/{id}` when it is shown.
@@ -1442,12 +1576,22 @@ export interface components {
             reason?: string | null;
         };
         /** @enum {string} */
-        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "limit_reached" | "no_password" | "last_admin" | "internal";
+        ErrorCode: "bad_request" | "not_found" | "unavailable" | "rate_limited" | "botguard_failed" | "upstream_error" | "unauthorized" | "forbidden" | "origin_rejected" | "invalid_credentials" | "account_disabled" | "validation_failed" | "local_auth_disabled" | "registration_disabled" | "too_many_requests" | "limit_reached" | "no_password" | "last_admin" | "own_account" | "internal";
         FeedPage: {
             /** @description Pass to `continuation` to fetch the next page; absent on the last page. */
             continuation?: string | null;
             /** @description Newest first; `channel` is always set. */
             items: components["schemas"]["VideoSummary"][];
+        };
+        FeedRun: {
+            channels_failed: number;
+            channels_fetched: number;
+            /** Format: date-time */
+            finished_at: string;
+            playlists_failed: number;
+            playlists_fetched: number;
+            /** @description Stopped early because YouTube is blocking requests. */
+            rate_limited: boolean;
         };
         FeedTokenStatus: {
             /**
@@ -1455,6 +1599,41 @@ export interface components {
              * @description When the current feed URL was created; `null` without one.
              */
             created_at: string | null;
+        };
+        FeedWorkerStatus: {
+            /**
+             * Format: int64
+             * @description Subscribed channels due for the next run.
+             */
+            due?: number | null;
+            /**
+             * Format: int64
+             * @description Subscribed channels whose last fetch failed.
+             */
+            failing?: number | null;
+            /**
+             * Format: int64
+             * @description Fetch interval; `null` if no worker runs on this replica.
+             */
+            interval_minutes?: number | null;
+            /**
+             * Format: date-time
+             * @description Most recent fetch attempt of any subscribed channel, by any replica.
+             */
+            last_checked_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Last run of this replica's worker that failed with a database error.
+             */
+            last_error_at?: string | null;
+            last_run?: components["schemas"]["FeedRun"] | null;
+            /**
+             * Format: int64
+             * @description Subscribed channels never fetched successfully.
+             */
+            pending?: number | null;
+            /** @description A replica holds the worker lock, i.e. a run is in progress. */
+            running?: boolean | null;
         };
         /**
          * @description Why a request field was rejected.
@@ -1555,6 +1734,31 @@ export interface components {
             skipped: number;
             /** @description The first skipped entries, as given in the file. */
             skipped_entries: string[];
+        };
+        InstanceCounts: {
+            /**
+             * Format: int64
+             * @description Admins that are not disabled.
+             */
+            admins: number;
+            /**
+             * Format: int64
+             * @description Channels with at least one subscriber.
+             */
+            channels: number;
+            /** Format: int64 */
+            disabled_users: number;
+            /** Format: int64 */
+            playlists: number;
+            /** Format: int64 */
+            subscriptions: number;
+            /** Format: int64 */
+            users: number;
+            /**
+             * Format: int64
+             * @description Cached video metadata.
+             */
+            videos: number;
         };
         InstanceInfo: {
             auth: components["schemas"]["AuthCapabilities"];
@@ -2567,6 +2771,223 @@ export interface operations {
             };
             /** @description Too many attempts */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not an admin (`forbidden`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_users: {
+        parameters: {
+            query?: {
+                /** @description Only usernames containing this, ignoring case. At most 100 characters. */
+                q?: string;
+                /** @description Page size, 1 to 100; default 50. */
+                limit?: number;
+                /** @description Users to skip; default 0. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserPage"];
+                };
+            };
+            /** @description Invalid limit or search */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not an admin (`forbidden`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not an admin (`forbidden`), or foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Own account (`own_account`) or last admin (`last_admin`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not an admin (`forbidden`), or foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Own account (`own_account`) or last active admin (`last_admin`) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -6,7 +6,8 @@ import {
 	formatDurationLong,
 	formatNumber,
 	formatRelativeDay,
-	formatRelativeTime
+	formatRelativeTime,
+	formatUptime
 } from './format';
 
 // Intl inserts narrow and regular no-break spaces; compare on plain spaces.
@@ -106,5 +107,15 @@ describe('formatDate', () => {
 	it('uses the long date style', () => {
 		expect(formatDate('2026-03-04T12:00:00Z', 'en')).toBe('March 4, 2026');
 		expect(formatDate('2026-03-04T12:00:00Z', 'de')).toBe('4. März 2026');
+	});
+});
+
+describe('formatUptime', () => {
+	it('shows the two largest units', () => {
+		expect(plain(formatUptime(3 * 86_400 + 4 * 3600 + 5 * 60, 'en'))).toBe('3d 4h');
+		expect(plain(formatUptime(3 * 86_400 + 5 * 60, 'en'))).toBe('3d');
+		expect(plain(formatUptime(2 * 3600 + 7 * 60, 'en'))).toBe('2h 7m');
+		expect(plain(formatUptime(30, 'en'))).toBe('0m');
+		expect(plain(formatUptime(3 * 86_400 + 4 * 3600, 'de'))).toBe('3 T 4h');
 	});
 });

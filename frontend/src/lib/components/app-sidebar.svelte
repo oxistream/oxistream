@@ -2,6 +2,7 @@
 	import ClapperboardIcon from '@lucide/svelte/icons/clapperboard';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import HouseIcon from '@lucide/svelte/icons/house';
+	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import ListVideoIcon from '@lucide/svelte/icons/list-video';
 	import TvMinimalPlayIcon from '@lucide/svelte/icons/tv-minimal-play';
 	import type { ComponentProps } from 'svelte';
@@ -21,11 +22,14 @@
 	let {
 		ref = $bindable(null),
 		user = null,
+		admin = false,
 		channels = [],
 		onsignout,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user?: User | null;
+		/** Shows the admin pages. */
+		admin?: boolean;
 		/** The signed-in user's subscriptions, listed compactly below the library. */
 		channels?: SubscribedChannel[];
 		onsignout?: () => void;
@@ -44,6 +48,7 @@
 		{ href: '/feed/playlists', label: m.nav_playlists, icon: ListVideoIcon },
 		{ href: '/feed/history', label: m.nav_history, icon: ClockIcon }
 	];
+	const adminItems: NavItem[] = [{ href: '/admin', label: m.nav_admin, icon: ShieldIcon }];
 </script>
 
 <Sidebar.Root bind:ref variant="inset" collapsible="icon" {...restProps}>
@@ -73,7 +78,8 @@
 			<NavMain items={primary} />
 			<NavMain items={library} label={m.nav_library()} />
 			{#if user}<NavSubscriptions {channels} />{/if}
-			<NavSettings signedIn={user !== null} class="mt-auto" />
+			{#if admin}<NavMain items={adminItems} class="mt-auto" />{/if}
+			<NavSettings signedIn={user !== null} class={admin ? undefined : 'mt-auto'} />
 		</nav>
 	</Sidebar.Content>
 	<Sidebar.Footer>
