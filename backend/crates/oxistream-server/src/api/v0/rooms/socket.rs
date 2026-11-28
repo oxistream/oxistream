@@ -11,19 +11,23 @@ use rustypipe::param::Language;
 use rustypipe::validate;
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
+use tokio::sync::broadcast;
 use tokio::time::Instant;
 
 use super::protocol::{
-    RoomClientMessage, RoomErrorCode, RoomServerMessage, history, room_state, unix_ms,
+    MemberPlace, MemberSync, RoomClientMessage, RoomErrorCode, RoomServerMessage, history,
+    room_state, status_message, unix_ms,
 };
 use super::{check_room_id, ensure_cached};
 use crate::AppState;
 use crate::api::error::ApiError;
 use crate::api::lang::ContentLanguage;
 use crate::auth::{OptionalUser, csrf};
-use crate::rooms::{MAX_PARTICIPANTS, MAX_QUEUE, Update};
+use crate::rooms::{MAX_PARTICIPANTS, MAX_QUEUE, Subscription, Update};
 
 const MAX_MESSAGE_BYTES: usize = 4096;
+/// How often a participant's status is stored and passed on at most.
+const STATUS_INTERVAL: Duration = Duration::from_secs(1);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(10);
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_NAME_CHARS: usize = 32;
@@ -61,6 +65,8 @@ pub async fn connect(
                 socket,
                 limits: Limits::new(),
                 history_sent: None,
+                participant: Uuid::nil(),
+                status: StatusReports::default(),
             };
             conn.run().await;
         })
@@ -188,6 +194,45 @@ struct Connection {
     limits: Limits,
     /// The newest played entry of the history last sent (0 for none), once one was.
     history_sent: Option<i64>,
+    participant: Uuid,
+    status: StatusReports,
+}
+
+type Status = (Option<MemberSync>, MemberPlace);
+
+/// The participant's status reports, stored at most once per [`STATUS_INTERVAL`]; in between,
+/// only the latest is kept.
+#[derive(Default)]
+struct StatusReports {
+    stored: Option<Status>,
+    pending: Option<Status>,
+    stored_at: Option<Instant>,
+}
+
+impl StatusReports {
+    fn report(&mut self, status: Status) {
+        self.pending = (self.stored != Some(status)).then_some(status);
+    }
+
+    /// When the pending report may be stored, if there is one.
+    fn due(&self) -> Option<Instant> {
+        self.pending?;
+        Some(
+            self.stored_at
+                .map_or_else(Instant::now, |at| at + STATUS_INTERVAL),
+        )
+    }
+
+    /// The report to store now, if one is due.
+    fn take(&mut self, now: Instant) -> Option<Status> {
+        if self.stored_at.is_some_and(|at| now < at + STATUS_INTERVAL) {
+            return None;
+        }
+        let status = self.pending.take()?;
+        self.stored = Some(status);
+        self.stored_at = Some(now);
+        Some(status)
+    }
 }
 
 /// How the connection ends.
@@ -269,8 +314,9 @@ impl Connection {
         }
 
         let rooms = self.state.rooms.clone();
-        let rx = rooms.subscribe(&self.room_id, participant).await;
-        let end = self.session(participant, &identity, rx).await;
+        self.participant = participant;
+        let subscription = rooms.subscribe(&self.room_id, participant).await;
+        let end = self.session(participant, &identity, subscription).await;
         rooms.unsubscribe(&self.room_id, participant);
         if let Err(err) = rooms.repo().leave(participant).await {
             tracing::warn!(error = ?err, "could not leave watch room");
@@ -294,8 +340,12 @@ impl Connection {
         &mut self,
         participant: Uuid,
         identity: &Identity,
-        mut rx: tokio::sync::watch::Receiver<Update>,
+        subscription: Subscription,
     ) -> End {
+        let Subscription {
+            state: mut rx,
+            mut statuses,
+        } = subscription;
         let owner_id = match &*rx.borrow_and_update() {
             Update::Open(snapshot) => snapshot.room.owner_id,
             Update::Closed => return End::Closed,
@@ -315,7 +365,20 @@ impl Connection {
         let mut keepalive = tokio::time::interval(KEEPALIVE_INTERVAL);
         keepalive.reset();
         loop {
+            let status_due = self.status.due();
             tokio::select! {
+                () = tokio::time::sleep_until(status_due.unwrap_or_else(Instant::now)),
+                    if status_due.is_some() => self.store_status().await,
+                change = statuses.recv() => match change {
+                    Ok(change) => {
+                        if !self.send(&status_message(change.participant, change.status)).await {
+                            return End::Gone;
+                        }
+                    }
+                    // The next state carries every status.
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Closed) => return End::Retry,
+                },
                 message = self.socket.recv() => match message {
                     Some(Ok(Message::Text(text))) => {
                         self.handle(&text, &identity.name, is_owner, owner_id).await;
@@ -350,6 +413,21 @@ impl Connection {
                     }
                 }
             }
+        }
+    }
+
+    async fn store_status(&mut self) {
+        let Some((sync, place)) = self.status.take(Instant::now()) else {
+            return;
+        };
+        let result = self
+            .state
+            .rooms
+            .repo()
+            .set_status(self.participant, sync.map(Into::into), Some(place.into()))
+            .await;
+        if let Err(err) = result {
+            tracing::warn!(error = ?err, "could not store watch room status");
         }
     }
 
@@ -392,6 +470,10 @@ impl Connection {
                 return;
             }
             RoomClientMessage::Join { .. } => return self.reject(RoomErrorCode::Invalid).await,
+            RoomClientMessage::Status { sync, place } => {
+                self.status.report((sync, place));
+                return self.store_status().await;
+            }
             RoomClientMessage::Play { position, at } => match position_ms(position) {
                 Some(position_ms) => {
                     now = position_time(at, now);
@@ -597,6 +679,27 @@ mod tests {
         assert_eq!(position_time(Some(ms(earlier)), now), earlier);
         assert_eq!(position_time(Some(ms(now) + 1000.0), now), now);
         assert_eq!(position_time(Some(0.0), now), now - MAX_BACKDATE);
+    }
+
+    #[test]
+    fn status_reports_are_coalesced() {
+        let start = Instant::now();
+        let mut reports = StatusReports::default();
+        assert_eq!(reports.due(), None);
+        let watching = (Some(MemberSync::Synced), MemberPlace::Watching);
+        let buffering = (Some(MemberSync::Buffering), MemberPlace::Watching);
+        let browsing = (Some(MemberSync::Buffering), MemberPlace::Browsing);
+        reports.report(watching);
+        assert_eq!(reports.take(start), Some(watching));
+        // Repeats are dropped; changes wait for the interval, and only the latest is kept.
+        reports.report(watching);
+        assert_eq!(reports.due(), None);
+        reports.report(buffering);
+        reports.report(browsing);
+        assert_eq!(reports.due(), Some(start + STATUS_INTERVAL));
+        assert_eq!(reports.take(start + Duration::from_millis(500)), None);
+        assert_eq!(reports.take(start + STATUS_INTERVAL), Some(browsing));
+        assert_eq!(reports.due(), None);
     }
 
     #[test]

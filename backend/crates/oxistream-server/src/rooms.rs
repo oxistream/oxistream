@@ -7,12 +7,13 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use oxistream_db::{
-    PgPool, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, Uuid, VideoUpsert,
+    ParticipantStatus, PgPool, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, Uuid,
+    VideoUpsert,
 };
 use rustypipe::model as rp;
 use rustypipe::param::Language;
 use time::OffsetDateTime;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 
 use crate::youtube::{self, YouTube};
 
@@ -29,6 +30,8 @@ const MAX_LISTEN_BACKOFF: Duration = Duration::from_mins(1);
 /// A failed autoplay pick is tried again after this.
 const PICK_RETRY: Duration = Duration::from_mins(1);
 const MAX_PICK_CANDIDATES: usize = 20;
+/// Status changes a slow connection may fall behind by; it skips older ones.
+const STATUS_BUFFER: usize = 256;
 
 /// Videos autoplay may follow a video with, best first.
 #[async_trait]
@@ -94,7 +97,22 @@ struct Inner {
 
 struct Local {
     tx: watch::Sender<Update>,
+    statuses: broadcast::Sender<StatusChange>,
     participants: HashSet<Uuid>,
+}
+
+/// A participant reported a new status. Snapshots carry statuses too; the higher
+/// `status.revision` is the newer one.
+#[derive(Debug, Clone, Copy)]
+pub struct StatusChange {
+    pub participant: Uuid,
+    pub status: ParticipantStatus,
+}
+
+/// A local participant's view of the room and its members' statuses.
+pub struct Subscription {
+    pub state: watch::Receiver<Update>,
+    pub statuses: broadcast::Receiver<StatusChange>,
 }
 
 impl Rooms {
@@ -122,18 +140,29 @@ impl Rooms {
     }
 
     /// Registers a participant connected to this replica and returns its view of the room.
-    pub async fn subscribe(&self, room_id: &str, participant: Uuid) -> watch::Receiver<Update> {
-        let rx = {
+    pub async fn subscribe(&self, room_id: &str, participant: Uuid) -> Subscription {
+        let subscription = {
             let mut local = self.local();
             let entry = local.entry(room_id.to_owned()).or_insert_with(|| Local {
                 tx: watch::Sender::new(Update::Loading),
+                statuses: broadcast::Sender::new(STATUS_BUFFER),
                 participants: HashSet::new(),
             });
             entry.participants.insert(participant);
-            entry.tx.subscribe()
+            Subscription {
+                state: entry.tx.subscribe(),
+                statuses: entry.statuses.subscribe(),
+            }
         };
         self.refresh(room_id).await;
-        rx
+        subscription
+    }
+
+    /// Passes a status on to the room's local participants.
+    fn status(&self, room_id: &str, change: StatusChange) {
+        if let Some(entry) = self.local().get(room_id) {
+            let _ = entry.statuses.send(change);
+        }
     }
 
     pub fn unsubscribe(&self, room_id: &str, participant: Uuid) {
@@ -256,20 +285,40 @@ impl Rooms {
             // Changes made before listening started would be missed otherwise.
             self.refresh_all().await;
             loop {
-                match listener.recv().await {
-                    Ok(RoomEvent::Changed(room)) => {
-                        let mut changed = HashSet::from([room]);
-                        while let Some(RoomEvent::Changed(room)) = listener.next_buffered() {
-                            changed.insert(room);
-                        }
-                        for room in changed {
-                            self.refresh(&room).await;
-                        }
-                    }
-                    Ok(RoomEvent::Reconnected) => self.refresh_all().await,
+                let mut next = match listener.recv().await {
+                    Ok(event) => Some(event),
                     Err(err) => {
                         tracing::warn!(error = ?err, "lost watch room notifications");
                         break;
+                    }
+                };
+                let mut changed = HashSet::new();
+                let mut reconnected = false;
+                while let Some(event) = next {
+                    match event {
+                        RoomEvent::Changed(room) => {
+                            changed.insert(room);
+                        }
+                        RoomEvent::Status {
+                            room,
+                            participant,
+                            status,
+                        } => self.status(
+                            &room,
+                            StatusChange {
+                                participant,
+                                status,
+                            },
+                        ),
+                        RoomEvent::Reconnected => reconnected = true,
+                    }
+                    next = listener.next_buffered();
+                }
+                if reconnected {
+                    self.refresh_all().await;
+                } else {
+                    for room in changed {
+                        self.refresh(&room).await;
                     }
                 }
             }
