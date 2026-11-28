@@ -197,6 +197,11 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 ## Deployment
 
 - One multi-stage Docker image: frontend build, Rust build, botguard binary.
+  - Build stages run on `$BUILDPLATFORM`; the server is cross-compiled with Debian's cross gcc (no QEMU) for linux/amd64 and linux/arm64.
+  - `rustypipe-botguard` is the upstream release binary, pinned by version and SHA-256 per arch (bump both together).
+  - Runtime: `distroless/cc-debian13:nonroot`, no shell, no `HEALTHCHECK` (probe `/healthz`, `/readyz`). The server is PID 1 and handles SIGTERM.
+  - Base images pinned by tag and digest. `OXISTREAM_GIT_SHA` is a build arg read at compile time; `VERSION` sets the OCI label.
+  - CI builds the amd64 image without pushing.
 - `deploy/compose/`: Compose setup with Postgres.
 - `deploy/helm/oxistream`: Helm chart with example values for a CloudNativePG `Cluster`.
 - CI via GitHub Actions; images published to GHCR.
