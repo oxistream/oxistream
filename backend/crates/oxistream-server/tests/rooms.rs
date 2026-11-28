@@ -994,3 +994,206 @@ async fn sockets_toggle_autoplay_and_play_the_preview() {
     })
     .await;
 }
+
+fn history_ids(s: &oxistream_db::RoomSnapshot) -> Vec<&str> {
+    s.history.iter().map(|e| e.video.id.as_str()).collect()
+}
+
+fn add_as(video_id: &str, max_queue: u32, play: bool) -> RoomOp {
+    RoomOp::Add {
+        video_id: video_id.to_owned(),
+        added_by: "Grace".into(),
+        max_queue,
+        play,
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn played_entries_stay_as_a_bounded_history() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    let room = repo
+        .create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 1)
+        .await
+        .unwrap();
+    let first = room.current_entry_id.unwrap();
+    repo.apply(ROOM, &add_as(VIDEOS[1], 2, false), now)
+        .await
+        .unwrap();
+    repo.apply(ROOM, &RoomOp::Advance { from: first }, now)
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(history_ids(&s), [VIDEOS[0]]);
+    assert_eq!(s.history[0].added_by, "Ada");
+    assert_eq!(s.history[0].entry_id, first);
+    assert_eq!(queue(&repo).await.1, [VIDEOS[1]]);
+
+    // Only the current and upcoming entries count towards the limit.
+    repo.apply(ROOM, &add_as(VIDEOS[2], 2, false), now)
+        .await
+        .unwrap();
+    assert!(matches!(
+        repo.apply(ROOM, &add_as(VIDEOS[3], 2, false), now).await,
+        Err(Error::LimitReached)
+    ));
+    let summaries = repo.list_owned(owner.id).await.unwrap();
+    assert_eq!(summaries[0].queue_count, 2);
+
+    // Played entries cannot be selected, removed or moved like queued ones.
+    let (revision, _) = entries(&repo).await;
+    for op in [
+        RoomOp::Select { entry: first },
+        RoomOp::Remove { entry: first },
+        RoomOp::Move {
+            entry: first,
+            to: 0,
+            revision,
+        },
+    ] {
+        assert_eq!(
+            repo.apply(ROOM, &op, now).await.unwrap(),
+            OpOutcome::Unchanged
+        );
+    }
+
+    // Selecting, playing now and removing all retire the current entry, newest first.
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    repo.apply(
+        ROOM,
+        &RoomOp::Select {
+            entry: s.queue[1].entry_id,
+        },
+        now,
+    )
+    .await
+    .unwrap();
+    repo.apply(ROOM, &add_as(VIDEOS[0], 2, true), now)
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(history_ids(&s), [VIDEOS[2], VIDEOS[1], VIDEOS[0]]);
+    assert!(s.history.windows(2).all(|w| w[0].played > w[1].played));
+    let replayed = s.room.current_entry_id.unwrap();
+    repo.apply(ROOM, &RoomOp::Remove { entry: replayed }, now)
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(
+        history_ids(&s),
+        [VIDEOS[0], VIDEOS[2], VIDEOS[1]],
+        "a video played again replaces its older entry"
+    );
+    assert!(s.room.current_entry_id.is_none() && s.queue.is_empty());
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn history_keeps_only_the_latest_entries() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    repo.create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 1)
+        .await
+        .unwrap();
+    let videos = PgVideoRepository::new(db.pool.clone());
+    let many: Vec<String> = (0..oxistream_db::MAX_HISTORY)
+        .map(|i| format!("hist{i:07}"))
+        .collect();
+    for id in &many {
+        videos
+            .upsert(&VideoUpsert {
+                id: id.clone(),
+                title: id.clone(),
+                channel_id: "UCaaaaaaaaaaaaaaaaaaaaaa".into(),
+                channel_name: "Alpha".into(),
+                duration_seconds: Some(60),
+                published_at: None,
+                thumbnail_url: None,
+            })
+            .await
+            .unwrap();
+        repo.apply(ROOM, &add_as(id, 2, true), now).await.unwrap();
+    }
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    let kept = usize::try_from(oxistream_db::MAX_HISTORY).unwrap();
+    assert_eq!(s.history.len(), kept);
+    assert_eq!(s.history[0].video.id, many[many.len() - 2]);
+    assert_eq!(s.history[kept - 1].video.id, VIDEOS[0]);
+    let stored: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM watch_room_queue WHERE room_id = $1")
+            .bind(ROOM)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        stored,
+        oxistream_db::MAX_HISTORY + 1,
+        "the history and the current entry"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn sockets_send_the_history_only_when_it_changes() {
+    let db = isolated_test_pool().await;
+    cache_videos(&db.pool).await;
+    let owner = user(&db.pool).await;
+    let token = session(&db.pool, &owner).await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    repo.create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 10)
+        .await
+        .unwrap();
+    repo.apply(ROOM, &add(VIDEOS[1]), OffsetDateTime::now_utc())
+        .await
+        .unwrap();
+    let (_, a) = replica(&db.pool).await;
+    let (_, b) = replica(&db.pool).await;
+
+    let mut host = connect(&a, ROOM, Some(&token)).await;
+    send(&mut host, json!({ "type": "join" })).await;
+    expect(&mut host, "welcome").await;
+    assert_eq!(expect(&mut host, "history").await["entries"], json!([]));
+    let state = expect(&mut host, "state").await;
+    let first = state["room"]["current"]["id"].clone();
+
+    // A skip on another replica moves the entry to everyone's history, before the new state.
+    let mut guest = connect(&b, ROOM, None).await;
+    send(
+        &mut guest,
+        json!({ "type": "join", "name": "Grace", "guest_key": "guest-key-0123456789" }),
+    )
+    .await;
+    expect(&mut guest, "welcome").await;
+    expect(&mut guest, "history").await;
+    send(&mut guest, json!({ "type": "skip", "entry": first })).await;
+    let history = expect(&mut host, "history").await;
+    assert_eq!(history["entries"][0]["id"], first);
+    assert_eq!(history["entries"][0]["video"]["id"], VIDEOS[0]);
+    assert_eq!(history["entries"][0]["added_by"], "Ada");
+    let state = expect(&mut host, "state").await;
+    assert_eq!(state["room"]["current"]["video"]["id"], VIDEOS[1]);
+    assert_eq!(state["room"]["queue"], json!([]));
+
+    // Other changes leave it out.
+    send(&mut host, json!({ "type": "pause", "position": 1.0 })).await;
+    let next = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Some(Ok(Message::Text(text))) = host.next().await {
+                let value: Value = serde_json::from_str(&text).unwrap();
+                if value["type"] == "history" || value["room"]["position"] == 1.0 {
+                    return value;
+                }
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(next["type"], "state");
+}

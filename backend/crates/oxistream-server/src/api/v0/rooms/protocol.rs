@@ -1,6 +1,6 @@
 //! Messages of the watch room WebSocket, JSON text frames tagged by `type`.
 
-use oxistream_db::{RoomSnapshot, Uuid};
+use oxistream_db::{RoomEntry, RoomSnapshot, Uuid};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -120,6 +120,10 @@ pub enum RoomServerMessage {
     State {
         room: Box<RoomState>,
     },
+    /// Played entries, newest first. Sent before the first `state` and whenever they change.
+    History {
+        entries: Vec<QueueEntry>,
+    },
     Pong {
         t: f64,
         /// Milliseconds since the Unix epoch.
@@ -184,18 +188,30 @@ pub fn unix_ms(at: time::OffsetDateTime) -> i64 {
     i64::try_from(at.unix_timestamp_nanos() / 1_000_000).unwrap_or(i64::MAX)
 }
 
+fn queue_entry(e: &RoomEntry, img: &impl Fn(&str) -> String) -> QueueEntry {
+    QueueEntry {
+        id: e.entry_id,
+        video: cached_video_summary(e.video.clone(), img),
+        added_by: e.added_by.clone(),
+        autoplay: e.autoplay,
+    }
+}
+
+pub fn history(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Vec<QueueEntry> {
+    snapshot
+        .history
+        .iter()
+        .map(|e| queue_entry(e, img))
+        .collect()
+}
+
 #[allow(clippy::cast_precision_loss)]
 pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> RoomState {
     let room = &snapshot.room;
     let (current, queue): (Vec<_>, Vec<_>) = snapshot
         .queue
         .iter()
-        .map(|e| QueueEntry {
-            id: e.entry_id,
-            video: cached_video_summary(e.video.clone(), img),
-            added_by: e.added_by.clone(),
-            autoplay: e.autoplay,
-        })
+        .map(|e| queue_entry(e, img))
         .partition(|e| Some(e.id) == room.current_entry_id);
     RoomState {
         id: room.id.clone(),

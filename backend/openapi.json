@@ -7619,6 +7619,28 @@
           },
           {
             "type": "object",
+            "description": "Played entries, newest first. Sent before the first `state` and whenever they change.",
+            "required": [
+              "entries",
+              "type"
+            ],
+            "properties": {
+              "entries": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QueueEntry"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "history"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "required": [
               "t",
               "server_time",
