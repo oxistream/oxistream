@@ -4,6 +4,7 @@ import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import type { WatchProblem } from '#lib/components/watch/errors.js';
 import { UpNextQueue, type QueueVideo } from './queue.svelte.js';
+import { SleepTimer } from './sleep-timer.svelte.js';
 
 /** A video loaded into the app-wide player. */
 export type PlayerMedia = {
@@ -84,6 +85,8 @@ export type ClaimOptions = {
 	/** Replace the up-next queue for `next()` and `previous()` while held. */
 	onnext?: () => void;
 	onprevious?: () => void;
+	/** Whether this tab may play, pause and seek for everyone; others are snapped back. */
+	mayControl?: () => boolean;
 };
 
 /** Going back further than this into a video restarts it instead. */
@@ -114,6 +117,11 @@ export class AppPlayer {
 	navigate: (href: string) => void = () => {};
 	/** Builds the watch page link of a video; set by the host. */
 	watchHref: (videoId: string) => string = (id) => `/watch?v=${id}`;
+	/** Repeats the current video instead of going on; reset when another one loads. */
+	loop = $state(false);
+	readonly sleep = new SleepTimer(() => this.pause());
+	/** The keyboard shortcuts overlay. */
+	shortcutsOpen = $state(false);
 
 	/** Where to go once the queue is empty, e.g. back to the playlist it interrupted. */
 	#resume = $state.raw<string | null>(null);
@@ -149,6 +157,7 @@ export class AppPlayer {
 				this.#history = [...this.#history, last].slice(-MAX_HISTORY);
 			}
 			this.#back = false;
+			if (last?.id !== media.videoId) this.loop = false;
 			this.#last = {
 				id: media.videoId,
 				title: media.title,
@@ -276,6 +285,9 @@ export class AppPlayer {
 	/** Takes the player for `owner`. Fails while someone else holds it. */
 	take(owner: string, options: ClaimOptions = {}): PlayerClaim | null {
 		if (this.claim && this.claim.owner !== owner) return null;
+		// Both would act for everyone in a party.
+		this.loop = false;
+		this.sleep.set('off');
 		const claim: PlayerClaim & ClaimOptions = {
 			owner,
 			...options,

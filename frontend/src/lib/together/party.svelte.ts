@@ -258,7 +258,8 @@ export class Party {
 		const claim = appPlayer.take(OWNER, {
 			onclose: () => (this.leaveOpen = true),
 			closeLabel: m.party_leave,
-			overlay: this.overlay
+			overlay: this.overlay,
+			mayControl: () => this.canControl
 		});
 		if (!claim) return;
 		this.#claim = claim;
