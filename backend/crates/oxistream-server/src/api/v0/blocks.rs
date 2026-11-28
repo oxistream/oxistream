@@ -113,7 +113,9 @@ impl FromRequestParts<AppState> for BlockedChannels {
     }
 }
 
-/// Channels the signed-in user blocked, most recently blocked first.
+/// List blocked channels
+///
+/// Most recently blocked first.
 #[utoipa::path(
     get,
     path = "/blocks",
@@ -138,9 +140,10 @@ async fn list_blocks(
     ))
 }
 
-/// Block a channel. Its videos, shorts and playlists are left out of search, related videos and
-/// trending, and a subscription to it ends. Subscribing to the channel again lifts the block.
-/// Idempotent.
+/// Block channel
+///
+/// Its videos, shorts and playlists are left out of search, related videos and trending, and a
+/// subscription to it ends. Subscribing to the channel again lifts the block. Idempotent.
 #[utoipa::path(
     put,
     path = "/blocks/{channel_id}",
@@ -196,7 +199,9 @@ async fn block(
     Ok((status, Json(BlockedChannel::from_db(block, &img))).into_response())
 }
 
-/// Unblock a channel. Succeeds if not blocked, too.
+/// Unblock channel
+///
+/// Succeeds if not blocked, too.
 #[utoipa::path(
     delete,
     path = "/blocks/{channel_id}",

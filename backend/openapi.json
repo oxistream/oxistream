@@ -15,7 +15,8 @@
         "tags": [
           "account"
         ],
-        "summary": "Delete the signed-in account with everything it owns: subscriptions, playlists, history,\nsettings and sessions. The last admin can only delete their account once no other users\nremain. Single sign-on users get a new, empty account on their next sign-in.",
+        "summary": "Delete current account",
+        "description": "Deletes the signed-in account with everything it owns: subscriptions, playlists, history,\nsettings and sessions. The last admin can only delete their account once no other users remain.\nSingle sign-on users get a new, empty account on their next sign-in.",
         "operationId": "delete_account",
         "requestBody": {
           "content": {
@@ -112,7 +113,8 @@
         "tags": [
           "account"
         ],
-        "summary": "Change the password of a local account. Ends the account's other sessions.",
+        "summary": "Change password",
+        "description": "Only for local accounts. Ends the account's other sessions.",
         "operationId": "change_password",
         "requestBody": {
           "content": {
@@ -201,7 +203,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Instance status: build, database, feed worker and configuration. Caches and the feed\nworker's last run are those of the replica that answers. Admins only.",
+        "summary": "Get instance status",
+        "description": "Instance status: build, database, feed worker and configuration. Caches and the feed\nworker's last run are those of the replica that answers. Admins only.",
         "operationId": "status",
         "responses": {
           "200": {
@@ -246,7 +249,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Users, newest first. Admins only.",
+        "summary": "List users",
+        "description": "Users, newest first. Admins only.",
         "operationId": "list_users",
         "parameters": [
           {
@@ -334,7 +338,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Delete a user with everything they own, ending their sessions. Admins delete their own\naccount via `DELETE /account`.",
+        "summary": "Delete user",
+        "description": "Delete a user with everything they own, ending their sessions. Admins delete their own\naccount via `DELETE /account`.",
         "operationId": "delete_user",
         "parameters": [
           {
@@ -402,7 +407,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Change a user's role or disable them. Admins cannot change their own account, and the last\nactive admin is never demoted or disabled. With an OIDC admin group, the role of single\nsign-on users is synced again on their next sign-in.",
+        "summary": "Update user",
+        "description": "Change a user's role or disable them. Admins cannot change their own account, and the last\nactive admin is never demoted or disabled. With an OIDC admin group, the role of single\nsign-on users is synced again on their next sign-in.",
         "operationId": "update_user",
         "parameters": [
           {
@@ -492,7 +498,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Sign in with a local account.",
+        "summary": "Sign in with local account",
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -571,7 +577,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "End the current session. Succeeds without a session, too.",
+        "summary": "Sign out",
+        "description": "Ends the current session. Succeeds without a session, too.",
         "operationId": "logout",
         "responses": {
           "200": {
@@ -610,7 +617,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "The signed-in account.",
+        "summary": "Get current account",
         "operationId": "me",
         "responses": {
           "200": {
@@ -645,8 +652,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Back-channel logout: the provider ends sessions server to server.",
-        "description": "Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure\n`{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.\nNeeds no `Origin` header or session.",
+        "summary": "Handle OIDC back-channel logout",
+        "description": "Back-channel logout: the provider ends sessions server to server.\n\nSigns out the sessions with the token's `sid`, or all sessions of its `sub`. Configure\n`{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.\nNeeds no `Origin` header or session.",
         "operationId": "backchannel_logout",
         "requestBody": {
           "content": {
@@ -690,8 +697,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Where the provider sends the browser back after sign-in.",
-        "description": "On success, starts a session and redirects to the target given to `/auth/oidc/login`.\nUnknown identities get a new account; the first account of an instance becomes an admin.\nFailures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,\n`oidc_disabled` or `account_disabled`.",
+        "summary": "Handle OIDC callback",
+        "description": "Where the provider sends the browser back after sign-in.\n\nOn success, starts a session and redirects to the target given to `/auth/oidc/login`.\nUnknown identities get a new account; the first account of an instance becomes an admin.\nFailures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,\n`oidc_disabled` or `account_disabled`.",
         "operationId": "oidc_callback",
         "parameters": [
           {
@@ -763,8 +770,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Start single sign-on with the configured provider.",
-        "description": "Redirects the browser to the provider. Failures redirect to `/login?error=` with\n`oidc_disabled` or `oidc_unavailable`.",
+        "summary": "Start single sign-on",
+        "description": "Start single sign-on with the configured provider.\n\nRedirects the browser to the provider. Failures redirect to `/login?error=` with\n`oidc_disabled` or `oidc_unavailable`.",
         "operationId": "oidc_login",
         "parameters": [
           {
@@ -802,7 +809,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Create a local account and sign in. The first account of an instance becomes an admin.",
+        "summary": "Register local account",
+        "description": "Creates a local account and signs in. The first account of an instance becomes an admin.",
         "operationId": "register",
         "requestBody": {
           "content": {
@@ -891,7 +899,8 @@
         "tags": [
           "blocks"
         ],
-        "summary": "Channels the signed-in user blocked, most recently blocked first.",
+        "summary": "List blocked channels",
+        "description": "Most recently blocked first.",
         "operationId": "list_blocks",
         "responses": {
           "200": {
@@ -929,7 +938,8 @@
         "tags": [
           "blocks"
         ],
-        "summary": "Block a channel. Its videos, shorts and playlists are left out of search, related videos and\ntrending, and a subscription to it ends. Subscribing to the channel again lifts the block.\nIdempotent.",
+        "summary": "Block channel",
+        "description": "Its videos, shorts and playlists are left out of search, related videos and trending, and a\nsubscription to it ends. Subscribing to the channel again lifts the block. Idempotent.",
         "operationId": "block",
         "parameters": [
           {
@@ -1046,7 +1056,8 @@
         "tags": [
           "blocks"
         ],
-        "summary": "Unblock a channel. Succeeds if not blocked, too.",
+        "summary": "Unblock channel",
+        "description": "Succeeds if not blocked, too.",
         "operationId": "unblock",
         "parameters": [
           {
@@ -1106,7 +1117,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Channel header and the first page of its videos.",
+        "summary": "Get channel",
+        "description": "Channel header and the first page of its videos.",
         "operationId": "channel",
         "parameters": [
           {
@@ -1189,7 +1201,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A page of a channel's past, current and upcoming livestreams.",
+        "summary": "List channel livestreams",
+        "description": "A page of a channel's past, current and upcoming livestreams.",
         "operationId": "channel_live",
         "parameters": [
           {
@@ -1295,7 +1308,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A page of a channel's playlists.",
+        "summary": "List channel playlists",
+        "description": "A page of a channel's playlists.",
         "operationId": "channel_playlists",
         "parameters": [
           {
@@ -1387,7 +1401,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Search within a channel's videos.",
+        "summary": "Search channel",
+        "description": "Searches within a channel's videos.",
         "operationId": "channel_search",
         "parameters": [
           {
@@ -1488,7 +1503,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A page of a channel's shorts.",
+        "summary": "List channel shorts",
+        "description": "A page of a channel's shorts.",
         "operationId": "channel_shorts",
         "parameters": [
           {
@@ -1594,7 +1610,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A page of a channel's videos.",
+        "summary": "List channel videos",
+        "description": "A page of a channel's videos.",
         "operationId": "channel_videos",
         "parameters": [
           {
@@ -1700,7 +1717,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Videos of subscribed channels, newest first. Videos the user is not interested in are left\nout.",
+        "summary": "Get subscription feed",
+        "description": "Videos of subscribed channels, newest first. Videos the user is not interested in are left out.",
         "operationId": "feed",
         "parameters": [
           {
@@ -1818,7 +1836,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "The newest videos of a user's subscriptions as Atom. The token from\n`POST /settings/feed-token` authenticates; no session is needed.",
+        "summary": "Get Atom feed",
+        "description": "The newest videos of a user's subscriptions as Atom. The token from `POST /settings/feed-token`\nauthenticates; no session is needed.",
         "operationId": "atom_feed",
         "parameters": [
           {
@@ -1860,7 +1879,8 @@
         "tags": [
           "hidden-videos"
         ],
-        "summary": "Mark a video as not interesting. It is left out of the subscription feed, \"Continue\nwatching\" and trending. Idempotent.",
+        "summary": "Hide video",
+        "description": "Marks a video as not interesting. It is left out of the subscription feed, \"Continue watching\"\nand trending. Idempotent.",
         "operationId": "hide",
         "parameters": [
           {
@@ -1918,7 +1938,8 @@
         "tags": [
           "hidden-videos"
         ],
-        "summary": "Show a hidden video again. Succeeds if it is not hidden, too.",
+        "summary": "Unhide video",
+        "description": "Shows a hidden video again. Succeeds if it is not hidden, too.",
         "operationId": "unhide",
         "parameters": [
           {
@@ -1978,7 +1999,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Watched videos, most recently watched first.",
+        "summary": "List watch history",
+        "description": "Most recently watched first.",
         "operationId": "history",
         "parameters": [
           {
@@ -2052,7 +2074,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Clear the whole watch history, including resume points.",
+        "summary": "Clear watch history",
+        "description": "Clears the whole watch history, including resume points.",
         "operationId": "clear_history",
         "responses": {
           "204": {
@@ -2091,7 +2114,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Started but unfinished videos, most recently watched first. Videos known to be shorts are\nleft out.",
+        "summary": "List videos to continue watching",
+        "description": "Started but unfinished videos, most recently watched first. Videos known to be shorts are left\nout.",
         "operationId": "continue_watching",
         "parameters": [
           {
@@ -2152,7 +2176,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Hide a video from \"Continue watching\" until it is watched again. It stays in the history\nand keeps its resume point. Succeeds if it is not in the history, too.",
+        "summary": "Dismiss from continue watching",
+        "description": "Hides a video from \"Continue watching\" until it is watched again. It stays in the history and\nkeeps its resume point. Succeeds if it is not in the history, too.",
         "operationId": "dismiss_continue",
         "parameters": [
           {
@@ -2212,7 +2237,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Whether the watch history is paused, and how long it is kept.",
+        "summary": "Get history settings",
+        "description": "Whether the watch history is paused, and how long it is kept.",
         "operationId": "history_settings",
         "responses": {
           "200": {
@@ -2245,7 +2271,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Pause or resume the watch history, or change how long it is kept.",
+        "summary": "Update history settings",
+        "description": "Pauses or resumes the watch history, or changes how long it is kept.",
         "operationId": "update_history_settings",
         "requestBody": {
           "content": {
@@ -2320,7 +2347,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Mark a video as watched: it moves to the top of the history, finished. Recorded even while\nthe history is paused, as the user asked for it. Not for shorts, which have no history.",
+        "summary": "Mark video as watched",
+        "description": "The video moves to the top of the history, finished. Recorded even while the history is paused,\nas the user asked for it. Not for shorts, which have no history.",
         "operationId": "mark_watched",
         "parameters": [
           {
@@ -2404,7 +2432,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Remove one video from the watch history. Succeeds if it is not in there, too.",
+        "summary": "Remove video from history",
+        "description": "Succeeds if it is not in there, too.",
         "operationId": "delete_entry",
         "parameters": [
           {
@@ -2464,7 +2493,8 @@
         "tags": [
           "instance"
         ],
-        "summary": "Basic information about this instance.",
+        "summary": "Get instance info",
+        "description": "Basic information about this instance.",
         "operationId": "instance",
         "responses": {
           "200": {
@@ -2485,7 +2515,8 @@
         "tags": [
           "likes"
         ],
-        "summary": "The signed-in user's liked videos, most recently liked first. Likes stay on this\ninstance and are never sent to YouTube.",
+        "summary": "List liked videos",
+        "description": "Most recently liked first. Likes stay on this instance and are never sent to YouTube.",
         "operationId": "list_likes",
         "parameters": [
           {
@@ -2552,7 +2583,8 @@
         "tags": [
           "likes"
         ],
-        "summary": "Whether the signed-in user liked a video.",
+        "summary": "Get like state",
+        "description": "Whether the signed-in user liked a video.",
         "operationId": "like_state",
         "parameters": [
           {
@@ -2606,7 +2638,8 @@
         "tags": [
           "likes"
         ],
-        "summary": "Like a video, shorts included. Idempotent; liking again keeps the original date.",
+        "summary": "Like video",
+        "description": "Shorts included. Idempotent; liking again keeps the original date.",
         "operationId": "like",
         "parameters": [
           {
@@ -2723,7 +2756,8 @@
         "tags": [
           "likes"
         ],
-        "summary": "Remove a like. Succeeds if the video was not liked, too.",
+        "summary": "Remove like",
+        "description": "Succeeds if the video was not liked, too.",
         "operationId": "unlike",
         "parameters": [
           {
@@ -2783,7 +2817,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "YouTube playlists the signed-in user follows, ordered by title.",
+        "summary": "List followed playlists",
+        "description": "YouTube playlists the signed-in user follows, ordered by title.",
         "operationId": "list_follows",
         "responses": {
           "200": {
@@ -2821,7 +2856,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Whether the signed-in user follows a YouTube playlist.",
+        "summary": "Get playlist follow state",
+        "description": "Whether the signed-in user follows a YouTube playlist.",
         "operationId": "follow_state",
         "parameters": [
           {
@@ -2885,7 +2921,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Follow a YouTube playlist. Idempotent; new playlists are fetched in the background and\nthen kept up to date by the feed worker.",
+        "summary": "Follow playlist",
+        "description": "Follows a YouTube playlist. Idempotent; new playlists are fetched in the background and then\nkept up to date by the feed worker.",
         "operationId": "follow",
         "parameters": [
           {
@@ -2970,7 +3007,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Stop following a YouTube playlist. Succeeds if not followed, too.",
+        "summary": "Unfollow playlist",
+        "description": "Succeeds if not followed, too.",
         "operationId": "unfollow",
         "parameters": [
           {
@@ -3040,7 +3078,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Mark the videos of a followed playlist as seen, resetting `new_video_count`.",
+        "summary": "Mark playlist as seen",
+        "description": "Marks the videos of a followed playlist as seen, resetting `new_video_count`.",
         "operationId": "mark_seen",
         "parameters": [
           {
@@ -3110,7 +3149,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "The signed-in user's playlists, most recently changed first.",
+        "summary": "List playlists",
+        "description": "The signed-in user's playlists, most recently changed first.",
         "operationId": "list_playlists",
         "parameters": [
           {
@@ -3167,7 +3207,7 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Create a playlist.",
+        "summary": "Create playlist",
         "operationId": "create_playlist",
         "requestBody": {
           "content": {
@@ -3242,7 +3282,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Copy a YouTube playlist into a new private playlist, which can then be edited. Copies at\nmost 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each\nvideo once: a repeated video keeps its first place.",
+        "summary": "Import YouTube playlist",
+        "description": "Copies a YouTube playlist into a new private playlist, which can then be edited. Copies at most\n5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each video\nonce: a repeated video keeps its first place.",
         "operationId": "import_playlist",
         "parameters": [
           {
@@ -3361,7 +3402,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "A playlist with its items. Private playlists are only visible to their owner; unlisted\nones to anyone with the ID, including anonymous users.",
+        "summary": "Get playlist",
+        "description": "A playlist with its items. Private playlists are only visible to their owner; unlisted ones to\nanyone with the ID, including anonymous users.",
         "operationId": "get_playlist",
         "parameters": [
           {
@@ -3400,7 +3442,7 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Delete a playlist.",
+        "summary": "Delete playlist",
         "operationId": "delete_playlist",
         "parameters": [
           {
@@ -3458,7 +3500,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Change title, description or visibility.",
+        "summary": "Update playlist",
+        "description": "Changes title, description or visibility.",
         "operationId": "update_playlist",
         "parameters": [
           {
@@ -3544,7 +3587,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Append a video. Idempotent; a video appears at most once per playlist.",
+        "summary": "Add video to playlist",
+        "description": "Appends the video. Idempotent; a video appears at most once per playlist.",
         "operationId": "add_item",
         "parameters": [
           {
@@ -3680,7 +3724,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Remove a video. Succeeds if it is not in the playlist, too.",
+        "summary": "Remove video from playlist",
+        "description": "Succeeds if it is not in the playlist, too.",
         "operationId": "remove_item",
         "parameters": [
           {
@@ -3759,7 +3804,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Move a video to another position.",
+        "summary": "Move video in playlist",
+        "description": "Moves a video to another position.",
         "operationId": "move_item",
         "parameters": [
           {
@@ -3848,7 +3894,8 @@
         "tags": [
           "playlists"
         ],
-        "summary": "Remember which item the owner is playing, for continuing later.",
+        "summary": "Set last played item",
+        "description": "Remembers which item the owner is playing, for continuing later.",
         "operationId": "set_last_played",
         "parameters": [
           {
@@ -3928,7 +3975,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Progress of several videos, e.g. for the progress bars of a list. Videos never watched\nare left out.",
+        "summary": "Get progress of videos",
+        "description": "For example for the progress bars of a list. Videos never watched are left out.",
         "operationId": "batch_progress",
         "parameters": [
           {
@@ -3985,8 +4033,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Record how far the signed-in user got into a video. Ignored while history is paused and for\nvideos known to be shorts.",
-        "description": "The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.",
+        "summary": "Report watch progress",
+        "description": "Records how far the signed-in user got into a video. Ignored while history is paused and for\nvideos known to be shorts.\n\nThe body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.",
         "operationId": "report_progress",
         "requestBody": {
           "content": {
@@ -4045,7 +4093,8 @@
         "tags": [
           "history"
         ],
-        "summary": "Progress of one video, to resume where the signed-in user left off.",
+        "summary": "Get progress of video",
+        "description": "To resume where the signed-in user left off.",
         "operationId": "video_progress",
         "parameters": [
           {
@@ -4101,7 +4150,8 @@
         "tags": [
           "queue"
         ],
-        "summary": "The signed-in user's up-next queue. Guests keep theirs in the browser.",
+        "summary": "Get up-next queue",
+        "description": "The signed-in user's up-next queue. Guests keep theirs in the browser.",
         "operationId": "get_queue",
         "responses": {
           "200": {
@@ -4134,7 +4184,8 @@
         "tags": [
           "queue"
         ],
-        "summary": "Remove all entries.",
+        "summary": "Clear queue",
+        "description": "Removes all entries.",
         "operationId": "clear_queue",
         "responses": {
           "200": {
@@ -4180,7 +4231,8 @@
         "tags": [
           "queue"
         ],
-        "summary": "Add entries at the start or end. A full queue loses entries at the end.",
+        "summary": "Add queue entries",
+        "description": "Adds entries at the start or end. A full queue loses entries at the end.",
         "operationId": "add_entries",
         "requestBody": {
           "content": {
@@ -4246,7 +4298,8 @@
         "tags": [
           "queue"
         ],
-        "summary": "Remove an entry. Succeeds if it is not queued, too, so two players taking the same\nentry do not fail.",
+        "summary": "Remove queue entry",
+        "description": "Succeeds if it is not queued, too, so two players taking the same entry do not fail.",
         "operationId": "remove_entry",
         "parameters": [
           {
@@ -4313,7 +4366,8 @@
         "tags": [
           "queue"
         ],
-        "summary": "Move an entry to another position. Succeeds if it is not queued, too.",
+        "summary": "Move queue entry",
+        "description": "Moves an entry to another position. Succeeds if it is not queued, too.",
         "operationId": "move_entry",
         "parameters": [
           {
@@ -4390,7 +4444,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Resolve a YouTube URL to a video, channel or playlist ID.",
+        "summary": "Resolve YouTube URL",
+        "description": "Resolves a YouTube URL to a video, channel or playlist ID.",
         "operationId": "resolve",
         "parameters": [
           {
@@ -4461,7 +4516,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "List the signed-in user's open rooms, newest first.",
+        "summary": "List rooms",
+        "description": "The signed-in user's open rooms, newest first.",
         "operationId": "list_rooms",
         "responses": {
           "200": {
@@ -4498,7 +4554,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "Open a room. Anyone with its link can join through the WebSocket at\n`/api/v0/rooms/{id}/ws`, speaking `RoomClientMessage` and `RoomServerMessage`. Rooms\nexpire a day after the last participant left.",
+        "summary": "Create room",
+        "description": "Opens a room. Anyone with its link can join through the WebSocket at `/api/v0/rooms/{id}/ws`,\nspeaking `RoomClientMessage` and `RoomServerMessage`. Rooms expire a day after the last\nparticipant left.",
         "operationId": "create_room",
         "requestBody": {
           "content": {
@@ -4584,7 +4641,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "Look up a room before joining it.",
+        "summary": "Get room",
+        "description": "Looks up a room before joining it.",
         "operationId": "get_room",
         "parameters": [
           {
@@ -4624,7 +4682,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "Close a room; everyone in it is disconnected.",
+        "summary": "Close room",
+        "description": "Everyone in it is disconnected.",
         "operationId": "delete_room",
         "parameters": [
           {
@@ -4684,7 +4743,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest\nmay use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it\nstays in the room. Clients call this after joining and every 30 s.",
+        "summary": "Update party guest cookie",
+        "description": "Confirms that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest\nmay use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it\nstays in the room. Clients call this after joining and every 30 s.",
         "operationId": "admit_guest",
         "parameters": [
           {
@@ -4747,7 +4807,8 @@
         "tags": [
           "rooms"
         ],
-        "summary": "Give up guest access, e.g. after leaving the room.",
+        "summary": "Clear party guest cookie",
+        "description": "Gives up guest access, e.g. after leaving the room.",
         "operationId": "release_guest",
         "parameters": [
           {
@@ -4782,7 +4843,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Search videos, shorts, channels and playlists.",
+        "summary": "Search",
+        "description": "Searches videos, shorts, channels and playlists.",
         "operationId": "search",
         "parameters": [
           {
@@ -4925,7 +4987,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Search suggestions for a partial query; empty when YouTube fails.",
+        "summary": "Get search suggestions",
+        "description": "Suggestions for a partial query; empty when YouTube fails.",
         "operationId": "search_suggestions",
         "parameters": [
           {
@@ -4971,7 +5034,8 @@
         "tags": [
           "settings"
         ],
-        "summary": "The signed-in user's preferences.",
+        "summary": "Get settings",
+        "description": "The signed-in user's preferences.",
         "operationId": "get_settings",
         "responses": {
           "200": {
@@ -5004,7 +5068,8 @@
         "tags": [
           "settings"
         ],
-        "summary": "Change some of the signed-in user's preferences.",
+        "summary": "Update settings",
+        "description": "Changes some of the signed-in user's preferences.",
         "operationId": "update_settings",
         "requestBody": {
           "content": {
@@ -5080,7 +5145,8 @@
         "tags": [
           "settings"
         ],
-        "summary": "Whether the signed-in user has a feed URL.",
+        "summary": "Get feed URL status",
+        "description": "Whether the signed-in user has a feed URL.",
         "operationId": "get_feed_token",
         "responses": {
           "200": {
@@ -5113,7 +5179,8 @@
         "tags": [
           "settings"
         ],
-        "summary": "Create a personal Atom feed URL of the subscription feed; an existing one stops working.",
+        "summary": "Create feed URL",
+        "description": "Creates a personal Atom feed URL of the subscription feed; an existing one stops working.",
         "operationId": "create_feed_token",
         "responses": {
           "201": {
@@ -5156,7 +5223,7 @@
         "tags": [
           "settings"
         ],
-        "summary": "Revoke the signed-in user's feed URL.",
+        "summary": "Revoke feed URL",
         "operationId": "delete_feed_token",
         "responses": {
           "204": {
@@ -5195,7 +5262,8 @@
         "tags": [
           "sponsorblock"
         ],
-        "summary": "The signed-in user's SponsorBlock preferences.",
+        "summary": "Get SponsorBlock settings",
+        "description": "The signed-in user's SponsorBlock preferences.",
         "operationId": "settings",
         "responses": {
           "200": {
@@ -5228,7 +5296,8 @@
         "tags": [
           "sponsorblock"
         ],
-        "summary": "Replace the signed-in user's SponsorBlock preferences.",
+        "summary": "Replace SponsorBlock settings",
+        "description": "Replaces the signed-in user's SponsorBlock preferences.",
         "operationId": "update_settings",
         "requestBody": {
           "content": {
@@ -5293,7 +5362,8 @@
         "tags": [
           "shorts"
         ],
-        "summary": "Endless shorts to swipe through, like YouTube's shorts player. Each page continues the\ncurrent sequence and starts a new one from the next seed, interleaved. Seeds are the\nsigned-in user's liked shorts and the latest shorts of their subscriptions, plus trending\nvideos; anonymous users get trending seeds only. Nothing about the user is sent to YouTube\nbut the seed video IDs. Shorts of blocked channels are left out, so a page may be empty\nwhile more follow.",
+        "summary": "Discover shorts",
+        "description": "Endless shorts to swipe through, like YouTube's shorts player. Each page continues the current\nsequence and starts a new one from the next seed, interleaved. Seeds are the signed-in user's\nliked shorts and the latest shorts of their subscriptions, plus trending videos; anonymous users\nget trending seeds only. Nothing about the user is sent to YouTube but the seed video IDs.\nShorts of blocked channels are left out, so a page may be empty while more follow.",
         "operationId": "discover",
         "parameters": [
           {
@@ -5366,7 +5436,8 @@
         "tags": [
           "shorts"
         ],
-        "summary": "The shorts player overlay of a short: its title and the full video it links to.",
+        "summary": "Get short",
+        "description": "The shorts player overlay of a short: its title and the full video it links to.",
         "operationId": "short",
         "parameters": [
           {
@@ -5449,7 +5520,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "The signed-in user's subscription groups, in their order.",
+        "summary": "List subscription groups",
+        "description": "The signed-in user's subscription groups, in their order.",
         "operationId": "list_groups",
         "responses": {
           "200": {
@@ -5485,7 +5557,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Create a subscription group, after the existing ones.",
+        "summary": "Create subscription group",
+        "description": "The new group goes after the existing ones.",
         "operationId": "create_group",
         "requestBody": {
           "content": {
@@ -5570,7 +5643,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Delete a group. Its channels stay subscribed.",
+        "summary": "Delete subscription group",
+        "description": "Its channels stay subscribed.",
         "operationId": "delete_group",
         "parameters": [
           {
@@ -5628,7 +5702,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Rename a group or change whether it shows on the home page.",
+        "summary": "Update subscription group",
+        "description": "Renames a group or changes whether it shows on the home page.",
         "operationId": "update_group",
         "parameters": [
           {
@@ -5714,7 +5789,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Add a subscribed channel to a group. Idempotent.",
+        "summary": "Add channel to group",
+        "description": "The channel must be subscribed. Idempotent.",
         "operationId": "add_channel",
         "parameters": [
           {
@@ -5791,7 +5867,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Remove a channel from a group. Succeeds if it is not in the group, too.",
+        "summary": "Remove channel from group",
+        "description": "Succeeds if it is not in the group, too.",
         "operationId": "remove_channel",
         "parameters": [
           {
@@ -5870,7 +5947,7 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Move a group to another position.",
+        "summary": "Move subscription group",
         "operationId": "move_group",
         "parameters": [
           {
@@ -5940,7 +6017,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Channels the signed-in user subscribed to, ordered by name.",
+        "summary": "List subscriptions",
+        "description": "Channels the signed-in user subscribed to, ordered by name.",
         "operationId": "list_subscriptions",
         "responses": {
           "200": {
@@ -5978,7 +6056,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Download the signed-in user's subscriptions as a file.",
+        "summary": "Export subscriptions",
+        "description": "Downloads the signed-in user's subscriptions as a file.",
         "operationId": "export_subscriptions",
         "parameters": [
           {
@@ -6038,8 +6117,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Import subscriptions from a file.",
-        "description": "Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON\nexport, or an OPML file; the format is detected from the content. Idempotent. Only\nchannels given by ID or `/channel/UC…` URL can be imported. New channels are fetched\nby the feed worker over the following minutes.",
+        "summary": "Import subscriptions",
+        "description": "Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON export, or an\nOPML file; the format is detected from the content. Idempotent. Only channels given by ID or\n`/channel/UC…` URL can be imported. New channels are fetched by the feed worker over the\nfollowing minutes.",
         "operationId": "import_subscriptions",
         "requestBody": {
           "description": "The exported file as is, at most 5 MiB",
@@ -6115,7 +6194,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Whether the signed-in user is subscribed to a channel.",
+        "summary": "Get subscription state",
+        "description": "Whether the signed-in user is subscribed to a channel.",
         "operationId": "subscription_state",
         "parameters": [
           {
@@ -6169,7 +6249,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Subscribe to a channel. Idempotent; new channels are fetched in the background.",
+        "summary": "Subscribe to channel",
+        "description": "Idempotent; new channels are fetched in the background.",
         "operationId": "subscribe",
         "parameters": [
           {
@@ -6244,7 +6325,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Unsubscribe from a channel. Succeeds if not subscribed, too.",
+        "summary": "Unsubscribe from channel",
+        "description": "Succeeds if not subscribed, too.",
         "operationId": "unsubscribe",
         "parameters": [
           {
@@ -6304,7 +6386,8 @@
         "tags": [
           "subscriptions"
         ],
-        "summary": "Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if\nnot subscribed, too.",
+        "summary": "Record channel visit",
+        "description": "Records that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if not\nsubscribed, too.",
         "operationId": "visit_channel",
         "parameters": [
           {
@@ -6364,7 +6447,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).",
+        "summary": "Get trending videos",
+        "description": "Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).",
         "operationId": "trending",
         "parameters": [
           {
@@ -6448,7 +6532,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Video details and related videos.",
+        "summary": "Get video",
+        "description": "Video details and related videos.",
         "operationId": "video",
         "parameters": [
           {
@@ -6531,7 +6616,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "DASH manifest of a video, with all stream URLs pointing to the proxy.",
+        "summary": "Get DASH manifest",
+        "description": "All stream URLs point to the proxy.",
         "operationId": "manifest",
         "parameters": [
           {
@@ -6603,7 +6689,8 @@
         "tags": [
           "sponsorblock"
         ],
-        "summary": "SponsorBlock segments of a video. The server looks them up by hash prefix, so SponsorBlock\nnever learns the video ID.",
+        "summary": "Get SponsorBlock segments",
+        "description": "The server looks them up by hash prefix, so SponsorBlock never learns the video ID.",
         "operationId": "segments",
         "parameters": [
           {
@@ -6644,7 +6731,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets.",
+        "summary": "Get storyboard",
+        "description": "Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets.",
         "operationId": "storyboard",
         "parameters": [
           {
@@ -6716,7 +6804,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A YouTube playlist with the first page of its videos.",
+        "summary": "Get YouTube playlist",
+        "description": "A YouTube playlist with the first page of its videos.",
         "operationId": "playlist",
         "parameters": [
           {
@@ -6799,7 +6888,8 @@
         "tags": [
           "youtube"
         ],
-        "summary": "A further page of a YouTube playlist's videos.",
+        "summary": "List YouTube playlist videos",
+        "description": "A further page of a YouTube playlist's videos.",
         "operationId": "playlist_videos",
         "parameters": [
           {

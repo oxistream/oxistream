@@ -126,6 +126,8 @@ fn check_channel_id(id: &str) -> Result<(), ApiError> {
     validate::channel_id(id).map_err(|_| ApiError::bad_request("invalid channel id"))
 }
 
+/// List subscriptions
+///
 /// Channels the signed-in user subscribed to, ordered by name.
 #[utoipa::path(
     get,
@@ -151,6 +153,8 @@ async fn list_subscriptions(
     ))
 }
 
+/// Get subscription state
+///
 /// Whether the signed-in user is subscribed to a channel.
 #[utoipa::path(
     get,
@@ -177,7 +181,9 @@ async fn subscription_state(
     Ok(Json(SubscriptionState { subscribed }))
 }
 
-/// Subscribe to a channel. Idempotent; new channels are fetched in the background.
+/// Subscribe to channel
+///
+/// Idempotent; new channels are fetched in the background.
 #[utoipa::path(
     put,
     path = "/subscriptions/{channel_id}",
@@ -211,7 +217,9 @@ async fn subscribe(
     Ok((status, Json(body)).into_response())
 }
 
-/// Unsubscribe from a channel. Succeeds if not subscribed, too.
+/// Unsubscribe from channel
+///
+/// Succeeds if not subscribed, too.
 #[utoipa::path(
     delete,
     path = "/subscriptions/{channel_id}",
@@ -238,8 +246,10 @@ async fn unsubscribe(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if
-/// not subscribed, too.
+/// Record channel visit
+///
+/// Records that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if not
+/// subscribed, too.
 #[utoipa::path(
     put,
     path = "/subscriptions/{channel_id}/visit",
@@ -286,12 +296,12 @@ pub struct ImportResult {
 #[allow(dead_code)] // Only describes the request body.
 pub struct ImportFile(Vec<u8>);
 
-/// Import subscriptions from a file.
+/// Import subscriptions
 ///
-/// Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON
-/// export, or an OPML file; the format is detected from the content. Idempotent. Only
-/// channels given by ID or `/channel/UC…` URL can be imported. New channels are fetched
-/// by the feed worker over the following minutes.
+/// Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON export, or an
+/// OPML file; the format is detected from the content. Idempotent. Only channels given by ID or
+/// `/channel/UC…` URL can be imported. New channels are fetched by the feed worker over the
+/// following minutes.
 #[utoipa::path(
     post,
     path = "/subscriptions/import",
@@ -376,7 +386,9 @@ struct ExportParams {
     format: ExportFormat,
 }
 
-/// Download the signed-in user's subscriptions as a file.
+/// Export subscriptions
+///
+/// Downloads the signed-in user's subscriptions as a file.
 #[utoipa::path(
     get,
     path = "/subscriptions/export",
@@ -466,8 +478,9 @@ impl From<FeedKind> for DbFeedKind {
     }
 }
 
-/// Videos of subscribed channels, newest first. Videos the user is not interested in are left
-/// out.
+/// Get subscription feed
+///
+/// Videos of subscribed channels, newest first. Videos the user is not interested in are left out.
 #[utoipa::path(
     get,
     path = "/feed",

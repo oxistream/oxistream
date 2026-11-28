@@ -100,7 +100,9 @@ pub struct CreateRoom {
     pub video_id: Option<String>,
 }
 
-/// List the signed-in user's open rooms, newest first.
+/// List rooms
+///
+/// The signed-in user's open rooms, newest first.
 #[utoipa::path(
     get,
     path = "/rooms",
@@ -137,9 +139,11 @@ async fn list_rooms(
     ))
 }
 
-/// Open a room. Anyone with its link can join through the WebSocket at
-/// `/api/v0/rooms/{id}/ws`, speaking `RoomClientMessage` and `RoomServerMessage`. Rooms
-/// expire a day after the last participant left.
+/// Create room
+///
+/// Opens a room. Anyone with its link can join through the WebSocket at `/api/v0/rooms/{id}/ws`,
+/// speaking `RoomClientMessage` and `RoomServerMessage`. Rooms expire a day after the last
+/// participant left.
 #[utoipa::path(
     post,
     path = "/rooms",
@@ -195,7 +199,9 @@ async fn create_room(
     ))
 }
 
-/// Look up a room before joining it.
+/// Get room
+///
+/// Looks up a room before joining it.
 #[utoipa::path(
     get,
     path = "/rooms/{id}",
@@ -221,7 +227,9 @@ async fn get_room(
     }))
 }
 
-/// Close a room; everyone in it is disconnected.
+/// Close room
+///
+/// Everyone in it is disconnected.
 #[utoipa::path(
     delete,
     path = "/rooms/{id}",
@@ -254,7 +262,9 @@ pub struct GuestCredential {
     pub guest_key: String,
 }
 
-/// Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
+/// Update party guest cookie
+///
+/// Confirms that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
 /// may use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it
 /// stays in the room. Clients call this after joining and every 30 s.
 #[utoipa::path(
@@ -290,7 +300,9 @@ async fn admit_guest(
     Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
 }
 
-/// Give up guest access, e.g. after leaving the room.
+/// Clear party guest cookie
+///
+/// Gives up guest access, e.g. after leaving the room.
 #[utoipa::path(
     delete,
     path = "/rooms/{id}/guest",

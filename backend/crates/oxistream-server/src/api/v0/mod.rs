@@ -86,6 +86,8 @@ pub struct AuthCapabilities {
     pub oidc_name: Option<String>,
 }
 
+/// Get instance info
+///
 /// Basic information about this instance.
 #[utoipa::path(
     get,

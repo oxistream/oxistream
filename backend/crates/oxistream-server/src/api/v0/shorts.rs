@@ -140,12 +140,13 @@ impl DiscoverState {
     }
 }
 
-/// Endless shorts to swipe through, like YouTube's shorts player. Each page continues the
-/// current sequence and starts a new one from the next seed, interleaved. Seeds are the
-/// signed-in user's liked shorts and the latest shorts of their subscriptions, plus trending
-/// videos; anonymous users get trending seeds only. Nothing about the user is sent to YouTube
-/// but the seed video IDs. Shorts of blocked channels are left out, so a page may be empty
-/// while more follow.
+/// Discover shorts
+///
+/// Endless shorts to swipe through, like YouTube's shorts player. Each page continues the current
+/// sequence and starts a new one from the next seed, interleaved. Seeds are the signed-in user's
+/// liked shorts and the latest shorts of their subscriptions, plus trending videos; anonymous users
+/// get trending seeds only. Nothing about the user is sent to YouTube but the seed video IDs.
+/// Shorts of blocked channels are left out, so a page may be empty while more follow.
 #[utoipa::path(
     get,
     path = "/shorts/discover",
@@ -353,6 +354,8 @@ fn shuffle<T>(items: &mut [T]) {
     }
 }
 
+/// Get short
+///
 /// The shorts player overlay of a short: its title and the full video it links to.
 #[utoipa::path(
     get,

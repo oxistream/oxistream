@@ -316,6 +316,8 @@ struct ListParams {
     video_id: Option<String>,
 }
 
+/// List playlists
+///
 /// The signed-in user's playlists, most recently changed first.
 #[utoipa::path(
     get,
@@ -349,7 +351,7 @@ async fn list_playlists(
     ))
 }
 
-/// Create a playlist.
+/// Create playlist
 #[utoipa::path(
     post,
     path = "/playlists",
@@ -419,9 +421,11 @@ fn imported_video(v: rustypipe::model::VideoItem) -> Option<VideoUpsert> {
     })
 }
 
-/// Copy a YouTube playlist into a new private playlist, which can then be edited. Copies at
-/// most 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each
-/// video once: a repeated video keeps its first place.
+/// Import YouTube playlist
+///
+/// Copies a YouTube playlist into a new private playlist, which can then be edited. Copies at most
+/// 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each video
+/// once: a repeated video keeps its first place.
 #[utoipa::path(
     post,
     path = "/playlists/import",
@@ -475,8 +479,10 @@ async fn import_playlist(
     Ok((StatusCode::CREATED, Json(body)).into_response())
 }
 
-/// A playlist with its items. Private playlists are only visible to their owner; unlisted
-/// ones to anyone with the ID, including anonymous users.
+/// Get playlist
+///
+/// A playlist with its items. Private playlists are only visible to their owner; unlisted ones to
+/// anyone with the ID, including anonymous users.
 #[utoipa::path(
     get,
     path = "/playlists/{id}",
@@ -508,7 +514,9 @@ async fn get_playlist(
     }))
 }
 
-/// Change title, description or visibility.
+/// Update playlist
+///
+/// Changes title, description or visibility.
 #[utoipa::path(
     patch,
     path = "/playlists/{id}",
@@ -551,7 +559,7 @@ async fn update_playlist(
     })))
 }
 
-/// Delete a playlist.
+/// Delete playlist
 #[utoipa::path(
     delete,
     path = "/playlists/{id}",
@@ -578,7 +586,9 @@ async fn delete_playlist(
     }
 }
 
-/// Append a video. Idempotent; a video appears at most once per playlist.
+/// Add video to playlist
+///
+/// Appends the video. Idempotent; a video appears at most once per playlist.
 #[utoipa::path(
     put,
     path = "/playlists/{id}/items/{video_id}",
@@ -631,7 +641,9 @@ async fn add_item(
     Ok((status, Json(body)).into_response())
 }
 
-/// Remove a video. Succeeds if it is not in the playlist, too.
+/// Remove video from playlist
+///
+/// Succeeds if it is not in the playlist, too.
 #[utoipa::path(
     delete,
     path = "/playlists/{id}/items/{video_id}",
@@ -664,7 +676,9 @@ async fn remove_item(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Move a video to another position.
+/// Move video in playlist
+///
+/// Moves a video to another position.
 #[utoipa::path(
     put,
     path = "/playlists/{id}/items/{video_id}/position",
@@ -702,7 +716,9 @@ async fn move_item(
     }
 }
 
-/// Remember which item the owner is playing, for continuing later.
+/// Set last played item
+///
+/// Remembers which item the owner is playing, for continuing later.
 #[utoipa::path(
     put,
     path = "/playlists/{id}/last-played",

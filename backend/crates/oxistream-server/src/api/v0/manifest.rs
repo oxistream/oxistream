@@ -16,7 +16,9 @@ pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new().routes(routes!(manifest))
 }
 
-/// DASH manifest of a video, with all stream URLs pointing to the proxy.
+/// Get DASH manifest
+///
+/// All stream URLs point to the proxy.
 #[utoipa::path(
     get,
     path = "/videos/{id}/manifest.mpd",

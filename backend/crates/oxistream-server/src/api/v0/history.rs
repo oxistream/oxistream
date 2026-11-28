@@ -176,7 +176,9 @@ fn check_limit(limit: Option<u32>, default: u32, max: u32) -> Result<u32, ApiErr
     }
 }
 
-/// Record how far the signed-in user got into a video. Ignored while history is paused and for
+/// Report watch progress
+///
+/// Records how far the signed-in user got into a video. Ignored while history is paused and for
 /// videos known to be shorts.
 ///
 /// The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
@@ -230,8 +232,9 @@ struct BatchParams {
     ids: String,
 }
 
-/// Progress of several videos, e.g. for the progress bars of a list. Videos never watched
-/// are left out.
+/// Get progress of videos
+///
+/// For example for the progress bars of a list. Videos never watched are left out.
 #[utoipa::path(
     get,
     path = "/progress",
@@ -270,7 +273,9 @@ async fn batch_progress(
     Ok(Json(progress.into_iter().map(Into::into).collect()))
 }
 
-/// Progress of one video, to resume where the signed-in user left off.
+/// Get progress of video
+///
+/// To resume where the signed-in user left off.
 #[utoipa::path(
     get,
     path = "/progress/{video_id}",
@@ -313,7 +318,9 @@ struct HistoryParams {
 
 const MAX_SEARCH_LENGTH: usize = 200;
 
-/// Watched videos, most recently watched first.
+/// List watch history
+///
+/// Most recently watched first.
 #[utoipa::path(
     get,
     path = "/history",
@@ -369,7 +376,9 @@ async fn history(
     }))
 }
 
-/// Clear the whole watch history, including resume points.
+/// Clear watch history
+///
+/// Clears the whole watch history, including resume points.
 #[utoipa::path(
     delete,
     path = "/history",
@@ -398,8 +407,10 @@ pub struct MarkWatched {
     pub duration_seconds: Option<f64>,
 }
 
-/// Mark a video as watched: it moves to the top of the history, finished. Recorded even while
-/// the history is paused, as the user asked for it. Not for shorts, which have no history.
+/// Mark video as watched
+///
+/// The video moves to the top of the history, finished. Recorded even while the history is paused,
+/// as the user asked for it. Not for shorts, which have no history.
 #[utoipa::path(
     put,
     path = "/history/{video_id}",
@@ -442,7 +453,9 @@ async fn mark_watched(
     Ok(Json(progress.into()))
 }
 
-/// Remove one video from the watch history. Succeeds if it is not in there, too.
+/// Remove video from history
+///
+/// Succeeds if it is not in there, too.
 #[utoipa::path(
     delete,
     path = "/history/{video_id}",
@@ -473,8 +486,10 @@ struct ContinueParams {
     limit: Option<u32>,
 }
 
-/// Started but unfinished videos, most recently watched first. Videos known to be shorts are
-/// left out.
+/// List videos to continue watching
+///
+/// Started but unfinished videos, most recently watched first. Videos known to be shorts are left
+/// out.
 #[utoipa::path(
     get,
     path = "/history/continue",
@@ -503,8 +518,10 @@ async fn continue_watching(
     ))
 }
 
-/// Hide a video from "Continue watching" until it is watched again. It stays in the history
-/// and keeps its resume point. Succeeds if it is not in the history, too.
+/// Dismiss from continue watching
+///
+/// Hides a video from "Continue watching" until it is watched again. It stays in the history and
+/// keeps its resume point. Succeeds if it is not in the history, too.
 #[utoipa::path(
     delete,
     path = "/history/continue/{video_id}",
@@ -535,6 +552,8 @@ fn history_settings_body(settings: &UserSettings, max: Retention) -> HistorySett
     }
 }
 
+/// Get history settings
+///
 /// Whether the watch history is paused, and how long it is kept.
 #[utoipa::path(
     get,
@@ -557,7 +576,9 @@ async fn history_settings(
     )))
 }
 
-/// Pause or resume the watch history, or change how long it is kept.
+/// Update history settings
+///
+/// Pauses or resumes the watch history, or changes how long it is kept.
 #[utoipa::path(
     put,
     path = "/history/settings",

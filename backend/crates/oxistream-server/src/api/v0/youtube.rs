@@ -47,6 +47,8 @@ struct TrendingParams {
     category: Option<TrendingCategory>,
 }
 
+/// Get trending videos
+///
 /// Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).
 #[utoipa::path(
     get,
@@ -82,6 +84,8 @@ async fn trending(
     Ok(Json(trending))
 }
 
+/// Get video
+///
 /// Video details and related videos.
 #[utoipa::path(
     get,
@@ -300,7 +304,9 @@ struct ChannelSearchParams {
     continuation: Option<String>,
 }
 
-/// Search videos, shorts, channels and playlists.
+/// Search
+///
+/// Searches videos, shorts, channels and playlists.
 #[utoipa::path(
     get,
     path = "/search",
@@ -347,7 +353,9 @@ struct SuggestionParams {
     q: Option<String>,
 }
 
-/// Search suggestions for a partial query; empty when YouTube fails.
+/// Get search suggestions
+///
+/// Suggestions for a partial query; empty when YouTube fails.
 #[utoipa::path(
     get,
     path = "/search/suggestions",
@@ -373,6 +381,8 @@ async fn search_suggestions(
     )
 }
 
+/// Get channel
+///
 /// Channel header and the first page of its videos.
 #[utoipa::path(
     get,
@@ -459,6 +469,8 @@ async fn channel_tab_page(
     Ok(Json(VideoPage::from_rp(page, &|url| state.image_url(url))))
 }
 
+/// List channel videos
+///
 /// A page of a channel's videos.
 #[utoipa::path(
     get,
@@ -487,6 +499,8 @@ async fn channel_videos(
     channel_tab_page(&state, &id, ChannelVideoTab::Videos, params, lang, &blocked).await
 }
 
+/// List channel shorts
+///
 /// A page of a channel's shorts.
 #[utoipa::path(
     get,
@@ -515,6 +529,8 @@ async fn channel_shorts(
     channel_tab_page(&state, &id, ChannelVideoTab::Shorts, params, lang, &blocked).await
 }
 
+/// List channel livestreams
+///
 /// A page of a channel's past, current and upcoming livestreams.
 #[utoipa::path(
     get,
@@ -550,6 +566,8 @@ struct ContinuationParams {
     continuation: Option<String>,
 }
 
+/// List channel playlists
+///
 /// A page of a channel's playlists.
 #[utoipa::path(
     get,
@@ -593,7 +611,9 @@ async fn channel_playlists(
     })))
 }
 
-/// Search within a channel's videos.
+/// Search channel
+///
+/// Searches within a channel's videos.
 #[utoipa::path(
     get,
     path = "/channels/{id}/search",
@@ -635,6 +655,8 @@ async fn channel_search(
     Ok(Json(VideoPage::from_rp(page, &|url| state.image_url(url))))
 }
 
+/// Get YouTube playlist
+///
 /// A YouTube playlist with the first page of its videos.
 #[utoipa::path(
     get,
@@ -663,6 +685,8 @@ async fn playlist(
     })))
 }
 
+/// List YouTube playlist videos
+///
 /// A further page of a YouTube playlist's videos.
 #[utoipa::path(
     get,
@@ -707,7 +731,9 @@ struct ResolveParams {
     url: Option<String>,
 }
 
-/// Resolve a YouTube URL to a video, channel or playlist ID.
+/// Resolve YouTube URL
+///
+/// Resolves a YouTube URL to a video, channel or playlist ID.
 #[utoipa::path(
     get,
     path = "/resolve",

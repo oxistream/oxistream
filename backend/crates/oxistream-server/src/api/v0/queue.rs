@@ -175,6 +175,8 @@ async fn apply(
     Ok(Json(queue_dto(queue, &|url| state.image_url(url))))
 }
 
+/// Get up-next queue
+///
 /// The signed-in user's up-next queue. Guests keep theirs in the browser.
 #[utoipa::path(
     get,
@@ -194,7 +196,9 @@ async fn get_queue(
     Ok(Json(queue_dto(queue, &|url| state.image_url(url))))
 }
 
-/// Remove all entries.
+/// Clear queue
+///
+/// Removes all entries.
 #[utoipa::path(
     delete,
     path = "/queue",
@@ -213,7 +217,9 @@ async fn clear_queue(
     apply(&state, user.id, QueueOp::Clear).await
 }
 
-/// Add entries at the start or end. A full queue loses entries at the end.
+/// Add queue entries
+///
+/// Adds entries at the start or end. A full queue loses entries at the end.
 #[utoipa::path(
     post,
     path = "/queue/entries",
@@ -259,8 +265,9 @@ async fn add_entries(
     apply(&state, user.id, op).await
 }
 
-/// Remove an entry. Succeeds if it is not queued, too, so two players taking the same
-/// entry do not fail.
+/// Remove queue entry
+///
+/// Succeeds if it is not queued, too, so two players taking the same entry do not fail.
 #[utoipa::path(
     delete,
     path = "/queue/entries/{key}",
@@ -283,7 +290,9 @@ async fn remove_entry(
     apply(&state, user.id, QueueOp::Remove { key }).await
 }
 
-/// Move an entry to another position. Succeeds if it is not queued, too.
+/// Move queue entry
+///
+/// Moves an entry to another position. Succeeds if it is not queued, too.
 #[utoipa::path(
     put,
     path = "/queue/entries/{key}/position",

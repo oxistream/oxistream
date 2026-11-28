@@ -91,6 +91,8 @@ struct ListParams {
     offset: Option<u32>,
 }
 
+/// List users
+///
 /// Users, newest first. Admins only.
 #[utoipa::path(
     get,
@@ -199,6 +201,8 @@ fn applied(update: AdminUpdate) -> Result<oxistream_db::User, ApiError> {
     }
 }
 
+/// Update user
+///
 /// Change a user's role or disable them. Admins cannot change their own account, and the last
 /// active admin is never demoted or disabled. With an OIDC admin group, the role of single
 /// sign-on users is synced again on their next sign-in.
@@ -244,6 +248,8 @@ async fn update_user(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Delete user
+///
 /// Delete a user with everything they own, ending their sessions. Admins delete their own
 /// account via `DELETE /account`.
 #[utoipa::path(
@@ -376,6 +382,8 @@ async fn timed<T>(
     }
 }
 
+/// Get instance status
+///
 /// Instance status: build, database, feed worker and configuration. Caches and the feed
 /// worker's last run are those of the replica that answers. Admins only.
 #[utoipa::path(

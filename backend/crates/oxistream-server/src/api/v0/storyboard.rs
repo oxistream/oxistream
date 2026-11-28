@@ -22,6 +22,8 @@ pub fn track_url(player: &rp::VideoPlayer) -> Option<String> {
         .then(|| format!("/api/v0/videos/{}/storyboard.vtt", player.details.id))
 }
 
+/// Get storyboard
+///
 /// Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets.
 #[utoipa::path(
     get,

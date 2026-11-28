@@ -128,6 +128,8 @@ fn map_error(err: oxistream_db::Error) -> ApiError {
     }
 }
 
+/// List subscription groups
+///
 /// The signed-in user's subscription groups, in their order.
 #[utoipa::path(
     get,
@@ -147,7 +149,9 @@ async fn list_groups(
     Ok(Json(groups.into_iter().map(Into::into).collect()))
 }
 
-/// Create a subscription group, after the existing ones.
+/// Create subscription group
+///
+/// The new group goes after the existing ones.
 #[utoipa::path(
     post,
     path = "/subscription-groups",
@@ -193,7 +197,9 @@ async fn create_group(
     Ok((StatusCode::CREATED, Json(SubscriptionGroup::from(created))).into_response())
 }
 
-/// Rename a group or change whether it shows on the home page.
+/// Update subscription group
+///
+/// Renames a group or changes whether it shows on the home page.
 #[utoipa::path(
     patch,
     path = "/subscription-groups/{id}",
@@ -232,7 +238,9 @@ async fn update_group(
     Ok(Json(updated.into()))
 }
 
-/// Delete a group. Its channels stay subscribed.
+/// Delete subscription group
+///
+/// Its channels stay subscribed.
 #[utoipa::path(
     delete,
     path = "/subscription-groups/{id}",
@@ -259,7 +267,7 @@ async fn delete_group(
     }
 }
 
-/// Move a group to another position.
+/// Move subscription group
 #[utoipa::path(
     put,
     path = "/subscription-groups/{id}/position",
@@ -289,7 +297,9 @@ async fn move_group(
     }
 }
 
-/// Add a subscribed channel to a group. Idempotent.
+/// Add channel to group
+///
+/// The channel must be subscribed. Idempotent.
 #[utoipa::path(
     put,
     path = "/subscription-groups/{id}/channels/{channel_id}",
@@ -325,7 +335,9 @@ async fn add_channel(
     }
 }
 
-/// Remove a channel from a group. Succeeds if it is not in the group, too.
+/// Remove channel from group
+///
+/// Succeeds if it is not in the group, too.
 #[utoipa::path(
     delete,
     path = "/subscription-groups/{id}/channels/{channel_id}",

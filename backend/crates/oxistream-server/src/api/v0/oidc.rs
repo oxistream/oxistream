@@ -55,6 +55,8 @@ fn invalid_request(description: impl Into<String>) -> Response {
     )
 }
 
+/// Handle OIDC back-channel logout
+///
 /// Back-channel logout: the provider ends sessions server to server.
 ///
 /// Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure
@@ -172,6 +174,8 @@ fn error_location(error: LoginError, target: &str) -> String {
     format!("/login?{}", query.finish())
 }
 
+/// Start single sign-on
+///
 /// Start single sign-on with the configured provider.
 ///
 /// Redirects the browser to the provider. Failures redirect to `/login?error=` with
@@ -203,6 +207,8 @@ async fn oidc_login(State(state): State<AppState>, Query(params): Query<LoginPar
     }
 }
 
+/// Handle OIDC callback
+///
 /// Where the provider sends the browser back after sign-in.
 ///
 /// On success, starts a session and redirects to the target given to `/auth/oidc/login`.
