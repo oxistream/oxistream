@@ -31,3 +31,4 @@ result
 result-*
 site/
 .venv/
+.cache/

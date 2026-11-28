@@ -4,19 +4,40 @@ Oxistream is configured only through `OXISTREAM_*` environment variables. There 
 
 Booleans accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`, in any case.
 
+## Example
+
+A public instance behind a reverse proxy:
+
+```sh
+OXISTREAM_DATABASE_URL=postgres://oxistream:secret@db:5432/oxistream # (1)!
+OXISTREAM_PROXY_SECRET=... # (2)!
+OXISTREAM_PUBLIC_URL=https://oxistream.example.com # (3)!
+OXISTREAM_TRUSTED_PROXY_HEADER=X-Forwarded-For # (4)!
+OXISTREAM_LOG_FORMAT=json
+```
+
+1.  Required. PostgreSQL 18 or newer.
+2.  Required. At least 32 characters, from `openssl rand -base64 48`. The same on every replica.
+3.  The external origin. Required with OIDC, and needed when the proxy rewrites `Host`.
+4.  Only when every request comes through that proxy, see [client IP](advanced/reverse-proxy.md#client-ip).
+
+!!! warning "Keep the proxy secret stable"
+
+    Changing `OXISTREAM_PROXY_SECRET` invalidates existing proxy links, pending SSO logins and the cookies of watch party guests.
+
 ## Core
 
 | Variable | Default | Required | Description |
 | --- | --- | --- | --- |
 | `OXISTREAM_DATABASE_URL` | – | yes | PostgreSQL connection URL, e.g. `postgres://oxistream:secret@db:5432/oxistream`. Needs PostgreSQL 18 or newer. Migrations run at startup. |
-| `OXISTREAM_PROXY_SECRET` | – | yes | HMAC key for signed proxy URLs and the OIDC login cookie. At least 32 characters (`openssl rand -base64 48`). Must be the same on all replicas. Changing it invalidates existing proxy links and pending SSO logins. |
+| `OXISTREAM_PROXY_SECRET` | – | yes | HMAC key for signed proxy URLs, the OIDC login cookie and the party guest cookie. At least 32 characters (`openssl rand -base64 48`). Must be the same on all replicas. See [above](#example) before changing it. |
 | `OXISTREAM_BIND` | `0.0.0.0:8080` | no | Listen address (`host:port`). The image sets it to the default. |
 | `OXISTREAM_DATABASE_MAX_CONNECTIONS` | `10` | no | Connection pool size per replica. |
-| `OXISTREAM_PUBLIC_URL` | – | with OIDC | External origin, e.g. `https://oxistream.example.com`. Only scheme, host and port are kept. Required when OIDC is enabled. The [Origin check](reverse-proxy.md#origin-check) also accepts this origin, and Atom feed links use it (otherwise they use the request's `Host`). |
+| `OXISTREAM_PUBLIC_URL` | – | with OIDC | External origin, e.g. `https://oxistream.example.com`. Only scheme, host and port are kept. Required when OIDC is enabled. The [Origin check](advanced/reverse-proxy.md#origin-check) also accepts this origin, and Atom feed links use it (otherwise they use the request's `Host`). |
 
 ## Authentication
 
-See [Authentication](authentication.md).
+See [Authentication](advanced/authentication.md).
 
 | Variable | Default | Required | Description |
 | --- | --- | --- | --- |
@@ -87,6 +108,6 @@ These variables appear in the repository, but the running server ignores them:
 | Variable | Used by | Description |
 | --- | --- | --- |
 | `OXISTREAM_GIT_SHA` | Image build (`--build-arg`) | Commit shown on the admin status page. Compiled into the binary. |
-| `OXISTREAM_IMAGE`, `OXISTREAM_PUBLISH` | [Compose](install/compose.md) | Image to run, and the host port binding. |
-| `OXISTREAM_TEST_DATABASE_URL` | Backend tests | Database for integration tests, see [Development](development.md#database-for-tests). |
-| `OXISTREAM_UPDATE_OPENAPI` | Backend tests | Rewrites `backend/openapi.json`, see [Development](development.md#api-types). |
+| `OXISTREAM_IMAGE`, `OXISTREAM_PUBLISH` | [Compose](setup/compose.md) | Image to run, and the host port binding. |
+| `OXISTREAM_TEST_DATABASE_URL` | Backend tests | Database for integration tests, see [Development](development/index.md#database-for-tests). |
+| `OXISTREAM_UPDATE_OPENAPI` | Backend tests | Rewrites `backend/openapi.json`, see [Development](development/index.md#api-types). |

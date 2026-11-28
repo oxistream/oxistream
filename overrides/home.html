@@ -15,27 +15,80 @@
         </p>
         <h1 class="ox-hero__title">Self-hosted YouTube frontend for homelabs and public instances</h1>
         <p class="ox-hero__lead">
-          Search, subscriptions, playlists, history and watch parties with accounts for everyone on your instance.
+          Search, subscriptions, playlists, history and watch parties, with accounts for everyone on your instance.
           Video, audio, thumbnails and subtitles stream through your server, without a Google account.
         </p>
-        <div class="ox-hero__actions">
-          <a href="{{ 'overview/' | url }}" class="md-button md-button--primary">Read the docs</a>
-          <a href="{{ config.repo_url }}" class="md-button">Get the source on GitHub</a>
+        <div class="ox-hero__actions ox-cta">
+          <a href="{{ 'setup/' | url }}" class="md-button md-button--primary">
+            Set up an instance
+            <span class="ox-icon">{% include ".icons/material/arrow-right.svg" %}</span>
+          </a>
+          <a href="{{ config.repo_url }}" class="md-button">
+            <span class="ox-icon">{% include ".icons/fontawesome/brands/github.svg" %}</span>
+            Get the source on GitHub
+          </a>
         </div>
         <p class="ox-hero__fact">One container image for amd64 and arm64, with PostgreSQL 18 or newer. AGPL-3.0.</p>
       </div>
       <div class="ox-shot">
-        <img class="ox-shot__img ox-shot__img--light" src="{{ 'images/home-light.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page with continue watching and trending rows" loading="lazy" decoding="async">
-        <img class="ox-shot__img ox-shot__img--dark" src="{{ 'images/home-dark.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page in dark mode" loading="lazy" decoding="async">
+        <img class="ox-shot__img ox-shot__img--light" src="{{ 'images/home-light.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page with continue watching and trending rows" fetchpriority="high" decoding="async">
+        <img class="ox-shot__img ox-shot__img--dark" src="{{ 'images/home-dark.jpg' | url }}" width="2880" height="1800" alt="Oxistream home page in dark mode" decoding="async">
       </div>
     </div>
   </section>
 {% endblock %}
 
 {% block container %}
+  {% set ox_features = [
+    ("material/play-box-outline", "Plays every quality and audio track", "DASH player with AV1, VP9 and H.264, subtitles, chapters, a searchable transcript, sleep timer and a mini player.", "usage/watching/"),
+    ("material/magnify", "Finds videos, channels and shorts", "Search with filters, channel tabs, a shorts feed and home rows. URLs mirror YouTube's, so redirect extensions work.", "usage/browsing/"),
+    ("material/rss", "Keeps a feed of your channels", "Filters for watched videos and shorts, channel groups, new-upload markers and a private Atom feed.", "usage/subscriptions/"),
+    ("material/bookshelf", "Saves playlists, queue and history", "Private or unlisted playlists, followed YouTube playlists, an up-next queue across devices, history with resume.", "usage/library/"),
+    ("material/account-group-outline", "Syncs playback for a whole party", "Invite links, a shared queue, chat and reactions. Guests join with a name, no account needed.", "usage/watch-parties/"),
+    ("material/debug-step-over", "Skips sponsor segments", "SponsorBlock markers on the seek bar, with auto-skip or a skip button per category.", "usage/watching/#sponsorblock"),
+    ("material/swap-horizontal", "Imports your subscriptions", "From YouTube Takeout, NewPipe, Invidious, FreeTube and Piped. Exports to NewPipe and Invidious.", "usage/import-export/"),
+    ("material/shield-account-outline", "Signs in with passwords or SSO", "Local accounts and one OpenID Connect provider with group-based admins and back-channel logout.", "advanced/authentication/"),
+    ("material/server-network", "Scales out next to PostgreSQL", "Stateless replicas, Prometheus metrics, health probes, Docker Compose and a Helm chart.", "advanced/scaling/"),
+  ] %}
   <div class="md-content ox-home" data-md-component="content">
-    <article class="md-content__inner md-typeset">
-      {{ page.content }}
-    </article>
+    <section class="ox-section" id="features">
+      <div class="ox-wrap">
+        <h2 class="ox-section__title">Features</h2>
+        <p class="ox-section__lead">The parts of YouTube you use every day, plus watch parties and SponsorBlock.</p>
+        <ul class="ox-features">
+          {% for icon, title, body, href in ox_features %}
+            <li>
+              <a class="ox-feature" href="{{ href | url }}">
+                <span class="ox-feature__icon">{% include ".icons/" ~ icon ~ ".svg" %}</span>
+                <span class="ox-feature__title">{{ title }}</span>
+                <span class="ox-feature__body">{{ body }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    <section class="ox-section ox-section--muted" id="quick-start">
+      <div class="ox-wrap">
+        <article class="md-content__inner md-typeset">
+          {{ page.content }}
+        </article>
+      </div>
+    </section>
+
+    <section class="ox-section ox-close">
+      <div class="ox-wrap">
+        <h2 class="ox-section__title">Run Oxistream on your server</h2>
+        <p class="ox-section__lead">Docker Compose, a plain container or the Helm chart, behind the reverse proxy you already use.</p>
+        <div class="ox-hero__actions ox-cta">
+          <a href="{{ 'setup/' | url }}" class="md-button md-button--primary">
+            Set up an instance
+            <span class="ox-icon">{% include ".icons/material/arrow-right.svg" %}</span>
+          </a>
+          <a href="{{ 'faq/' | url }}" class="md-button">Read the FAQ</a>
+        </div>
+      </div>
+    </section>
   </div>
 {% endblock %}

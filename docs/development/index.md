@@ -178,3 +178,5 @@ python3 -m venv .venv
 ```
 
 CI runs `mkdocs build --strict`, which fails on broken links and anchors. Link to files outside `docs/` with absolute GitHub URLs.
+
+The privacy plugin downloads Mermaid during the build and caches it in `.cache/`, so the site loads nothing from third parties. Abbreviations shown as tooltips live in `docs/includes/abbreviations.md`.

@@ -27,7 +27,10 @@ Two variables only affect Compose:
 | `OXISTREAM_IMAGE` | `oxistream:local` | Image to run. Built from the repository if it does not exist. |
 | `OXISTREAM_PUBLISH` | `127.0.0.1:8080` | Host binding of port 8080. `8080` exposes it on all interfaces. |
 
-Over plain HTTP on a host other than `localhost`, sign-in needs `OXISTREAM_COOKIE_SECURE=false`. For anything else, put a TLS-terminating [reverse proxy](../reverse-proxy.md) in front. A reverse proxy on the same Docker network reaches the app as `oxistream:8080`.
+!!! note "Plain HTTP"
+
+    Over plain HTTP on a host other than `localhost`, sign-in needs `OXISTREAM_COOKIE_SECURE=false`. For anything else, put a TLS-terminating [reverse proxy](../advanced/reverse-proxy.md) in front.
+ A reverse proxy on the same Docker network reaches the app as `oxistream:8080`.
 
 ## Hardening
 
@@ -61,4 +64,4 @@ To restore into an empty database:
 docker compose exec -T postgres pg_restore -U oxistream -d oxistream --clean --if-exists < oxistream-YYYY-MM-DD.dump
 ```
 
-See [Operations](../operations.md#backups) for what the database contains.
+See [Backups](../administration/upgrades.md#backups) for what the database contains.

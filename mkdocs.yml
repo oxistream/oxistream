@@ -37,18 +37,26 @@ theme:
         icon: material/weather-night
         name: Switch to system preference
   features:
-    - navigation.instant
-    - navigation.instant.progress
-    - navigation.tracking
-    - navigation.tabs
-    - navigation.indexes
-    - navigation.top
-    - navigation.footer
-    - search.suggest
-    - search.highlight
-    - content.code.copy
     - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.footnote.tooltips
     - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
     - toc.follow
 
 extra_css:
@@ -61,6 +69,11 @@ extra:
       link: https://github.com/oxistream/oxistream
       name: Oxistream on GitHub
 
+plugins:
+  - search
+  # Downloads Mermaid at build time, so pages load nothing from third parties.
+  - privacy
+
 markdown_extensions:
   - abbr
   - admonition
@@ -72,15 +85,28 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.keys
-  - pymdownx.superfences
+  - pymdownx.snippets:
+      auto_append:
+        - docs/includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
+
+exclude_docs: |
+  includes/
 
 validation:
   nav:
@@ -95,22 +121,37 @@ validation:
 
 nav:
   - Home: index.md
-  - Docs:
-      - Overview: overview.md
-      - User guide: user-guide.md
-      - Installation:
-          - install/index.md
-          - Docker: install/docker.md
-          - Docker Compose: install/compose.md
-          - Kubernetes: install/kubernetes.md
-      - Configuration: configuration.md
-      - Reverse proxy: reverse-proxy.md
-      - Authentication: authentication.md
-      - Administration: administration.md
-      - Operations: operations.md
-      - Privacy: privacy.md
-      - Development:
-          - development.md
-          - Architecture: architecture.md
-          - API: api.md
-          - Releasing: releasing.md
+  - Setup:
+      - setup/index.md
+      - Docker Compose: setup/compose.md
+      - Docker: setup/docker.md
+      - Kubernetes: setup/kubernetes.md
+  - Usage:
+      - usage/index.md
+      - Browsing: usage/browsing.md
+      - Watching: usage/watching.md
+      - Subscriptions and feed: usage/subscriptions.md
+      - Library: usage/library.md
+      - Watch parties: usage/watch-parties.md
+      - Import and export: usage/import-export.md
+      - Settings: usage/settings.md
+      - Keyboard shortcuts: usage/shortcuts.md
+      - YouTube-compatible URLs: usage/urls.md
+  - Configuration: configuration.md
+  - Administration:
+      - administration/index.md
+      - Upgrades and backups: administration/upgrades.md
+      - Monitoring: administration/monitoring.md
+  - Advanced:
+      - advanced/index.md
+      - Reverse proxy: advanced/reverse-proxy.md
+      - Authentication: advanced/authentication.md
+      - Replicas and rate limiting: advanced/scaling.md
+      - Privacy: advanced/privacy.md
+  - API: api.md
+  - Development:
+      - development/index.md
+      - Architecture: development/architecture.md
+      - Releasing: development/releasing.md
+  - FAQ: faq.md
+  - Troubleshooting: troubleshooting.md

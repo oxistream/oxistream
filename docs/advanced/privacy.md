@@ -2,11 +2,21 @@
 
 This page describes what leaves the server, what reaches third parties, and what is stored. It reflects the current code.
 
+```mermaid
+flowchart LR
+    browser([Browser]) -->|SPA, /api, /proxy| server[Oxistream]
+    server -->|IDs, queries, stream ranges| yt[YouTube]
+    server -->|hash prefix of the video ID| sb[SponsorBlock]
+    browser -.->|SSO sign-in| idp[OIDC provider]
+    server <-->|tokens, logout| idp
+    server --- db[(PostgreSQL)]
+```
+
 ## What the browser contacts
 
 The browser talks only to the Oxistream instance: the SPA, `/api` and `/proxy`. All video, audio, thumbnails, avatars, banners, storyboards and subtitles are served through the instance's proxy. Fonts are bundled.
 
-The browser only goes to youtube.com when the user follows an explicit link, such as "Open on YouTube".
+The browser only goes to youtube.com when the user follows an explicit link, such as "Open on YouTube". With OIDC, it is sent to the identity provider to sign in and out.
 
 ## What reaches YouTube
 
@@ -58,7 +68,7 @@ Everything lives in PostgreSQL.
 | Shared caches | Video and channel metadata, channel uploads, the first 500 items of followed YouTube playlists | Not tied to users |
 | Back-channel logout | `jti` of used logout tokens | Hourly cleanup after the acceptance window |
 
-Account deletion removes everything the account owns. An admin can also delete accounts, see [Administration](administration.md#users).
+Account deletion removes everything the account owns. An admin can also delete accounts, see [Administration](../administration/index.md#users).
 
 In memory, per replica (not persisted): player responses, trending pages, search suggestions, SponsorBlock segments, rate-limiter state.
 
