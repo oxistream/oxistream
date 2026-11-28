@@ -196,6 +196,297 @@
         ]
       }
     },
+    "/api/v0/admin/status": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Instance status: build, database, feed worker and configuration. Caches and the feed\nworker's last run are those of the replica that answers. Admins only.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/admin/users": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Users, newest first. Admins only.",
+        "operationId": "list_users",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Only usernames containing this, ignoring case. At most 100 characters.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100; default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Users to skip; default 0.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit or search",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v0/admin/users/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a user with everything they own, ending their sessions. Admins delete their own\naccount via `DELETE /account`.",
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (`forbidden`), or foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Own account (`own_account`) or last admin (`last_admin`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Change a user's role or disable them. Admins cannot change their own account, and the last\nactive admin is never demoted or disabled. With an OIDC admin group, the role of single\nsign-on users is synced again on their next sign-in.",
+        "operationId": "update_user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (`forbidden`), or foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Own account (`own_account`) or last active admin (`last_admin`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v0/auth/login": {
       "post": {
         "tags": [
@@ -6521,6 +6812,181 @@
           }
         }
       },
+      "AdminRole": {
+        "type": "string",
+        "enum": [
+          "user",
+          "admin"
+        ]
+      },
+      "AdminStatus": {
+        "type": "object",
+        "required": [
+          "version",
+          "started_at",
+          "uptime_seconds",
+          "database",
+          "feed",
+          "player_cache_entries",
+          "auth",
+          "sponsorblock",
+          "trending_region",
+          "rate_limit"
+        ],
+        "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/AuthStatus"
+          },
+          "botguard_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` if `rustypipe-botguard` was not found."
+          },
+          "counts": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InstanceCounts",
+                "description": "`null` while the database is unreachable."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseStatus"
+          },
+          "feed": {
+            "$ref": "#/components/schemas/FeedWorkerStatus"
+          },
+          "git_sha": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Commit the server was built from, if known."
+          },
+          "player_cache_entries": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cached player responses of this replica.",
+            "minimum": 0
+          },
+          "rate_limit": {
+            "type": "boolean"
+          },
+          "sponsorblock": {
+            "type": "boolean"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trending_region": {
+            "type": "string",
+            "description": "ISO country code of the trending pages."
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminUserEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "disabled",
+          "auth_method",
+          "created_at",
+          "subscriptions"
+        ],
+        "properties": {
+          "auth_method": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Most recent activity of any session; `null` without sessions."
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "subscriptions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminUserPage": {
+        "type": "object",
+        "required": [
+          "users",
+          "total"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Users matching the search."
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserEntry"
+            }
+          }
+        }
+      },
+      "AdminUserUpdate": {
+        "type": "object",
+        "description": "Fields to change; absent fields stay as they are.",
+        "properties": {
+          "disabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Disabling ends all of the user's sessions."
+          },
+          "role": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "AudioTrack": {
         "type": "object",
         "required": [
@@ -6596,6 +7062,41 @@
           "require_login": {
             "type": "boolean",
             "description": "Anonymous users cannot use the API or proxy."
+          }
+        }
+      },
+      "AuthMethod": {
+        "type": "string",
+        "enum": [
+          "local",
+          "oidc"
+        ]
+      },
+      "AuthStatus": {
+        "type": "object",
+        "required": [
+          "local_enabled",
+          "registration_enabled",
+          "require_login",
+          "oidc_enabled",
+          "oidc_discovered"
+        ],
+        "properties": {
+          "local_enabled": {
+            "type": "boolean"
+          },
+          "oidc_discovered": {
+            "type": "boolean",
+            "description": "Provider discovery succeeded; `false` without single sign-on."
+          },
+          "oidc_enabled": {
+            "type": "boolean"
+          },
+          "registration_enabled": {
+            "type": "boolean"
+          },
+          "require_login": {
+            "type": "boolean"
           }
         }
       },
@@ -6946,6 +7447,24 @@
           }
         }
       },
+      "DatabaseStatus": {
+        "type": "object",
+        "required": [
+          "reachable"
+        ],
+        "properties": {
+          "reachable": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Postgres `server_version`."
+          }
+        }
+      },
       "DiscoveredShort": {
         "type": "object",
         "description": "A short to discover. YouTube sends no title or channel name with it; load them with\n`GET /videos/{id}` when it is shown.",
@@ -7016,6 +7535,7 @@
           "botguard_failed",
           "upstream_error",
           "unauthorized",
+          "forbidden",
           "origin_rejected",
           "invalid_credentials",
           "account_disabled",
@@ -7026,6 +7546,7 @@
           "limit_reached",
           "no_password",
           "last_admin",
+          "own_account",
           "internal"
         ]
       },
@@ -7051,6 +7572,43 @@
           }
         }
       },
+      "FeedRun": {
+        "type": "object",
+        "required": [
+          "finished_at",
+          "channels_fetched",
+          "channels_failed",
+          "playlists_fetched",
+          "playlists_failed",
+          "rate_limited"
+        ],
+        "properties": {
+          "channels_failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "channels_fetched": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "playlists_failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "playlists_fetched": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rate_limited": {
+            "type": "boolean",
+            "description": "Stopped early because YouTube is blocking requests."
+          }
+        }
+      },
       "FeedTokenStatus": {
         "type": "object",
         "required": [
@@ -7064,6 +7622,78 @@
             ],
             "format": "date-time",
             "description": "When the current feed URL was created; `null` without one."
+          }
+        }
+      },
+      "FeedWorkerStatus": {
+        "type": "object",
+        "properties": {
+          "due": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Subscribed channels due for the next run."
+          },
+          "failing": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Subscribed channels whose last fetch failed."
+          },
+          "interval_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Fetch interval; `null` if no worker runs on this replica.",
+            "minimum": 0
+          },
+          "last_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Most recent fetch attempt of any subscribed channel, by any replica."
+          },
+          "last_error_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Last run of this replica's worker that failed with a database error."
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FeedRun",
+                "description": "Last run of this replica's worker."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Subscribed channels never fetched successfully."
+          },
+          "running": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "A replica holds the worker lock, i.e. a run is in progress."
           }
         }
       },
@@ -7314,6 +7944,51 @@
               "type": "string"
             },
             "description": "The first skipped entries, as given in the file."
+          }
+        }
+      },
+      "InstanceCounts": {
+        "type": "object",
+        "required": [
+          "users",
+          "admins",
+          "disabled_users",
+          "channels",
+          "subscriptions",
+          "playlists",
+          "videos"
+        ],
+        "properties": {
+          "admins": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Admins that are not disabled."
+          },
+          "channels": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channels with at least one subscriber."
+          },
+          "disabled_users": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "playlists": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subscriptions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "users": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "videos": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cached video metadata."
           }
         }
       },

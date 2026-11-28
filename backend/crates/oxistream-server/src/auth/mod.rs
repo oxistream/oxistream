@@ -9,7 +9,9 @@ use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{ActiveSession, NewSession, SessionRepository, TokenHash, User, UserRepository};
+use oxistream_db::{
+    ActiveSession, NewSession, Role, SessionRepository, TokenHash, User, UserRepository,
+};
 use time::OffsetDateTime;
 
 use crate::AppState;
@@ -203,6 +205,10 @@ impl Auth {
 #[derive(Debug, Clone)]
 pub struct CurrentUser(pub User);
 
+/// The signed-in admin; rejects anonymous requests with 401 and other users with 403.
+#[derive(Debug, Clone)]
+pub struct AdminUser(pub User);
+
 /// The signed-in user, if any.
 #[derive(Debug, Clone)]
 pub struct OptionalUser(pub Option<User>);
@@ -221,6 +227,22 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
                 .cloned()
                 .ok_or_else(ApiError::unauthorized),
         )
+    }
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for AdminUser {
+    type Rejection = ApiError;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let result = match parts.extensions.get::<CurrentUser>() {
+            None => Err(ApiError::unauthorized()),
+            Some(CurrentUser(user)) if user.role == Role::Admin => Ok(Self(user.clone())),
+            Some(_) => Err(ApiError::forbidden()),
+        };
+        std::future::ready(result)
     }
 }
 

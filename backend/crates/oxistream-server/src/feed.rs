@@ -1,6 +1,6 @@
 //! Feed worker: keeps the videos of subscribed channels and followed playlists up to date.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -166,12 +166,26 @@ pub struct Feed {
     requests: mpsc::UnboundedSender<String>,
     playlist_requests: mpsc::UnboundedSender<String>,
     channels: Arc<dyn ChannelRepository>,
+    report: Arc<Mutex<WorkerReport>>,
+}
+
+/// What the feed worker of this replica did last.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WorkerReport {
+    /// `None` while no worker runs on this replica.
+    pub interval: Option<Duration>,
+    /// End of the last run that held the lock.
+    pub last_run_at: Option<OffsetDateTime>,
+    pub last_run: Option<RunSummary>,
+    /// When a run last failed with a database error.
+    pub last_error_at: Option<OffsetDateTime>,
 }
 
 /// Fetch requests sent through a [`Feed`], consumed by [`FeedWorker::spawn`].
 pub struct FeedRequests {
     channels: mpsc::UnboundedReceiver<String>,
     playlists: mpsc::UnboundedReceiver<String>,
+    report: Arc<Mutex<WorkerReport>>,
 }
 
 impl FeedRequests {
@@ -198,15 +212,18 @@ impl Feed {
     pub fn new(channels: Arc<dyn ChannelRepository>) -> (Self, FeedRequests) {
         let (requests, channel_rx) = mpsc::unbounded_channel();
         let (playlist_requests, playlist_rx) = mpsc::unbounded_channel();
+        let report = Arc::default();
         (
             Self {
                 requests,
                 playlist_requests,
                 channels,
+                report: Arc::clone(&report),
             },
             FeedRequests {
                 channels: channel_rx,
                 playlists: playlist_rx,
+                report,
             },
         )
     }
@@ -227,6 +244,17 @@ impl Feed {
 
     pub async fn status(&self) -> Result<FeedStatus, oxistream_db::Error> {
         self.channels.status().await
+    }
+
+    /// Subscribed channels the worker will fetch on its next run.
+    pub async fn due_count(&self, interval: Duration) -> Result<i64, oxistream_db::Error> {
+        self.channels
+            .due_count(OffsetDateTime::now_utc() - interval)
+            .await
+    }
+
+    pub fn report(&self) -> WorkerReport {
+        *self.report.lock().expect("feed report lock poisoned")
     }
 }
 
@@ -292,7 +320,9 @@ impl FeedWorker {
         let FeedRequests {
             mut channels,
             mut playlists,
+            report,
         } = requests;
+        report.lock().expect("feed report lock poisoned").interval = Some(self.interval);
         let worker = self.clone();
         tokio::spawn(async move {
             while let Some(channel_id) = channels.recv().await {
@@ -314,7 +344,19 @@ impl FeedWorker {
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 tick.tick().await;
-                match self.run_once().await {
+                let result = self.run_once().await;
+                {
+                    let mut report = report.lock().expect("feed report lock poisoned");
+                    match &result {
+                        Ok(Some(summary)) => {
+                            report.last_run_at = Some(OffsetDateTime::now_utc());
+                            report.last_run = Some(*summary);
+                        }
+                        Ok(None) => {}
+                        Err(_) => report.last_error_at = Some(OffsetDateTime::now_utc()),
+                    }
+                }
+                match result {
                     Ok(Some(summary)) => {
                         let attempts = summary.fetched
                             + summary.failed

@@ -103,6 +103,11 @@ impl YouTube {
         self.trending_region
     }
 
+    /// Cached player responses of this replica, approximate.
+    pub fn player_cache_entries(&self) -> u64 {
+        self.players.entry_count()
+    }
+
     /// Trending videos of the configured region, cached per category and language.
     pub async fn trending(
         &self,

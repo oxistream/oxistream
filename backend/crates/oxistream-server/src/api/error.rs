@@ -23,6 +23,8 @@ pub enum ErrorCode {
     UpstreamError,
     /// No valid session.
     Unauthorized,
+    /// The signed-in user lacks the required role.
+    Forbidden,
     /// A state-changing request did not come from this instance's origin.
     OriginRejected,
     /// Unknown username or wrong password.
@@ -37,8 +39,10 @@ pub enum ErrorCode {
     LimitReached,
     /// The account has no password, e.g. because it signs in via single sign-on.
     NoPassword,
-    /// The last admin cannot delete their account while other users remain.
+    /// The change would leave the instance without an (active) admin.
     LastAdmin,
+    /// Admins cannot change, disable or delete their own account via the admin API.
+    OwnAccount,
     Internal,
 }
 
@@ -101,6 +105,14 @@ impl ApiError {
             StatusCode::UNAUTHORIZED,
             ErrorCode::Unauthorized,
             "sign in required",
+        )
+    }
+
+    pub fn forbidden() -> Self {
+        Self::new(
+            StatusCode::FORBIDDEN,
+            ErrorCode::Forbidden,
+            "admin role required",
         )
     }
 

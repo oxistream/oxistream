@@ -13,7 +13,7 @@ use std::sync::Arc;
 use oxistream_db::{
     PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
     PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
-    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
+    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository, PgStatsRepository,
     PgSubscriptionGroupRepository, PgSubscriptionRepository, PgUserRepository,
     PgUserSettingsRepository, PgVideoRepository, PoolOptions,
 };
@@ -142,6 +142,8 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         })
         .expect("build SponsorBlock client"),
         sponsorblock_settings: Arc::new(PgSponsorBlockSettingsRepository::new(db.clone())),
+        stats: Arc::new(PgStatsRepository::new(db.clone())),
+        started_at: time::OffsetDateTime::now_utc(),
         db,
     }
 }

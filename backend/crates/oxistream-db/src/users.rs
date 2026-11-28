@@ -83,6 +83,41 @@ pub enum DeleteOutcome {
     LastAdmin,
 }
 
+/// Result of the guarded admin changes of [`UserRepository`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AdminUpdate {
+    Updated(User),
+    NotFound,
+    /// The change would leave no active admin.
+    LastAdmin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UserListQuery {
+    /// Case-insensitive substring of the username.
+    pub search: Option<String>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+/// A user as listed for admins.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserOverview {
+    pub user: User,
+    /// Linked to an `OpenID` Connect identity.
+    pub sso: bool,
+    /// Most recent activity of any of the user's sessions.
+    pub last_seen_at: Option<OffsetDateTime>,
+    pub subscriptions: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserPage {
+    pub users: Vec<UserOverview>,
+    /// All users matching the search.
+    pub total: i64,
+}
+
 /// Username candidates for a new account: attempt `0` is the preferred name, later attempts
 /// add a suffix.
 pub type UsernameCandidates<'a> = dyn Fn(u32) -> String + Send + Sync + 'a;
@@ -128,6 +163,16 @@ pub trait UserRepository: Send + Sync {
     /// Deletes the user and, by cascade, everything they own, including their sessions. The
     /// last admin is kept unless no other users remain.
     async fn delete(&self, id: Uuid) -> Result<DeleteOutcome, Error>;
+
+    /// Users, newest first.
+    async fn list(&self, query: &UserListQuery) -> Result<UserPage, Error>;
+
+    /// Sets the role unless that demotes the last active admin.
+    async fn admin_set_role(&self, id: Uuid, role: Role) -> Result<AdminUpdate, Error>;
+
+    /// Disables or enables the user, unless that disables the last active admin. Disabling
+    /// ends all of the user's sessions.
+    async fn admin_set_disabled(&self, id: Uuid, disabled: bool) -> Result<AdminUpdate, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -396,4 +441,128 @@ impl UserRepository for PgUserRepository {
         tx.commit().await?;
         Ok(DeleteOutcome::Deleted)
     }
+
+    async fn list(&self, query: &UserListQuery) -> Result<UserPage, Error> {
+        let pattern = query
+            .search
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                let escaped = s
+                    .replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_");
+                format!("%{escaped}%")
+            });
+        let total: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM users WHERE $1::text IS NULL OR username ILIKE $1",
+        )
+        .bind(&pattern)
+        .fetch_one(&self.pool)
+        .await?;
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            user_columns!(),
+            ", EXISTS (SELECT 1 FROM user_identities i WHERE i.user_id = users.id) AS sso, \
+             (SELECT max(s.last_seen_at) FROM sessions s WHERE s.user_id = users.id) AS last_seen_at, \
+             (SELECT count(*) FROM subscriptions s WHERE s.user_id = users.id) AS subscriptions \
+             FROM users WHERE $1::text IS NULL OR username ILIKE $1 \
+             ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3"
+        ))
+        .bind(&pattern)
+        .bind(i64::from(query.limit))
+        .bind(i64::from(query.offset))
+        .fetch_all(&self.pool)
+        .await?;
+        let users = rows
+            .iter()
+            .map(|row| {
+                Ok(UserOverview {
+                    user: user_from_row(row)?,
+                    sso: row.try_get("sso")?,
+                    last_seen_at: row.try_get("last_seen_at")?,
+                    subscriptions: row.try_get("subscriptions")?,
+                })
+            })
+            .collect::<Result<_, sqlx::Error>>()?;
+        Ok(UserPage { users, total })
+    }
+
+    async fn admin_set_role(&self, id: Uuid, role: Role) -> Result<AdminUpdate, Error> {
+        let mut tx = self.pool.begin().await?;
+        lock_users(&mut tx).await?;
+        let Some(current) = user_for_update(&mut tx, id).await? else {
+            return Ok(AdminUpdate::NotFound);
+        };
+        if current.role == Role::Admin
+            && role != Role::Admin
+            && !other_active_admin(&mut tx, id).await?
+        {
+            return Ok(AdminUpdate::LastAdmin);
+        }
+        let row = sqlx::query(concat!(
+            "UPDATE users SET role = $2, updated_at = now() WHERE id = $1 RETURNING ",
+            user_columns!()
+        ))
+        .bind(id)
+        .bind(role.as_str())
+        .fetch_one(&mut *tx)
+        .await?;
+        let user = user_from_row(&row)?;
+        tx.commit().await?;
+        Ok(AdminUpdate::Updated(user))
+    }
+
+    async fn admin_set_disabled(&self, id: Uuid, disabled: bool) -> Result<AdminUpdate, Error> {
+        let mut tx = self.pool.begin().await?;
+        lock_users(&mut tx).await?;
+        let Some(current) = user_for_update(&mut tx, id).await? else {
+            return Ok(AdminUpdate::NotFound);
+        };
+        if disabled && current.role == Role::Admin && !other_active_admin(&mut tx, id).await? {
+            return Ok(AdminUpdate::LastAdmin);
+        }
+        let row = sqlx::query(concat!(
+            "UPDATE users SET disabled = $2, updated_at = now() WHERE id = $1 RETURNING ",
+            user_columns!()
+        ))
+        .bind(id)
+        .bind(disabled)
+        .fetch_one(&mut *tx)
+        .await?;
+        let user = user_from_row(&row)?;
+        if disabled {
+            sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(AdminUpdate::Updated(user))
+    }
+}
+
+async fn user_for_update(
+    tx: &mut sqlx::PgConnection,
+    id: Uuid,
+) -> Result<Option<User>, sqlx::Error> {
+    let row = sqlx::query(concat!(
+        "SELECT ",
+        user_columns!(),
+        " FROM users WHERE id = $1"
+    ))
+    .bind(id)
+    .fetch_optional(tx)
+    .await?;
+    row.as_ref().map(user_from_row).transpose()
+}
+
+async fn other_active_admin(tx: &mut sqlx::PgConnection, id: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin' AND NOT disabled AND id <> $1)",
+    )
+    .bind(id)
+    .fetch_one(tx)
+    .await
 }

@@ -9,11 +9,12 @@ use oxistream_db::{
     ChannelBlockRepository, HiddenVideoRepository, HistoryRepository, LikeRepository,
     PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
     PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
-    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
+    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository, PgStatsRepository,
     PgSubscriptionGroupRepository, PgSubscriptionRepository, PgUserRepository,
     PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
     PlaylistFollowRepository, PlaylistRepository, QueueRepository, SponsorBlockSettingsRepository,
-    SubscriptionGroupRepository, SubscriptionRepository, UserSettingsRepository, VideoRepository,
+    StatsRepository, SubscriptionGroupRepository, SubscriptionRepository, UserSettingsRepository,
+    VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -69,6 +70,9 @@ pub struct AppState {
     pub sponsorblock: sponsorblock::SponsorBlock,
     pub sponsorblock_settings: Arc<dyn SponsorBlockSettingsRepository>,
     pub rooms: rooms::Rooms,
+    /// Counts and checks for the admin status page.
+    pub stats: Arc<dyn StatsRepository>,
+    pub started_at: time::OffsetDateTime,
 }
 
 impl AppState {
@@ -211,6 +215,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             sponsorblock,
             sponsorblock_settings: Arc::new(PgSponsorBlockSettingsRepository::new(db.clone())),
             rooms,
+            stats: Arc::new(PgStatsRepository::new(db.clone())),
+            started_at: time::OffsetDateTime::now_utc(),
         })
         .into_make_service_with_connect_info::<SocketAddr>(),
     )
