@@ -6,6 +6,7 @@ function entry(index: number, addedBy: string): RoomQueueEntry {
 	return {
 		id: 100 + index,
 		added_by: addedBy,
+		autoplay: false,
 		video: {
 			id: v.id,
 			title: v.title,

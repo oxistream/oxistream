@@ -9,6 +9,7 @@
 	import PartyPick from './party-pick.svelte';
 	import PartyQueue from './party-queue.svelte';
 	import PartyStatus from './party-status.svelte';
+	import PartyUpNext from './party-up-next.svelte';
 	import ShareButton from './share-button.svelte';
 	import SyncReadout from './sync-readout.svelte';
 
@@ -54,6 +55,21 @@
 <Story name="Now playing" asChild>
 	<div class="max-w-xs">
 		<PartyNowPlaying current={mockRoomCurrent} />
+	</div>
+</Story>
+
+<Story name="Now playing with progress" asChild>
+	<div class="max-w-xs">
+		<PartyNowPlaying
+			current={mockRoomCurrent}
+			playback={{ playing: false, position: 83, positionAt: 0 }}
+		/>
+	</div>
+</Story>
+
+<Story name="Up next" asChild>
+	<div class="max-w-xs">
+		<PartyUpNext video={mockRoomQueue[0].video} />
 	</div>
 </Story>
 

@@ -19,6 +19,7 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+	import { Switch } from '#lib/components/ui/switch/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { formatNumber } from '#lib/format.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -35,6 +36,7 @@
 	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyQueue from './party-queue.svelte';
 	import PartyStatus from './party-status.svelte';
+	import PartyUpNext from './party-up-next.svelte';
 	import ShareButton from './share-button.svelte';
 
 	const ERROR_VISIBLE_MS = 6000;
@@ -65,6 +67,17 @@
 	});
 
 	const queue = $derived(party.room?.queue ?? []);
+	const upNext = $derived(party.room?.up_next ?? null);
+	const playback = $derived(
+		party.room
+			? {
+					playing: party.room.playing,
+					position: party.room.position,
+					positionAt: party.room.position_at
+				}
+			: undefined
+	);
+	const serverNow = () => party.connection?.serverNow() ?? Date.now();
 	const participants = $derived(party.participants);
 	const shown = $derived(
 		participants.length > AVATARS_SHOWN ? participants.slice(0, AVATARS_SHOWN - 1) : participants
@@ -209,7 +222,7 @@
 
 	<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2">
 		{#if party.active}
-			<PartyNowPlaying current={party.current} class="px-2" />
+			<PartyNowPlaying current={party.current} {playback} {serverNow} class="px-2" />
 
 			{#if errorMessage}
 				<p class="px-2 text-sm font-medium text-destructive" role="alert">{errorMessage}</p>
@@ -258,15 +271,31 @@
 								<ShuffleIcon />
 								{m.party_shuffle()}
 							</Button>
+							<label
+								class="flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground"
+							>
+								{m.party_autoplay()}
+								<Switch
+									size="sm"
+									checked={party.room?.autoplay ?? false}
+									onCheckedChange={(enabled) => party.setAutoplay(enabled)}
+									data-testid="party-autoplay"
+								/>
+							</label>
 						</div>
 					</div>
-					<PartyQueue
-						{queue}
-						revision={party.room?.revision}
-						onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
-						onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
-						onmove={(entry, to) => party.move(entry.id, to)}
-					/>
+					{#if queue.length > 0 || !upNext}
+						<PartyQueue
+							{queue}
+							revision={party.room?.revision}
+							onselect={(entry) => party.send({ type: 'select', entry: entry.id })}
+							onremove={(entry) => party.send({ type: 'remove', entry: entry.id })}
+							onmove={(entry, to) => party.move(entry.id, to)}
+						/>
+					{/if}
+					{#if upNext}
+						<PartyUpNext video={upNext} onplay={() => party.playNow(upNext.id)} />
+					{/if}
 				</Tabs.Content>
 				<Tabs.Content value="members">
 					<PartyMembers
