@@ -358,14 +358,15 @@
 									{#if party.canControl}
 										<Button
 											variant="ghost"
-											size="sm"
-											class="ms-auto whitespace-nowrap text-muted-foreground hover:text-foreground"
+											size="icon-sm"
+											class="ms-auto text-muted-foreground hover:text-foreground"
+											aria-label={m.party_shuffle()}
+											title={m.party_shuffle()}
 											disabled={queue.length < 2}
 											onclick={() => party.shuffle()}
 											data-testid="party-shuffle"
 										>
 											<ShuffleIcon />
-											{m.party_shuffle()}
 										</Button>
 										<label
 											class="flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground"
