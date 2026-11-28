@@ -1,6 +1,6 @@
 # Administration
 
-The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first local account on an instance is an admin, see [Authentication](../advanced/authentication.md#first-admin). SSO users become admins through the [admin group](../advanced/authentication.md#admin-role-from-groups).
+The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". Without an OIDC admin group, a local account that registers while there is no active admin becomes one, see [Authentication](../advanced/authentication.md#first-admin). SSO users become admins through the [admin group](../advanced/authentication.md#admin-role-from-groups).
 
 
 Keeping the instance running is covered in [Upgrades and backups](upgrades.md) and [Monitoring](monitoring.md).

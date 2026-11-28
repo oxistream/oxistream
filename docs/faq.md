@@ -34,7 +34,7 @@ PostgreSQL 18 or newer. There is no SQLite support yet.
 
 ## Who becomes the admin?
 
-The first local account registered on the instance. SSO accounts never become admin by being first: with `OXISTREAM_OIDC_ADMIN_GROUP`, their role follows that group of the identity provider (required for SSO-only instances), see [admin role from groups](advanced/authentication.md#admin-role-from-groups). Without an admin group, admins make other users admins in the [admin area](administration/index.md).
+With `OXISTREAM_OIDC_ADMIN_GROUP` set (required for SSO-only instances), the members of that group of the identity provider; local registrations stay users. Without it, the first local account registered while the instance has no active admin, even if SSO users signed in before; SSO accounts never become admin by being first. See [admin role from groups](advanced/authentication.md#admin-role-from-groups). Admins can also make other users admins in the [admin area](administration/index.md); for SSO users with an admin group, sync overrides that on their next sign-in.
 
 ## A user forgot their password. Can an admin reset it?
 

@@ -371,6 +371,7 @@ async fn the_last_active_admin_is_kept() {
     let new = |name: &str| NewUser {
         username: format!("{name}_{}", unique_suffix()),
         password_hash: None,
+        admin_if_none: true,
     };
     let admin = repo.create(&new("admin")).await.unwrap();
     let other = repo.create(&new("other")).await.unwrap();

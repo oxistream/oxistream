@@ -22,11 +22,13 @@ Rules:
 
 ## First admin
 
-The first local account to register becomes admin, if no other account exists yet. A table lock prevents two first users. Accounts created through OIDC never become admin this way, their role comes from the [admin group](#admin-role-from-groups).
+Without `OXISTREAM_OIDC_ADMIN_GROUP`, a local account becomes admin when it registers while the instance has no active (not disabled) admin. On a new instance, that is the first local account, even if SSO users signed in before. A table lock prevents two such admins. Accounts created through OIDC never become admin this way.
+
+With an admin group, admins come only from the identity provider: local registrations always become users, even when no admin exists. See [admin role from groups](#admin-role-from-groups).
 
 !!! warning "Register right after the first start"
 
-    On an instance others can reach, anyone who registers first becomes the admin. An SSO sign-in also creates an account, so register the local admin before anyone signs in through SSO.
+    Without an admin group, on an instance others can reach, anyone who registers first becomes the admin. The same applies whenever no active admin is left, for example after the only admin was disabled. Close registration once the instance has an admin.
 
 Admins manage other users in the [admin pages](../administration/index.md).
 
@@ -110,8 +112,8 @@ Discovery runs in the background and retries with backoff (1 s, doubling up to 1
 
 OIDC users become admins only through the identity provider, never by being the first account.
 
-- With `OXISTREAM_OIDC_ADMIN_GROUP` set, the role is synced on every sign-in. Members of the group become admin, everyone else becomes a user. The provider decides: sync also demotes the last admin, and it overrides changes made in the admin pages on the user's next sign-in.
-- Without it, OIDC users are created as users and their role is never synced. Admins promote them in the [admin pages](../administration/index.md), and that sticks. The first admin is then a local account, so with `OXISTREAM_AUTH_LOCAL_ENABLED=false` the admin group is required and the server does not start without it.
+- With `OXISTREAM_OIDC_ADMIN_GROUP` set, the role is synced on every sign-in. Members of the group become admin, everyone else becomes a user. The provider decides: sync also demotes the last admin, and it overrides changes made in the admin pages on the user's next sign-in. Local registrations never become admin on their own then.
+- Without it, OIDC users are created as users and their role is never synced. Admins promote them in the [admin pages](../administration/index.md), and that sticks. The first admin is then a local account (see [first admin](#first-admin)), so with `OXISTREAM_AUTH_LOCAL_ENABLED=false` the admin group is required and the server does not start without it.
 
 The groups are read from `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`) in the ID token, or from userinfo if the claim is missing there. Dotted paths reach nested claims.
 

@@ -73,7 +73,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 ### Auth
 
-- Local accounts (argon2id) and OIDC, each toggleable via ENV. Registration toggleable. The first local user becomes admin; OIDC users only via the admin group.
+- Local accounts (argon2id) and OIDC, each toggleable via ENV. Registration toggleable. Without an OIDC admin group, a local registration becomes admin while no active (non-disabled) admin exists (users table lock); with one, admins come only from the IdP and local registrations stay `user`.
 - Exactly one OIDC provider, by design. Authorization code flow with PKCE (`openidconnect`), auto-provisioning, identity is `(issuer, sub)`, never email. Admin role via configurable groups claim.
   - Enabled iff issuer and client ID are set; then `OXISTREAM_PUBLIC_URL` is required (redirect URI `{PUBLIC_URL}/api/v0/auth/oidc/callback`, post-logout redirect `{PUBLIC_URL}/`). Discovery runs in the background with backoff; `/readyz` fails until it succeeds.
   - ENV: `OXISTREAM_OIDC_ISSUER`, `OXISTREAM_OIDC_CLIENT_ID`, `OXISTREAM_OIDC_CLIENT_SECRET` (omit for public clients), `OXISTREAM_OIDC_SCOPES` (default `openid profile email`), `OXISTREAM_OIDC_NAME` (button label, default `SSO`), `OXISTREAM_OIDC_ADMIN_GROUP`, `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`, dotted paths like `realm_access.roles` work).
