@@ -13,11 +13,11 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# More than one replica needs a shared proxy secret, a single egress IP and NTP-synced nodes (see README).
+# More than one replica needs a shared proxy secret, a single egress IP and NTP-synced nodes (see docs/install/kubernetes.md).
 replicaCount: 1
 
 # Non-secret OXISTREAM_* environment variables, rendered into a ConfigMap.
-# Every variable from the README works here; unset ones take the server's defaults.
+# Every variable from docs/configuration.md works here; unset ones take the server's defaults.
 config:
   OXISTREAM_LOG_FORMAT: json
   # Required behind a proxy that rewrites Host, and for OIDC and Atom feed links.
