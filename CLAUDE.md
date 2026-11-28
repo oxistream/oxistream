@@ -207,3 +207,4 @@ RustyPipe returns no MPD for regular videos, so `oxistream-dash` generates one p
 - `deploy/compose/`: Compose setup with Postgres.
 - `deploy/helm/oxistream`: Helm chart with example values for a CloudNativePG `Cluster`.
 - CI via GitHub Actions; images published to GHCR.
+  - `release.yml` on `vX.Y.Z` tags: checks the tag against the workspace version, `Cargo.lock` and `Chart.yaml` (`version`, `appVersion`), pushes the multi-arch image (SBOM, provenance, attestation) and the chart to `oci://ghcr.io/<owner>/charts`; manual runs default to a dry run.

@@ -10,6 +10,8 @@ With Nix, `nix develop` provides the Rust toolchain, Node, pnpm, sqlx-cli and `r
 
 ## Docker
 
+Release images for linux/amd64 and linux/arm64 are published as `ghcr.io/OWNER/oxistream` with tags `X.Y.Z`, `X.Y`, `X` (from 1.0) and `latest`. Each carries SBOM and provenance attestations (`gh attestation verify oci://ghcr.io/OWNER/oxistream:X.Y.Z --owner OWNER`).
+
 The root `Dockerfile` builds the frontend, the server with the embedded SPA, and bundles `rustypipe-botguard`. The server is cross-compiled on the build host, so multi-arch builds need no emulation:
 
 ```sh
@@ -33,7 +35,16 @@ For a ready-made setup with PostgreSQL, see [`deploy/compose`](deploy/compose/RE
 
 ## Kubernetes
 
-A Helm chart with CloudNativePG example values lives in [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md).
+A Helm chart with CloudNativePG example values lives in [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md). Releases also publish it as `oci://ghcr.io/OWNER/charts/oxistream`.
+
+## Releasing
+
+The workspace version in `backend/Cargo.toml` is the source of truth; `version` and `appVersion` in `deploy/helm/oxistream/Chart.yaml` follow it.
+
+1. Bump all three, run `cargo update --workspace` in `backend/` to update `Cargo.lock`, and merge the change.
+2. Tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The `Release` workflow fails if the tag and these versions differ, then pushes the image and the chart to GHCR. Pre-release tags like `v1.2.0-rc.1` do not move `latest`. Run it manually with "dry run" to build a branch or tag without pushing. New GHCR packages start private; make them public once in the package settings.
 
 ## License
 

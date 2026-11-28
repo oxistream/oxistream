@@ -6,9 +6,16 @@ Deploys Oxistream on Kubernetes 1.29+ with Helm 3 or 4. PostgreSQL 18 or newer i
 
 ```sh
 helm install oxistream ./deploy/helm/oxistream \
-  --set image.repository=ghcr.io/<owner>/oxistream \
+  --set image.repository=ghcr.io/OWNER/oxistream \
   --set database.url='postgres://oxistream:secret@postgres:5432/oxistream' \
   --set config.OXISTREAM_PUBLIC_URL=https://oxistream.example.com
+```
+
+`image.repository` points to the published image `ghcr.io/OWNER/oxistream`; the tag defaults to the chart's `appVersion`. Releases also publish the chart itself:
+
+```sh
+helm install oxistream oci://ghcr.io/OWNER/charts/oxistream --version X.Y.Z \
+  --set image.repository=ghcr.io/OWNER/oxistream ...
 ```
 
 Migrations run at startup. The first account to register becomes admin.
@@ -23,7 +30,7 @@ kubectl create secret generic oxistream-proxy \
   --from-literal=proxy-secret="$(openssl rand -base64 48)"
 helm install oxistream ./deploy/helm/oxistream \
   -f deploy/helm/oxistream/examples/values-cnpg.yaml \
-  --set image.repository=ghcr.io/<owner>/oxistream
+  --set image.repository=ghcr.io/OWNER/oxistream
 ```
 
 [`examples/cnpg-cluster.yaml`](examples/cnpg-cluster.yaml) creates a PostgreSQL 18 `Cluster` named `oxistream-db` with database and owner `oxistream`. `database.cnpgCluster: oxistream-db` reads the `uri` key of the operator-generated `oxistream-db-app` secret, which points to the read-write service. Raise `instances` to 3 for a primary with two standbys.

@@ -1,7 +1,7 @@
 # Default values for oxistream.
 
 image:
-  # Required, e.g. ghcr.io/<owner>/oxistream.
+  # Required, e.g. ghcr.io/OWNER/oxistream.
   repository: ""
   # Defaults to the chart's appVersion.
   tag: ""
