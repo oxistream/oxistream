@@ -27,6 +27,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
       compose: ${{ steps.filter.outputs.compose }}
+      helm: ${{ steps.filter.outputs.helm }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -52,6 +53,9 @@ jobs:
             compose:
               - *ci
               - 'deploy/compose/**'
+            helm:
+              - *ci
+              - 'deploy/helm/**'
 
   backend:
     needs: changes
@@ -242,8 +246,43 @@ jobs:
       - run: cp .env.example .env
       - run: docker compose config --quiet
 
+  helm:
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CHART: deploy/helm/oxistream
+      KUBECONFORM_VERSION: v0.8.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.2
+      - name: Install kubeconform
+        run: |
+          base="https://github.com/yannh/kubeconform/releases/download/$KUBECONFORM_VERSION"
+          curl -fsSLO "$base/kubeconform-linux-amd64.tar.gz"
+          curl -fsSL "$base/CHECKSUMS" | grep ' kubeconform-linux-amd64.tar.gz$' | sha256sum -c -
+          tar -xzf kubeconform-linux-amd64.tar.gz -C "$RUNNER_TEMP" kubeconform
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Lint and render
+        run: |
+          mkdir -p rendered
+          for values in "$CHART"/ci/*.yaml "$CHART"/examples/values-*.yaml; do
+            helm lint --strict "$CHART" -f "$values"
+            helm template oxistream "$CHART" -f "$values" > "rendered/$(basename "$values")"
+          done
+      # CRDs (CloudNativePG, Gateway API) are validated against the community CRD catalog.
+      - name: Validate manifests
+        run: |
+          kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered/*.yaml "$CHART"/examples/cnpg-cluster.yaml
+
   ci-ok:
-    needs: [changes, backend, frontend, e2e, openapi, docker, compose]
+    needs: [changes, backend, frontend, e2e, openapi, docker, compose, helm]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30
