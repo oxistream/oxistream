@@ -1,0 +1,61 @@
+name: oxistream
+
+services:
+  oxistream:
+    image: ${OXISTREAM_IMAGE:-oxistream:local}
+    build:
+      context: ../..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    env_file: .env
+    environment:
+      OXISTREAM_DATABASE_URL: postgres://oxistream:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/oxistream
+    # Loopback only by default; put a reverse proxy in front, or set
+    # OXISTREAM_PUBLISH=8080 (all interfaces) to expose it directly.
+    ports:
+      - ${OXISTREAM_PUBLISH:-127.0.0.1:8080}:8080
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - cache:/var/lib/oxistream
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  postgres:
+    image: postgres:18.7-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oxistream
+      POSTGRES_DB: oxistream
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # Postgres 18+ keeps its data in a versioned subdirectory of this path.
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: [CMD, pg_isready, -U, oxistream, -d, oxistream]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # The entrypoint fixes data dir ownership, then drops to the postgres user.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+
+volumes:
+  postgres:
+  cache:
