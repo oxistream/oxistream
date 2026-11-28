@@ -60,9 +60,9 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - PostgreSQL only for now (sqlx, migrations in `backend/migrations`). Minimum version 18; CI also tests 19.
 - Repositories behind traits so SQLite can be added later.
 - Tables:
-  - `users`, `user_identities` (OIDC `(issuer, sub)`), `sessions` (incl. OIDC `sid` and ID token), `user_settings` (codec/quality prefs, history paused), `oidc_logout_jti`
+  - `users`, `user_identities` (OIDC `(issuer, sub)`), `sessions` (incl. OIDC `sid` and ID token), `user_settings` (codec/quality prefs, history paused, feed filters), `oidc_logout_jti`
   - `videos`: metadata upsert cache (no media)
-  - `channels`, `subscriptions`, `channel_videos` (feed), `feed_tokens` (Atom feed URL, SHA-256 only)
+  - `channels`, `subscriptions`, `channel_videos` (feed), `feed_tokens` (Atom feed URL, SHA-256 only), `hidden_videos` ("Not interested")
   - `playlists`, `playlist_items` (ordered)
   - `queues`, `queue_entries` (up-next queue of signed-in users, ordered)
   - `youtube_playlists`, `playlist_follows`, `youtube_playlist_items` (followed YouTube playlists)
@@ -94,6 +94,12 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - `GET /api/v0/history?q=` searches title and channel name (case-insensitive substring, `LIKE` wildcards escaped), same pagination; the UI debounces and keeps `?q=` in the URL.
 - Retention `forever|365d|180d|90d|30d|14d|7d|1d` per user (`user_settings.history_retention_days`, NULL = forever) via `/history/settings`. `OXISTREAM_HISTORY_MAX_RETENTION` (same values, default `forever`, invalid fails startup) caps it: effective = min(user, max), higher values are rejected (422), stored ones above it act as the max, the UI offers only values up to it. `GET /api/v0/instance` reports `history_max_retention`; guests' localStorage progress is trimmed to it.
 - Entries older than the effective retention (by `updated_at`) are filtered from all history queries and deleted hourly by any replica (advisory lock, idempotent).
+- Video menus (signed in only): "Mark as watched" (`PUT /history/{id}`: finished, position = duration from the entry, the request or the metadata caches, else 422; recorded even while history is paused; not offered for shorts, live or upcoming) and "Mark as unwatched" (`DELETE /history/{id}`, removes entry and resume point).
+- "Not interested" (`PUT`/`DELETE /hidden-videos/{id}`, undo toast) is offered only in the subscription feed and home rows; hidden videos leave the feed (also Atom and shorts seeds), "Continue watching" and trending, not history, search, related or channels.
+
+### Subscription feed
+
+- `GET /api/v0/feed?kind=&hide_watched=&channel=` filters server-side, so pages stay full; hidden videos are always left out, `hide_watched` drops finished videos. "Hide watched" and "Hide shorts" (no shorts shelf) are `user_settings.feed_hide_*` via `PATCH /settings`, so they follow the account; the channel filter is `?channel=` in the page URL, so it can be linked.
 
 ### YouTube data
 
