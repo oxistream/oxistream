@@ -297,6 +297,115 @@ async fn refetch_keeps_publish_date_and_owner() {
     assert_eq!(feed[0].published_at, Some(original));
 }
 
+async fn set_last_visit(pool: &PgPool, channel_id: &str, at: OffsetDateTime) {
+    sqlx::query("UPDATE subscriptions SET last_visited_at = $2 WHERE channel_id = $1")
+        .bind(channel_id)
+        .bind(at)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn has_new(subs: &PgSubscriptionRepository, user_id: oxistream_db::Uuid) -> Vec<bool> {
+    subs.list(user_id)
+        .await
+        .unwrap()
+        .iter()
+        .map(|s| s.has_new)
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn new_uploads_since_the_last_visit() {
+    let db = isolated_test_pool().await;
+    let subs = PgSubscriptionRepository::new(db.pool.clone());
+    let channels = PgChannelRepository::new(db.pool.clone());
+    let alice = user(&db.pool).await;
+    subs.subscribe(alice.id, CHANNEL_A).await.unwrap();
+    subs.subscribe(alice.id, CHANNEL_B).await.unwrap();
+    let short = |id: &str| ChannelVideoUpsert {
+        published_at: None,
+        published_text: None,
+        is_short: true,
+        ..video(id, datetime!(2026-01-01 00:00 UTC))
+    };
+
+    channels
+        .store_fetch(
+            &channel(CHANNEL_A, "Alpha"),
+            &[
+                video("aaaaaaaaaa1", datetime!(2026-01-02 00:00 UTC)),
+                short("aaaaaaaaas1"),
+            ],
+        )
+        .await
+        .unwrap();
+    channels
+        .store_fetch(&channel(CHANNEL_B, "Bravo"), &[short("bbbbbbbbbs1")])
+        .await
+        .unwrap();
+    assert_eq!(
+        has_new(&subs, alice.id).await,
+        [false, false],
+        "nothing of the first fetch is new"
+    );
+
+    set_last_visit(&db.pool, CHANNEL_A, datetime!(2026-01-01 12:00 UTC)).await;
+    assert_eq!(has_new(&subs, alice.id).await, [true, false]);
+
+    channels
+        .store_fetch(
+            &channel(CHANNEL_B, "Bravo"),
+            &[short("bbbbbbbbbs2"), short("bbbbbbbbbs1")],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        has_new(&subs, alice.id).await,
+        [true, true],
+        "a short seen after the visit"
+    );
+
+    let bob = user(&db.pool).await;
+    subs.subscribe(bob.id, CHANNEL_A).await.unwrap();
+    assert_eq!(has_new(&subs, bob.id).await, [false], "new subscription");
+
+    for id in ["aaaaaaaaaa1", "aaaaaaaaas1"] {
+        sqlx::query("INSERT INTO hidden_videos (user_id, video_id) VALUES ($1, $2)")
+            .bind(alice.id)
+            .bind(id)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+    }
+    assert_eq!(has_new(&subs, alice.id).await, [false, true], "hidden");
+
+    assert!(subs.visit(alice.id, CHANNEL_B).await.unwrap());
+    assert_eq!(has_new(&subs, alice.id).await, [false, false]);
+    assert!(
+        !subs.visit(bob.id, CHANNEL_B).await.unwrap(),
+        "not subscribed"
+    );
+
+    channels
+        .store_fetch(
+            &channel(CHANNEL_B, "Bravo"),
+            &[ChannelVideoUpsert {
+                published_at: Some(OffsetDateTime::now_utc() + time::Duration::days(1)),
+                is_upcoming: true,
+                ..video("bbbbbbbbbu1", datetime!(2026-01-01 00:00 UTC))
+            }],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        has_new(&subs, alice.id).await,
+        [false, false],
+        "upcoming videos are not uploads"
+    );
+}
+
 #[derive(Default)]
 struct FakeSource {
     fetches: Mutex<HashMap<String, usize>>,
@@ -606,11 +715,13 @@ async fn api_requires_login() {
     let channels = Arc::new(PgChannelRepository::new(db.pool.clone()));
     let api = Api::new(&db.pool, Feed::new(channels).0).await;
     let path = format!("/api/v0/subscriptions/{CHANNEL_A}");
+    let visit = format!("{path}/visit");
     for (method, uri) in [
         (Method::GET, "/api/v0/subscriptions"),
         (Method::GET, path.as_str()),
         (Method::PUT, path.as_str()),
         (Method::DELETE, path.as_str()),
+        (Method::PUT, visit.as_str()),
         (Method::GET, "/api/v0/feed"),
         (Method::POST, "/api/v0/subscriptions/import"),
         (Method::GET, "/api/v0/subscriptions/export?format=newpipe"),
@@ -668,6 +779,17 @@ async fn api_subscribe_triggers_fetch_and_serves_feed() {
 
     let (_, list) = api.send(Method::GET, "/api/v0/subscriptions", true).await;
     assert_eq!(list[0]["name"], "Alpha");
+    assert_eq!(list[0]["has_new"], false, "first fetch");
+    sqlx::query("UPDATE subscriptions SET last_visited_at = '2026-01-02 12:00Z'")
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let (_, list) = api.send(Method::GET, "/api/v0/subscriptions", true).await;
+    assert_eq!(list[0]["has_new"], true);
+    let (status, _) = api.send(Method::PUT, &format!("{path}/visit"), true).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, list) = api.send(Method::GET, "/api/v0/subscriptions", true).await;
+    assert_eq!(list[0]["has_new"], false, "visited");
     assert!(
         list[0]["avatar"][0]["url"]
             .as_str()
@@ -714,6 +836,7 @@ async fn api_rejects_bad_input() {
         (Method::PUT, "/api/v0/subscriptions/nope"),
         (Method::GET, "/api/v0/subscriptions/nope"),
         (Method::DELETE, "/api/v0/subscriptions/nope"),
+        (Method::PUT, "/api/v0/subscriptions/nope/visit"),
         (Method::GET, "/api/v0/feed?limit=0"),
         (Method::GET, "/api/v0/feed?limit=101"),
         (Method::GET, "/api/v0/feed?continuation=garbage"),
