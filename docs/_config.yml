@@ -1,0 +1,20 @@
+title: Oxistream
+description: Self-hosted, privacy-friendly YouTube frontend
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+  - jekyll-relative-links
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+color_scheme: oxistream-light
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+footer_content: Licensed under AGPL-3.0-or-later.

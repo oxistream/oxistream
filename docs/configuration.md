@@ -1,3 +1,8 @@
+---
+title: Configuration
+nav_order: 4
+---
+
 # Configuration
 
 Oxistream is configured only through `OXISTREAM_*` environment variables. There are no config files. An empty value counts as unset. If a required variable is missing or a value is invalid, the server does not start, and the error names the variable.

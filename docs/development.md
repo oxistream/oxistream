@@ -1,3 +1,9 @@
+---
+title: Development
+nav_order: 10
+has_children: true
+---
+
 # Development
 
 [Architecture](architecture.md) explains how the pieces fit together. Project rules (commit format, branch naming, review gates) are in [`CLAUDE.md`](../CLAUDE.md).

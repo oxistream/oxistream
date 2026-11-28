@@ -1,3 +1,8 @@
+---
+title: Administration
+nav_order: 7
+---
+
 # Administration
 
 The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first account on an instance is an admin, see [Authentication](authentication.md#first-admin).

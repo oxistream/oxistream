@@ -1,3 +1,9 @@
+---
+title: API
+parent: Development
+nav_order: 2
+---
+
 # API
 
 Every running instance documents its own HTTP API:
