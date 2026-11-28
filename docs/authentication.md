@@ -46,9 +46,18 @@ These stay open:
 - `/api/v0/auth/*`: sign-in, OIDC callback and back-channel logout.
 - `/api/v0/instance`.
 - `/api/v0/feed/atom/{token}`.
+- `/api/v0/rooms/{id}`, `/api/v0/rooms/{id}/ws` and `/api/v0/rooms/{id}/guest`: what a guest needs to join a watch party from its invite link.
 - `/healthz`, `/readyz`, `/metrics`.
 
-Guests then cannot join watch parties either.
+### Party guests
+
+Guests can join a watch party through its invite link (`/party/{id}`). Once in, they can use the app like an anonymous visitor on an instance without require-login: search, watch, channels, shorts, the party queue. Everything that needs an account stays closed.
+
+- After joining, the browser asks for a guest cookie (`oxistream_party`, httpOnly). It names the room and the guest's participant key and is signed with `OXISTREAM_PROXY_SECRET`, so every replica accepts it. The browser renews it every 30 s.
+- Each request checks that the room still exists, that the guest was not removed, and that the guest is connected. Confirmed presence is cached for 5 s per replica.
+- A guest whose connection drops keeps access for up to 2 minutes after its last renewal, so reloads and reconnects work.
+- Leaving the party clears the cookie. Removal by the host and the end of the party lock the guest out right away (within the 5 s cache); a dropped connection does after 2 minutes.
+- The SPA sends guests to sign in once they are out of the party. Removed guests and guests of an ended party first see why on the invite page.
 
 Without it (the default), anonymous visitors can search, watch and join parties. Subscriptions, playlists, history and starting parties need an account. See [what guests can do](user-guide.md#guests-and-accounts).
 

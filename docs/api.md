@@ -62,7 +62,9 @@ Responses never contain YouTube media URLs. They contain signed `/proxy/...` URL
 
 `GET /api/v0/rooms/{id}/ws` upgrades to a WebSocket. Create a room first with `POST /api/v0/rooms` (signed in).
 
-The handshake must carry an `Origin` of the instance. Guests may connect unless the instance requires login.
+The handshake must carry an `Origin` of the instance. Guests may always connect, also when the instance requires login.
+
+With require-login, a guest that joined calls `POST /api/v0/rooms/{id}/guest` with its `guest_key` to get the `oxistream_party` cookie, and again every 30 s. The cookie lets it use the API and the proxy while it is in the room. `DELETE /api/v0/rooms/{id}/guest` clears it. See [party guests](authentication.md#party-guests).
 
 Messages are JSON text frames tagged by `type`. Positions are in seconds, and times in milliseconds since the Unix epoch. Both message unions are in the OpenAPI document as `RoomClientMessage` and `RoomServerMessage`.
 

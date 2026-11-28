@@ -37,7 +37,7 @@ The router stacks these layers, outermost first:
 3. For `/api` and `/proxy`: rate limiting per client IP, then the auth middleware. The auth middleware:
    - runs the Origin check for non-GET requests,
    - resolves the `oxistream_session` cookie to a user, renewing it at most every 5 min,
-   - enforces `OXISTREAM_REQUIRE_LOGIN`.
+   - enforces `OXISTREAM_REQUIRE_LOGIN`, letting watch party guests with a valid `oxistream_party` cookie through.
 4. Handlers. Unmatched GET requests outside `/api` and `/proxy` fall back to the embedded SPA (`index.html` for client-side routes).
 
 `/healthz`, `/readyz` and `/metrics` sit outside the rate limiter and the auth middleware.
