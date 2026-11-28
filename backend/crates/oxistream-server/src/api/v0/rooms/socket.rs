@@ -411,6 +411,7 @@ impl Connection {
                 revision,
             },
             RoomClientMessage::Shuffle => RoomOp::Shuffle,
+            RoomClientMessage::Autoplay { enabled } => RoomOp::SetAutoplay { enabled },
             RoomClientMessage::AddMany { video_ids } => {
                 return self.add_many(video_ids, name).await;
             }

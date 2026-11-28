@@ -5,7 +5,7 @@ use sqlx::postgres::{PgListener, PgNotification};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{Error, Video};
+use crate::{Error, Video, VideoUpsert};
 
 /// Notifications carry the ID of a room that changed or was deleted.
 pub const ROOM_CHANNEL: &str = "watch_rooms";
@@ -26,6 +26,10 @@ pub struct Room {
     pub banned: Vec<String>,
     pub created_at: OffsetDateTime,
     pub active_at: OffsetDateTime,
+    pub autoplay: bool,
+    /// The entry `autoplay_video_id` was picked for; with no video, nothing was found.
+    pub autoplay_source: Option<i64>,
+    pub autoplay_video_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
@@ -34,6 +38,8 @@ pub struct RoomEntry {
     /// Display name of whoever queued it.
     pub added_by: String,
     pub added_at: OffsetDateTime,
+    /// Appended by autoplay rather than by a participant.
+    pub autoplay: bool,
     #[sqlx(flatten)]
     pub video: Video,
 }
@@ -63,6 +69,21 @@ pub struct RoomSnapshot {
     pub room: Room,
     pub queue: Vec<RoomEntry>,
     pub participants: Vec<Participant>,
+    /// What autoplay appends once the current entry, the last one, is over.
+    pub up_next: Option<Video>,
+}
+
+impl RoomSnapshot {
+    /// The current entry and its video, if autoplay has yet to pick what follows it.
+    pub fn needs_pick(&self) -> Option<(i64, &str)> {
+        let room = &self.room;
+        let current = room.current_entry_id?;
+        let [entry] = self.queue.as_slice() else {
+            return None;
+        };
+        (room.autoplay && room.autoplay_source != Some(current) && entry.entry_id == current)
+            .then_some((current, entry.video.id.as_str()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
@@ -135,6 +156,15 @@ pub enum RoomOp {
     /// Removes a participant's connections and bans their key.
     Kick {
         participant: Uuid,
+    },
+    SetAutoplay {
+        enabled: bool,
+    },
+    /// Stores the first of `candidates` the room has not queued yet as what autoplay appends
+    /// after `source`, if that is still the current and last entry and nothing was picked for it.
+    Pick {
+        source: i64,
+        candidates: Vec<VideoUpsert>,
     },
 }
 
@@ -210,22 +240,37 @@ impl PgRoomRepository {
 }
 
 const ROOM_SELECT: &str = "SELECT r.id, r.owner_id, u.username AS owner, r.current_entry_id, \
-        r.playing, r.position_ms, r.position_at, r.revision, r.banned, r.created_at, r.active_at \
+        r.playing, r.position_ms, r.position_at, r.revision, r.banned, r.created_at, r.active_at, \
+        r.autoplay, r.autoplay_source, r.autoplay_video_id \
     FROM watch_rooms r JOIN users u ON u.id = r.owner_id WHERE r.id = $1";
 
+#[derive(sqlx::FromRow)]
 struct Locked {
+    #[sqlx(rename = "current_entry_id")]
     current: Option<i64>,
     revision: i64,
+    autoplay: bool,
+    autoplay_source: Option<i64>,
+    autoplay_video_id: Option<String>,
+}
+
+impl Locked {
+    /// The video autoplay appends once `from` is over.
+    fn pick_after(&self, from: i64) -> Option<&str> {
+        (self.autoplay && self.autoplay_source == Some(from))
+            .then_some(self.autoplay_video_id.as_deref())
+            .flatten()
+    }
 }
 
 async fn lock_room(tx: &mut sqlx::PgConnection, id: &str) -> Result<Option<Locked>, Error> {
-    let row: Option<(Option<i64>, i64)> = sqlx::query_as(
-        "SELECT current_entry_id, revision FROM watch_rooms WHERE id = $1 FOR UPDATE",
+    Ok(sqlx::query_as(
+        "SELECT current_entry_id, revision, autoplay, autoplay_source, autoplay_video_id \
+         FROM watch_rooms WHERE id = $1 FOR UPDATE",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
-    .await?;
-    Ok(row.map(|(current, revision)| Locked { current, revision }))
+    .await?)
 }
 
 async fn bump(tx: &mut sqlx::PgConnection, id: &str) -> Result<(), Error> {
@@ -256,10 +301,11 @@ async fn set_current(
     Ok(())
 }
 
-/// Drops `from` and plays the first remaining entry, if any.
+/// Drops `from` and plays the first remaining entry, else what autoplay picked, if anything.
 async fn advance(
     tx: &mut sqlx::PgConnection,
     id: &str,
+    locked: &Locked,
     from: i64,
     now: OffsetDateTime,
 ) -> Result<(), Error> {
@@ -267,12 +313,26 @@ async fn advance(
         .bind(from)
         .execute(&mut *tx)
         .await?;
-    let next: Option<i64> = sqlx::query_scalar(
+    let mut next: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM watch_room_queue WHERE room_id = $1 ORDER BY position, id LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
     .await?;
+    if next.is_none()
+        && let Some(video_id) = locked.pick_after(from)
+    {
+        next = Some(
+            sqlx::query_scalar(
+                "INSERT INTO watch_room_queue (room_id, video_id, added_by, autoplay) \
+                 VALUES ($1, $2, '', true) RETURNING id",
+            )
+            .bind(id)
+            .bind(video_id)
+            .fetch_one(&mut *tx)
+            .await?,
+        );
+    }
     set_current(tx, id, next, true, now).await
 }
 
@@ -512,6 +572,54 @@ async fn kick(tx: &mut sqlx::PgConnection, id: &str, participant: Uuid) -> Resul
     Ok(true)
 }
 
+async fn set_autoplay(tx: &mut sqlx::PgConnection, id: &str, enabled: bool) -> Result<bool, Error> {
+    let updated = sqlx::query(
+        "UPDATE watch_rooms SET autoplay = $2 WHERE id = $1 AND autoplay IS DISTINCT FROM $2",
+    )
+    .bind(id)
+    .bind(enabled)
+    .execute(&mut *tx)
+    .await?;
+    Ok(updated.rows_affected() > 0)
+}
+
+async fn pick(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    locked: &Locked,
+    source: i64,
+    candidates: &[VideoUpsert],
+) -> Result<bool, Error> {
+    if !locked.autoplay
+        || locked.current != Some(source)
+        || locked.autoplay_source == Some(source)
+        || !upcoming(tx, id, locked.current).await?.is_empty()
+    {
+        return Ok(false);
+    }
+    let ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
+    let seen: Vec<String> = sqlx::query_scalar(
+        "SELECT video_id FROM watch_room_seen WHERE room_id = $1 AND video_id = ANY($2)",
+    )
+    .bind(id)
+    .bind(&ids)
+    .fetch_all(&mut *tx)
+    .await?;
+    let chosen = candidates.iter().find(|c| !seen.contains(&c.id));
+    if let Some(video) = chosen {
+        crate::videos::upsert(&mut *tx, video).await?;
+    }
+    sqlx::query(
+        "UPDATE watch_rooms SET autoplay_source = $2, autoplay_video_id = $3 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(source)
+    .bind(chosen.map(|c| c.id.as_str()))
+    .execute(&mut *tx)
+    .await?;
+    Ok(true)
+}
+
 fn changed(applied: bool) -> OpOutcome {
     if applied {
         OpOutcome::Applied
@@ -547,7 +655,7 @@ async fn apply_op(
             if current != Some(*from) {
                 return Ok(OpOutcome::Unchanged);
             }
-            advance(tx, id, *from, now).await?;
+            advance(tx, id, locked, *from, now).await?;
             OpOutcome::Applied
         }
         RoomOp::Select { entry } => changed(select(tx, id, current, *entry, now).await?),
@@ -577,7 +685,7 @@ async fn apply_op(
         },
         RoomOp::Remove { entry } => {
             if current == Some(*entry) {
-                advance(tx, id, *entry, now).await?;
+                advance(tx, id, locked, *entry, now).await?;
                 return Ok(OpOutcome::Applied);
             }
             let deleted =
@@ -600,6 +708,10 @@ async fn apply_op(
         }
         RoomOp::Shuffle => changed(shuffle(tx, id, current).await?),
         RoomOp::Kick { participant } => changed(kick(tx, id, *participant).await?),
+        RoomOp::SetAutoplay { enabled } => changed(set_autoplay(tx, id, *enabled).await?),
+        RoomOp::Pick { source, candidates } => {
+            changed(pick(tx, id, locked, *source, candidates).await?)
+        }
     })
 }
 
@@ -670,7 +782,7 @@ impl RoomRepository for PgRoomRepository {
             return Ok(None);
         };
         let queue = sqlx::query_as::<_, RoomEntry>(
-            "SELECT q.id AS entry_id, q.added_by, q.added_at, v.id, v.title, v.channel_id, \
+            "SELECT q.id AS entry_id, q.added_by, q.added_at, q.autoplay, v.id, v.title, v.channel_id, \
                 v.channel_name, v.duration_seconds, v.published_at, v.thumbnail_url, v.updated_at \
              FROM watch_room_queue q JOIN videos v ON v.id = q.video_id \
              WHERE q.room_id = $1 ORDER BY (q.id = $2) IS TRUE DESC, q.position, q.id",
@@ -686,11 +798,27 @@ impl RoomRepository for PgRoomRepository {
         .bind(id)
         .fetch_all(&mut *tx)
         .await?;
+        let pending = room.autoplay
+            && room.current_entry_id.is_some()
+            && room.autoplay_source == room.current_entry_id
+            && queue.len() == 1;
+        let up_next =
+            match room.autoplay_video_id.as_deref() {
+                Some(video_id) if pending => sqlx::query_as::<_, Video>(
+                    "SELECT id, title, channel_id, channel_name, duration_seconds, published_at, \
+                        thumbnail_url, updated_at FROM videos WHERE id = $1",
+                )
+                .bind(video_id)
+                .fetch_optional(&mut *tx)
+                .await?,
+                _ => None,
+            };
         tx.commit().await?;
         Ok(Some(RoomSnapshot {
             room,
             queue,
             participants,
+            up_next,
         }))
     }
 
