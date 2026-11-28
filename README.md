@@ -1,4 +1,8 @@
-# Oxistream
+<p align="center">
+  <img src="frontend/src/lib/assets/favicon.svg" alt="" width="96" height="96">
+</p>
+
+<h1 align="center">Oxistream</h1>
 
 A self-hosted, privacy-friendly YouTube frontend with accounts, subscriptions, playlists and watch parties. Built for homelabs, also suitable for public instances.
 
@@ -53,3 +57,13 @@ Oxistream is not affiliated with or endorsed by YouTube or Google.
 ## AI disclaimer
 
 Large parts of Oxistream, including code, tests and documentation, were written with AI coding assistants. Every change is reviewed, tested and merged by a human maintainer, but please review the code with that in mind, and report anything that looks wrong.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=oxistream%2Foxistream&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=oxistream/oxistream&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=oxistream/oxistream&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=oxistream/oxistream&type=date&legend=top-left" />
+ </picture>
+</a>
