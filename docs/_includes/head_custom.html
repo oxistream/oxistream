@@ -1,0 +1,11 @@
+<meta name="color-scheme" content="light dark">
+<script>
+  (function () {
+    var dark = window.matchMedia('(prefers-color-scheme: dark)');
+    function apply() {
+      jtd.setTheme(dark.matches ? 'oxistream-dark' : 'default');
+    }
+    if (dark.matches) apply();
+    dark.addEventListener('change', apply);
+  })();
+</script>

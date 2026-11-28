@@ -1,3 +1,9 @@
+---
+title: Kubernetes
+parent: Installation
+nav_order: 3
+---
+
 # Kubernetes
 
 The Helm chart in [`deploy/helm/oxistream`](../../deploy/helm/oxistream) deploys Oxistream on Kubernetes 1.29 or newer, with Helm 3 or 4. The chart does not include PostgreSQL (18 or newer is required). The examples use [CloudNativePG](https://cloudnative-pg.io).

@@ -1,3 +1,9 @@
+---
+title: Docker Compose
+parent: Installation
+nav_order: 2
+---
+
 # Docker Compose
 
 [`deploy/compose/`](../../deploy/compose) runs Oxistream with PostgreSQL 18. By default the app listens on `127.0.0.1:8080` only.

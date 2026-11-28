@@ -1,3 +1,9 @@
+---
+title: Docker
+parent: Installation
+nav_order: 1
+---
+
 # Docker
 
 Oxistream ships as a single image: the server with the frontend embedded, plus `rustypipe-botguard`. It needs PostgreSQL 18 or newer. For a ready-made setup with PostgreSQL, use [Docker Compose](compose.md).

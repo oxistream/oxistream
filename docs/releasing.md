@@ -1,3 +1,9 @@
+---
+title: Releasing
+parent: Development
+nav_order: 3
+---
+
 # Releasing
 
 The workspace version in `backend/Cargo.toml` is the source of truth. `version` and `appVersion` in `deploy/helm/oxistream/Chart.yaml` follow it.

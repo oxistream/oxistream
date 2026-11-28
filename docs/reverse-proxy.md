@@ -1,3 +1,8 @@
+---
+title: Reverse proxy
+nav_order: 5
+---
+
 # Reverse proxy
 
 Terminate TLS in a reverse proxy and forward everything to port 8080. The app serves the SPA, the API (`/api`), the media proxy (`/proxy`) and the operational endpoints from that one port.
