@@ -33,7 +33,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(report_progress, batch_progress))
         .routes(routes!(video_progress))
         .routes(routes!(history, clear_history))
-        .routes(routes!(delete_entry))
+        .routes(routes!(mark_watched, delete_entry))
         .routes(routes!(continue_watching))
         .routes(routes!(dismiss_continue))
         .routes(routes!(history_settings, update_history_settings))
@@ -387,6 +387,59 @@ async fn clear_history(
 ) -> Result<StatusCode, ApiError> {
     state.history.clear(user.id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Marks a video as watched.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MarkWatched {
+    /// Used when the video has no history entry yet; else the cached metadata's duration.
+    #[serde(default)]
+    pub duration_seconds: Option<f64>,
+}
+
+/// Mark a video as watched: it moves to the top of the history, finished. Recorded even while
+/// the history is paused, as the user asked for it. Not for shorts, which have no history.
+#[utoipa::path(
+    put,
+    path = "/history/{video_id}",
+    tag = "history",
+    security(("session" = [])),
+    params(("video_id" = String, Path, description = "YouTube video ID")),
+    request_body = MarkWatched,
+    responses(
+        (status = OK, body = VideoProgress),
+        (status = BAD_REQUEST, description = "Invalid video ID or body", body = ErrorBody),
+        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+        (status = UNPROCESSABLE_ENTITY, description = "Unknown duration, or a short", body = ErrorBody),
+    )
+)]
+async fn mark_watched(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(video_id): Path<String>,
+    body: Result<Json<MarkWatched>, JsonRejection>,
+) -> Result<Json<VideoProgress>, ApiError> {
+    check_video_id(&video_id)?;
+    let Json(body) = body?;
+    if body
+        .duration_seconds
+        .is_some_and(|d| !d.is_finite() || d <= 0.0 || d > MAX_DURATION)
+    {
+        return Err(ApiError::bad_request("invalid duration"));
+    }
+    let progress = state
+        .history
+        .mark_watched(user.id, &video_id, body.duration_seconds)
+        .await?
+        .ok_or_else(|| {
+            ApiError::validation(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                [("duration_seconds".to_owned(), FieldError::Invalid)].into(),
+            )
+        })?;
+    Ok(Json(progress.into()))
 }
 
 /// Remove one video from the watch history. Succeeds if it is not in there, too.

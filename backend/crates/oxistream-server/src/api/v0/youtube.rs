@@ -11,6 +11,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::blocks::BlockedChannels;
+use super::hidden::HiddenVideos;
 use super::storyboard;
 use crate::AppState;
 use crate::api::dto::{
@@ -67,6 +68,7 @@ async fn trending(
     params: Result<Query<TrendingParams>, QueryRejection>,
     ContentLanguage(lang): ContentLanguage,
     blocked: BlockedChannels,
+    hidden: HiddenVideos,
 ) -> Result<Json<TrendingVideos>, ApiError> {
     let Query(params) = params.map_err(|_| ApiError::bad_request("unknown trending `category`"))?;
     let category = params.category.unwrap_or_default();
@@ -76,6 +78,7 @@ async fn trending(
             state.image_url(url)
         });
     blocked.retain(&mut trending.items);
+    hidden.retain(&mut trending.items);
     Ok(Json(trending))
 }
 

@@ -69,6 +69,10 @@ pub struct Settings {
     /// language, else a language code such as `de` or `pt-BR`.
     #[schema(required = true)]
     pub audio_language: Option<String>,
+    /// The subscription feed leaves out finished videos.
+    pub feed_hide_watched: bool,
+    /// The subscription feed leaves out shorts.
+    pub feed_hide_shorts: bool,
 }
 
 /// Fields to change. Absent fields are kept; `null` resets a field to its default.
@@ -96,6 +100,12 @@ pub struct SettingsPatch {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub audio_language: Option<Option<String>>,
+    #[serde(default)]
+    #[schema(nullable = false)]
+    pub feed_hide_watched: Option<bool>,
+    #[serde(default)]
+    #[schema(nullable = false)]
+    pub feed_hide_shorts: Option<bool>,
 }
 
 /// Tells a field set to `null` (`Some(None)`) apart from an absent one (`None`).
@@ -122,6 +132,8 @@ impl From<UserSettings> for Settings {
             default_quality: quality(settings.default_quality),
             home_sections: settings.home_sections,
             audio_language: settings.audio_language,
+            feed_hide_watched: settings.feed_hide_watched,
+            feed_hide_shorts: settings.feed_hide_shorts,
         }
     }
 }
@@ -204,6 +216,8 @@ impl SettingsPatch {
             default_quality: height(self.default_quality),
             home_sections: self.home_sections,
             audio_language: self.audio_language,
+            feed_hide_watched: self.feed_hide_watched,
+            feed_hide_shorts: self.feed_hide_shorts,
         })
     }
 }

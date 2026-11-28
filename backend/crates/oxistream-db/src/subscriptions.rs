@@ -115,27 +115,46 @@ pub trait SubscriptionRepository: Send + Sync {
     async fn feed(
         &self,
         user_id: Uuid,
-        filter: FeedFilter,
+        filter: &FeedFilter,
         after: Option<&FeedCursor>,
         limit: u32,
     ) -> Result<Vec<FeedVideo>, Error>;
 }
 
-/// Which videos of subscribed channels the feed lists.
+/// Which kind of videos of subscribed channels the feed lists.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum FeedFilter {
+pub enum FeedKind {
     #[default]
     All,
     Videos,
     Shorts,
 }
 
-impl FeedFilter {
+impl FeedKind {
     fn is_short(self) -> Option<bool> {
         match self {
             Self::All => None,
             Self::Videos => Some(false),
             Self::Shorts => Some(true),
+        }
+    }
+}
+
+/// Which videos of subscribed channels the feed lists. Hidden videos are always left out.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FeedFilter {
+    pub kind: FeedKind,
+    /// Leaves out finished videos.
+    pub hide_watched: bool,
+    /// Only videos of this channel.
+    pub channel_id: Option<String>,
+}
+
+impl From<FeedKind> for FeedFilter {
+    fn from(kind: FeedKind) -> Self {
+        Self {
+            kind,
+            ..Self::default()
         }
     }
 }
@@ -329,7 +348,7 @@ impl SubscriptionRepository for PgSubscriptionRepository {
     async fn feed(
         &self,
         user_id: Uuid,
-        filter: FeedFilter,
+        filter: &FeedFilter,
         after: Option<&FeedCursor>,
         limit: u32,
     ) -> Result<Vec<FeedVideo>, Error> {
@@ -343,6 +362,11 @@ impl SubscriptionRepository for PgSubscriptionRepository {
              JOIN channels c ON c.id = v.channel_id \
              WHERE ($2::timestamptz IS NULL OR (v.sort_at, v.video_id) < ($2, $3)) \
                 AND ($5::boolean IS NULL OR v.is_short = $5) \
+                AND ($6::text IS NULL OR v.channel_id = $6) \
+                AND NOT ($7 AND EXISTS (SELECT 1 FROM watch_progress p \
+                    WHERE p.user_id = $1 AND p.video_id = v.video_id AND p.finished)) \
+                AND NOT EXISTS (SELECT 1 FROM hidden_videos h \
+                    WHERE h.user_id = $1 AND h.video_id = v.video_id) \
              ORDER BY v.sort_at DESC, v.video_id DESC \
              LIMIT $4",
         )
@@ -350,7 +374,9 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .bind(after.map(|c| c.sort_at))
         .bind(after.map(|c| c.video_id.as_str()))
         .bind(i64::from(limit))
-        .bind(filter.is_short())
+        .bind(filter.kind.is_short())
+        .bind(filter.channel_id.as_deref())
+        .bind(filter.hide_watched)
         .fetch_all(&self.pool)
         .await?)
     }

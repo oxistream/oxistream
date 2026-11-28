@@ -6,13 +6,14 @@ use std::sync::Arc;
 use axum::Router;
 use metrics_exporter_prometheus::PrometheusHandle;
 use oxistream_db::{
-    ChannelBlockRepository, HistoryRepository, LikeRepository, PgChannelBlockRepository,
-    PgChannelRepository, PgHistoryRepository, PgLikeRepository, PgPlaylistFollowRepository,
-    PgPlaylistRepository, PgPool, PgQueueRepository, PgRoomRepository, PgSessionRepository,
-    PgSponsorBlockSettingsRepository, PgSubscriptionRepository, PgUserRepository,
-    PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
-    PlaylistFollowRepository, PlaylistRepository, QueueRepository, SponsorBlockSettingsRepository,
-    SubscriptionRepository, UserSettingsRepository, VideoRepository,
+    ChannelBlockRepository, HiddenVideoRepository, HistoryRepository, LikeRepository,
+    PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
+    PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
+    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
+    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
+    PgYouTubePlaylistRepository, PlaylistFollowRepository, PlaylistRepository, QueueRepository,
+    SponsorBlockSettingsRepository, SubscriptionRepository, UserSettingsRepository,
+    VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -57,6 +58,8 @@ pub struct AppState {
     pub queue: Arc<dyn QueueRepository>,
     /// Blocked channels.
     pub blocks: Arc<dyn ChannelBlockRepository>,
+    /// Videos users are not interested in.
+    pub hidden: Arc<dyn HiddenVideoRepository>,
     pub feed: feed::Feed,
     pub proxy: proxy::Proxy,
     /// `None` disables rate limiting.
@@ -195,6 +198,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
             likes: Arc::new(PgLikeRepository::new(db.clone())),
             queue: Arc::new(PgQueueRepository::new(db.clone())),
             blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
+            hidden: Arc::new(PgHiddenVideoRepository::new(db.clone())),
             feed,
             db: db.clone(),
             metrics,

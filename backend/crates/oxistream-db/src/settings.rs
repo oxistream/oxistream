@@ -23,6 +23,10 @@ pub struct UserSettings {
     pub audio_language: Option<String>,
     /// Days the watch history is kept; `None` for forever.
     pub history_retention_days: Option<i32>,
+    /// Subscription feed leaves out finished videos.
+    pub feed_hide_watched: bool,
+    /// Subscription feed leaves out shorts.
+    pub feed_hide_shorts: bool,
 }
 
 /// Fields to change; `None` keeps the stored value, `Some(None)` resets it.
@@ -34,6 +38,8 @@ pub struct SettingsUpdate {
     pub default_quality: Option<Option<i32>>,
     pub home_sections: Option<Option<Vec<String>>>,
     pub audio_language: Option<Option<String>>,
+    pub feed_hide_watched: Option<bool>,
+    pub feed_hide_shorts: Option<bool>,
 }
 
 #[async_trait::async_trait]
@@ -82,7 +88,7 @@ impl PgUserSettingsRepository {
 macro_rules! settings_columns {
     () => {
         "history_paused, video_codecs, max_quality, default_quality, home_sections, audio_language, \
-         history_retention_days"
+         history_retention_days, feed_hide_watched, feed_hide_shorts"
     };
 }
 
@@ -96,6 +102,8 @@ fn settings_from_row(row: &PgRow) -> Result<UserSettings, sqlx::Error> {
         home_sections: home_sections.map(|Json(sections)| sections),
         audio_language: row.try_get("audio_language")?,
         history_retention_days: row.try_get("history_retention_days")?,
+        feed_hide_watched: row.try_get("feed_hide_watched")?,
+        feed_hide_shorts: row.try_get("feed_hide_shorts")?,
     })
 }
 
@@ -158,14 +166,17 @@ impl UserSettingsRepository for PgUserSettingsRepository {
         let row = sqlx::query(concat!(
             "INSERT INTO user_settings \
                 (user_id, video_codecs, max_quality, default_quality, home_sections, \
-                 audio_language) \
-             VALUES ($1, COALESCE($2, '{}'), $4, $6, $8, $10) \
+                 audio_language, feed_hide_watched, feed_hide_shorts) \
+             VALUES ($1, COALESCE($2, '{}'), $4, $6, $8, $10, COALESCE($11, false), \
+                COALESCE($12, false)) \
              ON CONFLICT (user_id) DO UPDATE SET \
                 video_codecs = COALESCE($2, user_settings.video_codecs), \
                 max_quality = CASE WHEN $3 THEN $4 ELSE user_settings.max_quality END, \
                 default_quality = CASE WHEN $5 THEN $6 ELSE user_settings.default_quality END, \
                 home_sections = CASE WHEN $7 THEN $8 ELSE user_settings.home_sections END, \
                 audio_language = CASE WHEN $9 THEN $10 ELSE user_settings.audio_language END, \
+                feed_hide_watched = COALESCE($11, user_settings.feed_hide_watched), \
+                feed_hide_shorts = COALESCE($12, user_settings.feed_hide_shorts), \
                 updated_at = now() \
              RETURNING ",
             settings_columns!()
@@ -185,6 +196,8 @@ impl UserSettingsRepository for PgUserSettingsRepository {
         )
         .bind(update.audio_language.is_some())
         .bind(update.audio_language.clone().flatten())
+        .bind(update.feed_hide_watched)
+        .bind(update.feed_hide_shorts)
         .fetch_one(&self.pool)
         .await?;
         Ok(settings_from_row(&row)?)
