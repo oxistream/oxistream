@@ -1,0 +1,172 @@
+# Default values for oxistream.
+
+image:
+  # Required, e.g. ghcr.io/<owner>/oxistream.
+  repository: ""
+  # Defaults to the chart's appVersion.
+  tag: ""
+  # Takes precedence over tag, e.g. sha256:...
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# More than one replica needs a shared proxy secret, a single egress IP and NTP-synced nodes (see README).
+replicaCount: 1
+
+# Non-secret OXISTREAM_* environment variables, rendered into a ConfigMap.
+# Every variable from the README works here; unset ones take the server's defaults.
+config:
+  OXISTREAM_LOG_FORMAT: json
+  # Required behind a proxy that rewrites Host, and for OIDC and Atom feed links.
+  # OXISTREAM_PUBLIC_URL: https://oxistream.example.com
+  # Behind an ingress or gateway, rate limiting needs the real client IP.
+  # OXISTREAM_TRUSTED_PROXY_HEADER: x-forwarded-for
+  # OXISTREAM_REGISTRATION_ENABLED: "true"
+  # OXISTREAM_REQUIRE_LOGIN: "false"
+  # OXISTREAM_TRENDING_REGION: US
+  # OXISTREAM_OIDC_ISSUER: https://id.example.com/realms/main
+  # OXISTREAM_OIDC_CLIENT_ID: oxistream
+  # OXISTREAM_OIDC_ADMIN_GROUP: /admins
+
+database:
+  # Exactly one of the following. CNPG wins over existingSecret, which wins over url.
+  # Name of a CloudNativePG Cluster in the release namespace; uses its `<name>-app` secret.
+  cnpgCluster: ""
+  # Secret holding the connection URL.
+  existingSecret: ""
+  existingSecretKey: uri
+  # Plain URL, stored in the chart's Secret.
+  url: ""
+
+# HMAC key for proxy URLs and OIDC login state, at least 32 characters (`openssl rand -base64 48`).
+# If neither is set, a random one is generated on install and kept on upgrade; set it explicitly
+# for GitOps tools that render with `helm template`.
+proxySecret:
+  value: ""
+  existingSecret: ""
+  existingSecretKey: proxy-secret
+
+# Only for confidential OIDC clients.
+oidcClientSecret:
+  value: ""
+  existingSecret: ""
+  existingSecretKey: oidc-client-secret
+
+# Extra container env and envFrom entries, in Kubernetes syntax.
+extraEnv: []
+extraEnvFrom: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# RustyPipe client cache. Cheap to rebuild, so an emptyDir by default.
+cache:
+  sizeLimit: 256Mi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 5
+  failureThreshold: 60
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  failureThreshold: 3
+# Fails until the database is reachable and OIDC discovery succeeded.
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  periodSeconds: 5
+  failureThreshold: 3
+
+terminationGracePeriodSeconds: 30
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+# Oxistream uses WebSockets (watch parties) and long-lived streaming responses.
+# Make sure the controller allows upgrades and long idle timeouts.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: oxistream.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: oxistream-tls
+  #    hosts:
+  #      - oxistream.example.com
+
+# Gateway API HTTPRoute, as an alternative to the Ingress.
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  #  - name: gateway
+  #    namespace: gateway-system
+  #    sectionName: https
+  hostnames:
+    - oxistream.example.com
+
+# Created when replicaCount > 1 or autoscaling is enabled.
+podDisruptionBudget:
+  # Takes precedence over maxUnavailable when set.
+  minAvailable: ""
+  maxUnavailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+# Pod selector labels are added when labelSelector is omitted.
+topologySpreadConstraints: []
+#  - maxSkew: 1
+#    topologyKey: kubernetes.io/hostname
+#    whenUnsatisfiable: ScheduleAnyway
+
+extraVolumes: []
+extraVolumeMounts: []

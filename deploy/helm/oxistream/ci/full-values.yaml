@@ -1,0 +1,31 @@
+# Enables every optional resource for CI.
+image:
+  repository: ghcr.io/example/oxistream
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+database:
+  existingSecret: oxistream-db
+proxySecret:
+  value: ci-proxy-secret-that-is-long-enough-for-validation
+oidcClientSecret:
+  value: ci-client-secret
+config:
+  OXISTREAM_PUBLIC_URL: https://oxistream.example.com
+  OXISTREAM_OIDC_ISSUER: https://id.example.com
+  OXISTREAM_OIDC_CLIENT_ID: oxistream
+  OXISTREAM_SESSION_TTL_DAYS: 14
+autoscaling:
+  enabled: true
+  targetMemoryUtilizationPercentage: 80
+podDisruptionBudget:
+  minAvailable: 1
+ingress:
+  enabled: true
+  className: traefik
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: gateway
+      namespace: gateway-system
+extraEnv:
+  - name: TZ
+    value: UTC

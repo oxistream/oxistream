@@ -1,0 +1,13 @@
+apiVersion: v2
+name: oxistream
+description: Self-hosted, privacy-friendly YouTube frontend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.29.0-0"
+keywords:
+  - youtube
+  - frontend
+  - self-hosted
+annotations:
+  artifacthub.io/license: AGPL-3.0-or-later
