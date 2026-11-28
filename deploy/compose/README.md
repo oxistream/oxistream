@@ -12,7 +12,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Without a prebuilt image, the first `up` builds it from the repository. To use a published image, set `OXISTREAM_IMAGE`. Open `http://localhost:8080`; the first account becomes admin.
+Without a prebuilt image, the first `up` builds it from the repository. To use a published image, set `OXISTREAM_IMAGE`, e.g. `ghcr.io/OWNER/oxistream:X.Y.Z`. Open `http://localhost:8080`; the first account becomes admin.
 
 `.env` holds every setting, with defaults in comments. `OXISTREAM_BIND`, `OXISTREAM_BOTGUARD_BIN` and `OXISTREAM_YOUTUBE_CACHE_DIR` are set by the image.
 
