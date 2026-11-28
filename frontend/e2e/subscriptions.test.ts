@@ -233,3 +233,44 @@ test('the collapsed sidebar shows channel avatars with tooltips', async ({ page 
 	await first.hover();
 	await expect(page.locator('[data-slot="tooltip-content"]').first()).toHaveText('Channel 1');
 });
+
+test('channels with new videos come first and lose their dot once visited', async ({ page }) => {
+	const anvil = { ...forge, id: 'UCm0ck4nv1lW0rksh0p0003', name: 'anvil works', has_new: false };
+	const state = await mockApi(page, {
+		list: [{ ...forge, has_new: false }, { ...north, has_new: true }, anvil]
+	});
+	const visits: string[] = [];
+	await page.route('**/api/v0/subscriptions/*/visit', (route) => {
+		const id = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
+		visits.push(`${route.request().method()} ${id}`);
+		state.list = state.list.map((c) => (c.id === id ? { ...c, has_new: false } : c));
+		return route.fulfill({ status: 204 });
+	});
+	await page.route(`**/api/v0/channels/${north.id}`, (route) =>
+		json(route, {
+			...north,
+			description: '',
+			banner: [],
+			tags: [],
+			video_count: 0,
+			videos: { items: [], continuation: null }
+		})
+	);
+	await page.goto('/feed/channels');
+
+	const channels = page.locator('[data-slot="sidebar"] a[href^="/channel/"]');
+	await expect(channels).toHaveText([/Northbound\s+New videos/, /anvil works/, /Hammer & Tongs/]);
+	await expect(channels.first().getByTestId('new-uploads')).toBeVisible();
+
+	await page.keyboard.press('ControlOrMeta+b');
+	await expect(page.locator('[data-slot="sidebar"][data-state="collapsed"]')).toBeVisible();
+	await expect(channels.first().getByTestId('new-uploads')).toBeHidden();
+	await expect(channels.first().getByTestId('new-uploads-badge')).toBeVisible();
+	await page.keyboard.press('ControlOrMeta+b');
+
+	await channels.first().click();
+	await expect(page).toHaveURL(`/channel/${north.id}`);
+	await expect(channels).toHaveText([/anvil works/, /Hammer & Tongs/, /Northbound/]);
+	await expect(page.getByTestId('new-uploads')).toHaveCount(0);
+	expect(visits).toEqual([`PUT ${north.id}`]);
+});

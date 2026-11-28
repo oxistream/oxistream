@@ -351,6 +351,7 @@
 	"nav_channels": "Channels",
 	"nav_channels_more": "{count} more",
 	"nav_channels_less": "Show less",
+	"nav_channel_new": "New videos",
 	"subscription_subscribe": "Subscribe",
 	"subscription_subscribed": "Subscribed",
 	"subscriptions_title": "Subscribed channels",

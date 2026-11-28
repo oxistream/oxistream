@@ -1210,6 +1210,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/subscriptions/{channel_id}/visit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if
+         *     not subscribed, too.
+         */
+        put: operations["visit_channel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/trending": {
         parameters: {
             query?: never;
@@ -2425,6 +2445,8 @@ export interface components {
         SubscribedChannel: {
             avatar: components["schemas"]["Thumbnail"][];
             handle?: string | null;
+            /** @description The channel published videos since the user last opened its page. */
+            has_new: boolean;
             id: string;
             /**
              * @description `null` until the channel was fetched once, shortly after the first subscription,
@@ -7179,6 +7201,54 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Not subscribed anymore */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid channel ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    visit_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YouTube channel ID (`UC…`) */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Visit recorded */
             204: {
                 headers: {
                     [name: string]: unknown;

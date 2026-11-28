@@ -18,6 +18,7 @@
 	import { createProgressLookup } from '#lib/api/history.js';
 	import { withProgress } from '#lib/api/history-list.js';
 	import { isNotFound, uniqueBy } from '#lib/api/mapping.js';
+	import { createChannelVisitMutation, createSubscriptionsQuery } from '#lib/api/subscriptions.js';
 	import type { SearchResult } from '#lib/api/search.js';
 	import { isVideoTab, parseChannelSort, type ChannelTab } from '#lib/channel-tabs.js';
 	import ChannelBlockedNotice from '#lib/components/block/channel-blocked-notice.svelte';
@@ -59,6 +60,16 @@
 	const blocks = createBlocksQuery();
 	const unblock = createBlockMutation();
 	const blocked = $derived(!!id && (blocks.data?.some((c) => c.id === id) ?? false));
+
+	const subscriptions = createSubscriptionsQuery();
+	const visit = createChannelVisitMutation();
+	const subscribed = $derived(!!id && (subscriptions.data?.some((c) => c.id === id) ?? false));
+	let visited = false;
+	$effect(() => {
+		if (!subscribed || visited || !id) return;
+		visited = true;
+		visit.mutate(id);
+	});
 	const ready = $derived(channel.data ? id : undefined);
 
 	const videoTab = $derived(isVideoTab(tab) ? tab : 'videos');

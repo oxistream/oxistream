@@ -5,12 +5,13 @@
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { SubscribedChannel } from '#lib/api/subscription-list.js';
+	import { sortForNav, type SubscribedChannel } from '#lib/api/subscription-list.js';
 	import ChannelAvatar from '#lib/components/channel/channel-avatar.svelte';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import { isActive } from '#lib/navigation.js';
 	import { m } from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
 
 	let { channels, limit = 7 }: { channels: SubscribedChannel[]; limit?: number } = $props();
 
@@ -18,7 +19,8 @@
 	// The label is hidden while the sidebar shows icons only.
 	const labelHidden = $derived(sidebar.state === 'collapsed' && !sidebar.isMobile);
 	let expanded = $state(false);
-	const shown = $derived(expanded ? channels : channels.slice(0, limit));
+	const sorted = $derived(sortForNav(channels, getLocale()));
+	const shown = $derived(expanded ? sorted : sorted.slice(0, limit));
 	const hidden = $derived(channels.length - Math.min(channels.length, limit));
 	const manageHref = resolve('/feed/channels');
 </script>
@@ -55,14 +57,31 @@
 						{#snippet child({ props })}
 							<a {href} aria-current={active ? 'page' : undefined} {...props}>
 								{#if channel.name}
-									<ChannelAvatar
-										name={channel.name}
-										src={channel.avatarUrl}
-										size="sm"
-										class="size-5 shrink-0 group-data-[collapsible=icon]:size-6"
-										fallbackClass="text-[0.5625rem]"
-									/>
-									<span>{channel.name}</span>
+									<span class="relative shrink-0">
+										<ChannelAvatar
+											name={channel.name}
+											src={channel.avatarUrl}
+											size="sm"
+											class="size-5 group-data-[collapsible=icon]:size-6"
+											fallbackClass="text-[0.5625rem]"
+										/>
+										{#if channel.hasNew}
+											<span
+												aria-hidden="true"
+												data-testid="new-uploads-badge"
+												class="absolute -end-0.5 -top-0.5 hidden size-2 rounded-full bg-sky-500 ring-2 ring-sidebar group-data-[collapsible=icon]:block dark:bg-sky-400"
+											></span>
+										{/if}
+									</span>
+									<span class="min-w-0 truncate">{channel.name}</span>
+									{#if channel.hasNew}
+										<span
+											aria-hidden="true"
+											data-testid="new-uploads"
+											class="ms-auto size-2 shrink-0 rounded-full bg-sky-500 group-data-[collapsible=icon]:hidden dark:bg-sky-400"
+										></span>
+										<span class="sr-only">{m.nav_channel_new()}</span>
+									{/if}
 								{:else}
 									<LoaderCircleIcon
 										class="animate-spin text-muted-foreground group-data-[collapsible=icon]:m-1 motion-reduce:animate-none"

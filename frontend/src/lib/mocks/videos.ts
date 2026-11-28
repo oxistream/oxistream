@@ -215,7 +215,8 @@ export const mockSubscriptions: SubscribedChannel[] = Object.entries(mockChannel
 		...channel,
 		verified: key === 'north',
 		subscriberCount: subscriberCounts[key],
-		subscribedAt: '2026-11-01T10:00:00Z'
+		subscribedAt: '2026-11-01T10:00:00Z',
+		hasNew: key === 'dial'
 	}))
 	.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -223,5 +224,6 @@ export const mockSubscriptions: SubscribedChannel[] = Object.entries(mockChannel
 export const mockPendingSubscription: SubscribedChannel = {
 	id: 'UCm0ckP3nd1ngCh4nn3l000',
 	verified: false,
-	subscribedAt: '2026-11-26T10:00:00Z'
+	subscribedAt: '2026-11-26T10:00:00Z',
+	hasNew: false
 };
