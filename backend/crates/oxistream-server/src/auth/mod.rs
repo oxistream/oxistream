@@ -22,6 +22,7 @@ use crate::rate_limit::{ClientIp, LoginLimiter};
 pub mod cookie;
 pub mod csrf;
 pub mod oidc;
+pub mod party_guest;
 pub mod password;
 
 pub use password::PasswordHasher;
@@ -48,14 +49,17 @@ struct Inner {
     /// `None` when rate limiting is disabled.
     login_limiter: Option<LoginLimiter>,
     oidc: Option<oidc::Oidc>,
+    party_guests: party_guest::PartyGuests,
 }
 
 impl Auth {
+    /// `secret` signs party guest cookies; all replicas must share it.
     pub fn new(
         config: AuthConfig,
         users: Arc<dyn UserRepository>,
         sessions: Arc<dyn SessionRepository>,
         rate_limit: Option<&RateLimitConfig>,
+        secret: &str,
     ) -> Self {
         let oidc = config.oidc.clone().map(oidc::Oidc::new);
         Self {
@@ -67,6 +71,7 @@ impl Auth {
                 hasher: PasswordHasher::default(),
                 client_ip: ClientIp::new(rate_limit.and_then(|rl| rl.trusted_header.clone())),
                 login_limiter: rate_limit.map(|_| LoginLimiter::default()),
+                party_guests: party_guest::PartyGuests::new(secret.as_bytes()),
             }),
         }
     }
@@ -86,6 +91,10 @@ impl Auth {
     /// `None` when single sign-on is not configured.
     pub fn oidc(&self) -> Option<&oidc::Oidc> {
         self.inner.oidc.as_ref()
+    }
+
+    pub fn party_guests(&self) -> &party_guest::PartyGuests {
+        &self.inner.party_guests
     }
 
     pub fn hasher(&self) -> &PasswordHasher {
@@ -278,13 +287,45 @@ impl FromRequestParts<AppState> for ClientAddr {
     }
 }
 
-/// Paths that need a session when `OXISTREAM_REQUIRE_LOGIN` is set.
+/// Paths that need a session or a party guest cookie when `OXISTREAM_REQUIRE_LOGIN` is set.
 fn requires_login(path: &str) -> bool {
     let protected = path.starts_with("/api/v0/") || path.starts_with("/proxy/");
     let exempt = path.starts_with("/api/v0/auth/")
         || path == "/api/v0/instance"
-        || path.starts_with(crate::api::ATOM_FEED_PREFIX);
+        || path.starts_with(crate::api::ATOM_FEED_PREFIX)
+        || is_party_entry(path);
     protected && !exempt
+}
+
+/// What guests need to join a party from its invite link: the room, its WebSocket and the
+/// guest cookie.
+fn is_party_entry(path: &str) -> bool {
+    let Some(rest) = path.strip_prefix("/api/v0/rooms/") else {
+        return false;
+    };
+    let (id, tail) = rest.split_once('/').unwrap_or((rest, ""));
+    crate::api::v0::rooms::is_room_id(id) && matches!(tail, "" | "ws" | "guest")
+}
+
+/// Lets a party guest through while it is in its room; else the cookie is cleared.
+async fn admit_party_guest(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(bool, Option<HeaderValue>), ApiError> {
+    let auth = &state.auth;
+    let Some(value) = party_guest::from_headers(headers) else {
+        return Ok((false, None));
+    };
+    let admitted = match auth.party_guests().decode(value) {
+        Some(guest) => {
+            auth.party_guests()
+                .admits(state.rooms.repo(), &guest, party_guest::now())
+                .await?
+        }
+        None => false,
+    };
+    let clear = (!admitted).then(|| party_guest::clear_cookie(auth.config().cookie_secure));
+    Ok((admitted, clear))
 }
 
 /// Checks the origin of state-changing requests, resolves the session cookie into a
@@ -328,15 +369,30 @@ pub async fn middleware(State(state): State<AppState>, mut req: Request, next: N
         }
     }
 
-    let mut response = if login_required && req.extensions().get::<CurrentUser>().is_none() {
-        ApiError::unauthorized().into_response()
+    let mut clear_guest = None;
+    let admitted = if login_required && req.extensions().get::<CurrentUser>().is_none() {
+        match admit_party_guest(&state, req.headers()).await {
+            Ok((admitted, clear)) => {
+                clear_guest = clear;
+                admitted
+            }
+            Err(err) => return err.into_response(),
+        }
     } else {
+        true
+    };
+    let mut response = if admitted {
         next.run(req).await
+    } else {
+        ApiError::unauthorized().into_response()
     };
     if let Some(value) = set_cookie
         && !response.headers().contains_key(header::SET_COOKIE)
     {
         response.headers_mut().insert(header::SET_COOKIE, value);
+    }
+    if let Some(value) = clear_guest {
+        response.headers_mut().append(header::SET_COOKIE, value);
     }
     response
 }
@@ -352,6 +408,9 @@ mod tests {
             "/api/v0/videos/x",
             "/proxy/image/x",
             "/proxy/stream/x/1",
+            "/api/v0/rooms",
+            "/api/v0/rooms/short",
+            "/api/v0/rooms/rrrrrrrrrrrrrrrrrrrrrA/other",
         ] {
             assert!(requires_login(path), "{path}");
         }
@@ -360,6 +419,9 @@ mod tests {
             "/api/v0/auth/me",
             "/api/v0/instance",
             "/api/v0/feed/atom/token",
+            "/api/v0/rooms/rrrrrrrrrrrrrrrrrrrrrA",
+            "/api/v0/rooms/rrrrrrrrrrrrrrrrrrrrrA/ws",
+            "/api/v0/rooms/rrrrrrrrrrrrrrrrrrrrrA/guest",
             "/api/openapi.json",
             "/api/docs",
             "/healthz",

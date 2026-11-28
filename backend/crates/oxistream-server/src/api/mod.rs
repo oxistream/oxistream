@@ -11,7 +11,7 @@ use crate::AppState;
 mod dto;
 pub mod error;
 mod lang;
-mod v0;
+pub(crate) mod v0;
 
 pub use v0::feed_token::ATOM_FEED_PREFIX;
 

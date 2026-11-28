@@ -1,7 +1,8 @@
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -16,7 +17,7 @@ use crate::AppState;
 use crate::api::dto::Thumbnail;
 use crate::api::error::{ApiError, ErrorBody, ErrorCode};
 use crate::api::lang::ContentLanguage;
-use crate::auth::{CurrentUser, OptionalUser};
+use crate::auth::{CurrentUser, OptionalUser, party_guest};
 use crate::rooms::MAX_ROOMS_PER_USER;
 
 pub mod protocol;
@@ -29,6 +30,7 @@ pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(list_rooms, create_room))
         .routes(routes!(get_room, delete_room))
+        .routes(routes!(admit_guest, release_guest))
         .route("/rooms/{id}/ws", get(socket::connect))
 }
 
@@ -39,7 +41,7 @@ fn new_room_id() -> String {
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-fn is_room_id(id: &str) -> bool {
+pub(crate) fn is_room_id(id: &str) -> bool {
     id.len() == ID_LEN
         && id
             .bytes()
@@ -244,6 +246,68 @@ async fn delete_room(
     } else {
         Err(not_found())
     }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct GuestCredential {
+    /// The key the guest joined the room's WebSocket with.
+    pub guest_key: String,
+}
+
+/// Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
+/// may use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it
+/// stays in the room. Clients call this after joining and every 30 s.
+#[utoipa::path(
+    post,
+    path = "/rooms/{id}/guest",
+    tag = "rooms",
+    params(("id" = String, Path, description = "Room ID")),
+    request_body = GuestCredential,
+    responses(
+        (status = NO_CONTENT, description = "Cookie set"),
+        (status = BAD_REQUEST, description = "Malformed body", body = ErrorBody),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+        (status = NOT_FOUND, description = "No such room, or the guest is not in it", body = ErrorBody),
+    )
+)]
+async fn admit_guest(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    body: Result<Json<GuestCredential>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    check_room_id(&id)?;
+    let Json(body) = body?;
+    let key = socket::guest_participant_key(&body.guest_key).ok_or_else(not_found)?;
+    if state.rooms.repo().presence(&id, &key).await? != oxistream_db::Presence::Present {
+        return Err(not_found());
+    }
+    let value = state.auth.party_guests().encode(&party_guest::PartyGuest {
+        room: id,
+        key,
+        seen: party_guest::now(),
+    });
+    let cookie = party_guest::cookie(&value, state.auth.config().cookie_secure);
+    Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
+}
+
+/// Give up guest access, e.g. after leaving the room.
+#[utoipa::path(
+    delete,
+    path = "/rooms/{id}/guest",
+    tag = "rooms",
+    params(("id" = String, Path, description = "Room ID")),
+    responses(
+        (status = NO_CONTENT, description = "Cookie cleared"),
+        (status = FORBIDDEN, description = "Foreign origin", body = ErrorBody),
+    )
+)]
+async fn release_guest(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let guests = state.auth.party_guests();
+    if let Some(guest) = party_guest::from_headers(&headers).and_then(|v| guests.decode(v)) {
+        guests.forget(&guest.room, &guest.key).await;
+    }
+    let cookie = party_guest::clear_cookie(state.auth.config().cookie_secure);
+    (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response()
 }
 
 #[cfg(test)]

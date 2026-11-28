@@ -23,7 +23,7 @@ mod manifest;
 mod oidc;
 mod playlists;
 mod queue;
-pub(super) mod rooms;
+pub(crate) mod rooms;
 mod settings;
 mod shorts;
 mod sponsorblock;

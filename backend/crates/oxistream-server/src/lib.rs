@@ -142,6 +142,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         Arc::new(PgUserRepository::new(db.clone())),
         Arc::new(PgSessionRepository::new(db.clone())),
         config.rate_limit.as_ref(),
+        &config.proxy.secret,
     );
     auth.spawn_cleanup();
     if let Some(oidc) = auth.oidc() {
