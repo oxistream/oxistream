@@ -181,7 +181,9 @@
 							<span class="line-clamp-2 text-sm leading-5 font-medium">{video.title}</span>
 							<span class="truncate text-xs text-muted-foreground">{video.channel.name}</span>
 							<span class="truncate text-xs text-muted-foreground">
-								{m.party_added_by({ name: item.added_by })}
+								{item.autoplay
+									? m.party_autoplay_added()
+									: m.party_added_by({ name: item.added_by })}
 							</span>
 						</span>
 					</button>

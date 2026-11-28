@@ -242,6 +242,10 @@ export class Party {
 		this.send({ type: 'shuffle' });
 	}
 
+	setAutoplay(enabled: boolean) {
+		this.send({ type: 'autoplay', enabled });
+	}
+
 	/** Plays `videoId` for everyone, taking it from the queue if it is there. */
 	playNow(videoId: string) {
 		const queued = this.room?.queue.find((e) => e.video.id === videoId);

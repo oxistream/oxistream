@@ -1608,8 +1608,10 @@ export interface components {
             progress?: components["schemas"]["VideoProgress"] | null;
         };
         QueueEntry: {
-            /** @description Display name of whoever queued it. */
+            /** @description Display name of whoever queued it; empty for `autoplay` entries. */
             added_by: string;
+            /** @description Appended by autoplay. */
+            autoplay: boolean;
             /** Format: int64 */
             id: number;
             /** @description `channel` is always set; view counts and dates are not. */
@@ -1714,6 +1716,10 @@ export interface components {
             /** @enum {string} */
             type: "shuffle";
         } | {
+            enabled: boolean;
+            /** @enum {string} */
+            type: "autoplay";
+        } | {
             /** Format: uuid */
             participant: string;
             /** @enum {string} */
@@ -1809,6 +1815,7 @@ export interface components {
             type: "closed";
         };
         RoomState: {
+            autoplay: boolean;
             current?: components["schemas"]["QueueEntry"] | null;
             id: string;
             /** @description Username of the owner. */
@@ -1832,6 +1839,7 @@ export interface components {
              * @description Increases with every change.
              */
             revision: number;
+            up_next?: components["schemas"]["VideoSummary"] | null;
         };
         SearchItem: (components["schemas"]["VideoSummary"] & {
             /** @enum {string} */
