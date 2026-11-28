@@ -42,12 +42,9 @@
 			<BanIcon class="size-3.5" aria-hidden="true" />
 		</span>
 	</div>
-	<div class="flex max-w-md flex-col gap-1.5">
-		<h1 id="channel-blocked-title" class="text-lg font-semibold tracking-tight text-balance">
-			{m.block_notice_title({ name: channel.name })}
-		</h1>
-		<p class="text-sm text-pretty text-muted-foreground">{m.block_notice_body()}</p>
-	</div>
+	<h1 id="channel-blocked-title" class="max-w-md text-lg font-semibold tracking-tight text-balance">
+		{m.block_notice_title({ name: channel.name })}
+	</h1>
 	<div class="flex flex-wrap justify-center gap-2">
 		<Button
 			onclick={onunblock}

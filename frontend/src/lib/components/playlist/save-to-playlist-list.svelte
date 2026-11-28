@@ -74,7 +74,7 @@
 	{:else if playlists.isError}
 		<p class="text-sm text-destructive" role="alert">{m.playlist_error_load()}</p>
 	{:else if playlists.data.length === 0 && !creating}
-		<p class="text-sm text-muted-foreground">{m.playlist_save_empty()}</p>
+		<p class="text-sm text-muted-foreground">{m.empty_playlists_title()}</p>
 	{:else}
 		<ul class="-mx-2 flex max-h-72 flex-col overflow-y-auto" aria-label={m.playlist_save_list()}>
 			{#each playlists.data as playlist (playlist.id)}

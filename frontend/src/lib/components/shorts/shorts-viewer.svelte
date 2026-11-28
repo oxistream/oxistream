@@ -285,9 +285,7 @@
 							title={source === 'subscriptions'
 								? m.shorts_subscriptions_empty_title()
 								: m.shorts_discover_empty_title()}
-							description={source === 'subscriptions'
-								? m.shorts_subscriptions_empty_body()
-								: m.shorts_discover_empty_body()}
+							description={source === 'subscriptions' ? undefined : m.shorts_discover_empty_body()}
 							class="m-4 border-white/20 text-white [&_p]:text-white/70"
 						/>
 					{:else}

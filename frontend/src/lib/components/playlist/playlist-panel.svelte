@@ -83,9 +83,9 @@
 				<h2 id="playlist-panel-heading" class="text-sm font-semibold">
 					{status === 'mix' ? m.playlist_mix_title() : m.playlist_unavailable_title()}
 				</h2>
-				<p class="text-xs text-muted-foreground">
-					{status === 'mix' ? m.playlist_mix_body() : m.playlist_unavailable_body()}
-				</p>
+				{#if status !== 'mix'}
+					<p class="text-xs text-muted-foreground">{m.playlist_unavailable_body()}</p>
+				{/if}
 			</div>
 		</div>
 	{:else}
@@ -153,7 +153,7 @@
 			</div>
 		</header>
 		{#if playlist.items.length === 0 && !hasMore}
-			<p class="p-4 text-sm text-muted-foreground">{m.playlist_empty_body()}</p>
+			<p class="p-4 text-sm text-muted-foreground">{m.playlist_empty_title()}</p>
 		{:else}
 			<div bind:this={scroller} class="min-h-0 flex-1 overflow-y-auto">
 				<ol class="py-1" aria-label={playlist.title}>

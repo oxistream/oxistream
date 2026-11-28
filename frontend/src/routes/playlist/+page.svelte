@@ -106,11 +106,7 @@
 <div class="page-column py-6">
 	{#if !data && (local || !listId)}<h1 class="sr-only">{m.search_playlist()}</h1>{/if}
 	{#if !listId}
-		<EmptyState
-			icon={ListVideoIcon}
-			title={m.playlist_none_title()}
-			description={m.playlist_none_body()}
-		/>
+		<EmptyState icon={ListVideoIcon} title={m.playlist_none_title()} />
 	{:else if liked}
 		<LikedVideosView />
 	{:else if !local}

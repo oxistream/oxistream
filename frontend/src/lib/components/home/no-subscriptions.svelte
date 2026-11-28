@@ -8,12 +8,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 </script>
 
-<EmptyState
-	icon={TvMinimalPlayIcon}
-	title={m.empty_subscriptions_title()}
-	description={m.empty_subscriptions_body()}
-	headingLevel={3}
->
+<EmptyState icon={TvMinimalPlayIcon} title={m.empty_subscriptions_title()} headingLevel={3}>
 	{#snippet actions()}
 		<Button href={resolve('/results')}>
 			<SearchIcon />

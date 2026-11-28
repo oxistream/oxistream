@@ -124,19 +124,11 @@
 	{#if !session.ready}
 		<VideoGrid loading skeletonCount={12} />
 	{:else if !session.user}
-		<EmptyState
-			icon={TvMinimalPlayIcon}
-			title={m.empty_subscriptions_title()}
-			description={m.empty_sign_in_hint()}
-		>
+		<EmptyState icon={TvMinimalPlayIcon} title={m.empty_subscriptions_title()}>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
 	{:else if noSubscriptions}
-		<EmptyState
-			icon={TvMinimalPlayIcon}
-			title={m.empty_subscriptions_title()}
-			description={m.empty_subscriptions_body()}
-		>
+		<EmptyState icon={TvMinimalPlayIcon} title={m.empty_subscriptions_title()}>
 			{#snippet actions()}
 				<Button href={resolve('/subscriptions/import-export')} variant="outline">
 					<ArrowDownUpIcon />
@@ -189,7 +181,7 @@
 		<EmptyState
 			icon={pending ? HourglassIcon : TvMinimalPlayIcon}
 			title={pending ? m.feed_fetching_title() : m.feed_no_videos_title()}
-			description={pending ? m.feed_fetching_body() : m.feed_no_videos_body()}
+			description={pending ? m.feed_fetching_body() : undefined}
 		/>
 	{:else}
 		{#if pending}

@@ -133,7 +133,7 @@
 {@render children?.()}
 
 {#if account.has_password && localEnabled}
-	<SettingRow label={m.settings_password()} description={m.settings_password_hint()} stacked>
+	<SettingRow label={m.settings_password()} stacked>
 		<form
 			class="flex max-w-sm flex-col gap-4"
 			novalidate
@@ -180,7 +180,7 @@
 	</SettingRow>
 {/if}
 
-<SettingRow label={m.settings_delete()} description={m.settings_delete_hint()}>
+<SettingRow label={m.settings_delete()}>
 	{#snippet control()}
 		<AlertDialog.Root bind:open={deleteOpen}>
 			<AlertDialog.Trigger class={buttonVariants({ variant: 'destructive', size: 'sm' })}>

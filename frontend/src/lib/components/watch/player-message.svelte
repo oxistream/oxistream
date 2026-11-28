@@ -73,7 +73,9 @@
 		{:else}
 			<div class="flex flex-col gap-1">
 				<p class="text-base font-semibold tracking-tight text-pretty">{problem.title}</p>
-				<p class="text-sm text-pretty text-white/70">{problem.description}</p>
+				{#if problem.description}
+					<p class="text-sm text-pretty text-white/70">{problem.description}</p>
+				{/if}
 			</div>
 			{#if (problem.retry && onretry) || (problem.youtube && videoId)}
 				<div class="mt-1 flex flex-wrap justify-center gap-2">

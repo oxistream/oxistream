@@ -7,7 +7,6 @@
 
 	let {
 		title,
-		subtitle,
 		submitLabel,
 		status,
 		busy = false,
@@ -18,7 +17,6 @@
 		footer
 	}: {
 		title: string;
-		subtitle: string;
 		submitLabel: string;
 		/** Announced below the submit button: an error summary or the outcome of a submit. */
 		status?: string;
@@ -37,10 +35,7 @@
 <div class="flex w-full max-w-sm flex-col gap-6">
 	<div class="flex flex-col items-center gap-3 text-center">
 		<LogoMark class="size-10 text-primary" />
-		<div class="flex flex-col gap-1">
-			<h1 class="text-xl font-semibold tracking-tight">{title}</h1>
-			<p class="text-sm text-pretty text-muted-foreground">{subtitle}</p>
-		</div>
+		<h1 class="text-xl font-semibold tracking-tight">{title}</h1>
 	</div>
 
 	<div class="flex flex-col gap-5 rounded-xl border bg-background p-6 shadow-xs">

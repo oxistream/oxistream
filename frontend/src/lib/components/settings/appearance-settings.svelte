@@ -21,7 +21,6 @@
 	<SegmentedControl
 		name="theme"
 		legend={m.theme_label()}
-		description={m.settings_appearance_hint()}
 		options={themes}
 		value={userPrefersMode.current}
 		onchange={(value) => setMode(value)}
@@ -31,7 +30,6 @@
 	<SegmentedControl
 		name="language"
 		legend={m.language_label()}
-		description={m.settings_language_hint()}
 		options={languages}
 		value={getLocale()}
 		onchange={(value) => void setLocale(value)}

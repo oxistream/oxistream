@@ -89,8 +89,8 @@
 			? party.ended.status
 			: null
 	);
-	const notices: Record<PartyEnd['status'], [() => string, () => string]> = {
-		closed: [m.party_closed_title, m.party_closed_body],
+	const notices: Record<PartyEnd['status'], [() => string, (() => string)?]> = {
+		closed: [m.party_closed_title],
 		kicked: [m.party_kicked_title, m.party_kicked_body],
 		not_found: [m.party_not_found_title, m.party_not_found_body],
 		full: [m.party_full_title, m.party_full_body],
@@ -145,7 +145,9 @@
 		{#if notice}
 			<AlertDialog.Header>
 				<AlertDialog.Title>{notices[notice][0]()}</AlertDialog.Title>
-				<AlertDialog.Description>{notices[notice][1]()}</AlertDialog.Description>
+				{#if notices[notice][1]}
+					<AlertDialog.Description>{notices[notice][1]?.()}</AlertDialog.Description>
+				{/if}
 			</AlertDialog.Header>
 		{/if}
 		<AlertDialog.Footer>

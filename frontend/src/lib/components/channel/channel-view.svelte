@@ -95,17 +95,9 @@
 	const loading = $derived(!error && (resolving || channel.isPending));
 
 	const empty = {
-		videos: {
-			icon: ListVideoIcon,
-			title: m.channel_no_videos_title,
-			body: m.channel_no_videos_body
-		},
-		shorts: {
-			icon: SmartphoneIcon,
-			title: m.channel_no_shorts_title,
-			body: m.channel_no_shorts_body
-		},
-		streams: { icon: RadioIcon, title: m.channel_no_live_title, body: m.channel_no_live_body }
+		videos: { icon: ListVideoIcon, title: m.channel_no_videos_title },
+		shorts: { icon: SmartphoneIcon, title: m.channel_no_shorts_title },
+		streams: { icon: RadioIcon, title: m.channel_no_live_title }
 	};
 	const tabTitle = $derived(
 		{
@@ -134,11 +126,7 @@
 	{#if error}
 		<h1 class="sr-only">{m.channel_title()}</h1>
 		{#if isNotFound(error)}
-			<EmptyState
-				icon={UserXIcon}
-				title={m.channel_not_found_title()}
-				description={m.channel_not_found_body()}
-			>
+			<EmptyState icon={UserXIcon} title={m.channel_not_found_title()}>
 				{#snippet actions()}
 					<Button href={resolve('/')} variant="outline">{m.error_back_home()}</Button>
 				{/snippet}
@@ -189,7 +177,6 @@
 							icon={empty[videoTab].icon}
 							headingLevel={3}
 							title={empty[videoTab].title()}
-							description={empty[videoTab].body()}
 						/>
 					{:else}
 						{#if tab === 'shorts'}
@@ -214,7 +201,6 @@
 							icon={ListVideoIcon}
 							headingLevel={3}
 							title={m.channel_no_playlists_title()}
-							description={m.channel_no_playlists_body()}
 						/>
 					{:else}
 						<ChannelPlaylistGrid playlists={playlistItems} label={tabTitle} />
@@ -226,12 +212,7 @@
 						/>
 					{/if}
 				{:else if !query}
-					<EmptyState
-						icon={SearchIcon}
-						headingLevel={3}
-						title={m.channel_search_prompt_title()}
-						description={m.channel_search_prompt_body()}
-					/>
+					<EmptyState icon={SearchIcon} headingLevel={3} title={m.channel_search_prompt_title()} />
 				{:else if search.isPending}
 					<SearchResults loading class="max-w-5xl" />
 				{:else if search.isError && !search.data}

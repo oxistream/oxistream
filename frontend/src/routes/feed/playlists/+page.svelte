@@ -54,11 +54,7 @@
 	{#if !session.ready}
 		<VideoGrid loading skeletonCount={8} showChannel={false} />
 	{:else if !session.user}
-		<EmptyState
-			icon={ListVideoIcon}
-			title={m.empty_playlists_title()}
-			description={m.empty_sign_in_hint()}
-		>
+		<EmptyState icon={ListVideoIcon} title={m.empty_playlists_title()}>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
 	{:else if playlists.isPending || (followed.isPending && followed.failureCount === 0)}

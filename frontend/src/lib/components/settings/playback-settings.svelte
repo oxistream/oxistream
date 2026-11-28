@@ -103,11 +103,7 @@
 		{/if}
 	</SettingRow>
 
-	<SettingRow
-		id="settings-max-quality"
-		label={m.settings_max_quality()}
-		description={m.settings_max_quality_hint()}
-	>
+	<SettingRow id="settings-max-quality" label={m.settings_max_quality()}>
 		{#snippet control()}
 			<Select.Root
 				type="single"
@@ -115,11 +111,7 @@
 				{disabled}
 				onValueChange={(value) => onchange({ max_quality: parseQuality(value) })}
 			>
-				<Select.Trigger
-					id="settings-max-quality"
-					class="w-44"
-					aria-describedby="settings-max-quality-description"
-				>
+				<Select.Trigger id="settings-max-quality" class="w-44">
 					{labelOf(maxOptions, maxValue)}
 				</Select.Trigger>
 				<Select.Content>
@@ -131,11 +123,7 @@
 		{/snippet}
 	</SettingRow>
 
-	<SettingRow
-		id="settings-default-quality"
-		label={m.settings_default_quality()}
-		description={m.settings_default_quality_hint()}
-	>
+	<SettingRow id="settings-default-quality" label={m.settings_default_quality()}>
 		{#snippet control()}
 			<Select.Root
 				type="single"
@@ -143,11 +131,7 @@
 				{disabled}
 				onValueChange={(value) => onchange({ default_quality: parseQuality(value) })}
 			>
-				<Select.Trigger
-					id="settings-default-quality"
-					class="w-44"
-					aria-describedby="settings-default-quality-description"
-				>
+				<Select.Trigger id="settings-default-quality" class="w-44">
 					{labelOf(defaultOptions, defaultValue)}
 				</Select.Trigger>
 				<Select.Content>

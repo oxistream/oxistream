@@ -4,7 +4,7 @@ import { m } from '#lib/paraglide/messages.js';
 export type WatchProblem = {
 	kind: 'live' | 'unavailable' | 'error';
 	title: string;
-	description: string;
+	description?: string;
 	/** Whether trying again could help. */
 	retry: boolean;
 	/** Whether YouTube itself may still play it, e.g. for signed-in or local viewers. */
@@ -19,12 +19,10 @@ const REASONS: Record<string, () => Omit<WatchProblem, 'retry' | 'kind'>> = {
 	}),
 	private: () => ({
 		title: m.watch_error_private_title(),
-		description: m.watch_error_private_body(),
 		youtube: false
 	}),
 	deleted: () => ({
 		title: m.watch_error_deleted_title(),
-		description: m.watch_error_deleted_body(),
 		youtube: false
 	}),
 	geoblocked: () => ({
@@ -39,7 +37,6 @@ const REASONS: Record<string, () => Omit<WatchProblem, 'retry' | 'kind'>> = {
 	}),
 	'premium-only': () => ({
 		title: m.watch_error_premium_title(),
-		description: m.watch_error_premium_body(),
 		youtube: true
 	}),
 	paid: () => ({
@@ -105,7 +102,6 @@ export function describeProblem(error: unknown): WatchProblem {
 				retry: false,
 				...(known?.() ?? {
 					title: m.watch_error_unavailable_title(),
-					description: m.watch_error_unavailable_body(),
 					youtube: true
 				})
 			};

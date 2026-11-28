@@ -103,11 +103,7 @@
 			{#each { length: 6 }, i (i)}<SubscriptionRowSkeleton />{/each}
 		</div>
 	{:else if !session.user}
-		<EmptyState
-			icon={UsersIcon}
-			title={m.subscriptions_title()}
-			description={m.empty_sign_in_hint()}
-		>
+		<EmptyState icon={UsersIcon} title={m.subscriptions_title()}>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
 	{:else if subscriptions.isPending}
@@ -119,11 +115,7 @@
 	{:else if rows.length === 0 && selectedGroup}
 		<EmptyState icon={FolderOpenIcon} title={m.groups_empty_title()} />
 	{:else if rows.length === 0}
-		<EmptyState
-			icon={UsersIcon}
-			title={m.empty_subscriptions_title()}
-			description={m.empty_subscriptions_body()}
-		/>
+		<EmptyState icon={UsersIcon} title={m.empty_subscriptions_title()} />
 	{:else}
 		<ul class="-mx-2 flex flex-col" aria-label={m.subscriptions_title()}>
 			{#each rows as channel (channel.id)}

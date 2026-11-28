@@ -36,9 +36,9 @@
 	let dragging = $state(false);
 	let input = $state<HTMLInputElement | null>(null);
 
-	const exports: { format: ExportFormat; title: string; body: string }[] = [
+	const exports: { format: ExportFormat; title: string; body?: string }[] = [
 		{ format: 'newpipe', title: m.export_newpipe_title(), body: m.export_newpipe_body() },
-		{ format: 'invidious', title: m.export_invidious_title(), body: m.export_invidious_body() }
+		{ format: 'invidious', title: m.export_invidious_title() }
 	];
 
 	const number = $derived(new Intl.NumberFormat(getLocale()));
@@ -88,16 +88,12 @@
 </script>
 
 <div class="page-column flex flex-col gap-6 py-6">
-	<PageHeader title={m.import_export_title()} description={m.import_export_description()} />
+	<PageHeader title={m.import_export_title()} />
 
 	{#if !session.ready}
 		<div class="h-72 animate-pulse rounded-xl border bg-card"></div>
 	{:else if !session.user}
-		<EmptyState
-			icon={TvMinimalPlayIcon}
-			title={m.import_export_sign_in_title()}
-			description={m.import_export_sign_in_body()}
-		>
+		<EmptyState icon={TvMinimalPlayIcon} title={m.import_export_sign_in_title()}>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
 	{:else}
@@ -244,18 +240,17 @@
 			aria-labelledby="export-heading"
 			class="flex flex-col gap-4 rounded-xl border bg-card p-5"
 		>
-			<div class="flex flex-col gap-1">
-				<h2 id="export-heading" class="text-base font-semibold tracking-tight">
-					{m.export_heading()}
-				</h2>
-				<p class="text-sm text-pretty text-muted-foreground">{m.export_hint()}</p>
-			</div>
+			<h2 id="export-heading" class="text-base font-semibold tracking-tight">
+				{m.export_heading()}
+			</h2>
 			<ul class="flex flex-col divide-y rounded-lg border bg-background">
 				{#each exports as item (item.format)}
 					<li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-3">
 						<div class="flex min-w-0 flex-col gap-0.5">
 							<p class="text-sm font-medium">{item.title}</p>
-							<p class="text-sm text-muted-foreground">{item.body}</p>
+							{#if item.body}
+								<p class="text-sm text-muted-foreground">{item.body}</p>
+							{/if}
 						</div>
 						<Button
 							variant="outline"

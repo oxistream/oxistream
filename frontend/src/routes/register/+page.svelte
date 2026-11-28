@@ -118,7 +118,6 @@
 {:else}
 	<AuthForm
 		title={m.auth_register_title()}
-		subtitle={m.auth_register_subtitle()}
 		submitLabel={busy ? m.auth_registering() : m.auth_register_submit()}
 		{status}
 		{busy}

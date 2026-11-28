@@ -28,7 +28,7 @@
 	const locale = getLocale();
 	const overlay = $derived(variant === 'overlay');
 	const counted = $derived(count != null ? formatCompactNumber(count, locale) : undefined);
-	const title = $derived(liked ? m.like_remove() : `${m.like()} · ${m.like_hint()}`);
+	const title = $derived(liked ? m.like_remove() : m.like());
 	const base = $derived(
 		overlay
 			? cn(

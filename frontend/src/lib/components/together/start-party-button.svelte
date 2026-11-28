@@ -26,7 +26,6 @@
 		variant="secondary"
 		size="sm"
 		class={cn('rounded-full px-3.5', className)}
-		title={m.party_start_hint()}
 		disabled={create.isPending}
 		onclick={start}
 		data-testid="start-party"

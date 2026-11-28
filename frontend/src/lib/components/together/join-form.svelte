@@ -41,10 +41,7 @@
 		>
 			<UsersRoundIcon class="size-5" />
 		</div>
-		<div class="flex flex-col gap-1">
-			<h1 class="text-base font-semibold tracking-tight">{m.party_join_title({ owner })}</h1>
-			<p class="text-sm text-pretty text-muted-foreground">{m.party_join_body()}</p>
-		</div>
+		<h1 class="text-base font-semibold tracking-tight">{m.party_join_title({ owner })}</h1>
 	</div>
 	<form class="flex flex-col gap-3" onsubmit={submit}>
 		<div class="flex flex-col gap-1.5">

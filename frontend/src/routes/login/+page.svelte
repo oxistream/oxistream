@@ -75,7 +75,6 @@
 
 <AuthForm
 	title={m.auth_login_title()}
-	subtitle={m.auth_login_subtitle()}
 	submitLabel={busy ? m.auth_signing_in() : m.auth_sign_in_submit()}
 	local={capabilities?.local_enabled !== false}
 	{status}

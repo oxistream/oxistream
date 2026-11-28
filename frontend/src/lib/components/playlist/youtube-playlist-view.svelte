@@ -89,11 +89,7 @@
 
 {#if !data}<h1 class="sr-only">{m.search_playlist()}</h1>{/if}
 {#if mix}
-	<EmptyState
-		icon={ListVideoIcon}
-		title={m.playlist_mix_title()}
-		description={m.playlist_mix_body()}
-	/>
+	<EmptyState icon={ListVideoIcon} title={m.playlist_mix_title()} />
 {:else if query.isPending}
 	<PlaylistLayout />
 {:else if notFound}
