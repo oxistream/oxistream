@@ -1,51 +1,55 @@
 # Oxistream
 
-A self-hosted, privacy-friendly YouTube frontend with accounts, subscriptions and playlists. Rust backend, SvelteKit frontend.
+A self-hosted, privacy-friendly YouTube frontend with accounts, subscriptions, playlists and watch parties. Built for homelabs, also suitable for public instances.
 
-> Work in progress.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.jpg">
+  <img alt="Oxistream home page with trending rows" src="docs/images/home-light.jpg">
+</picture>
 
-## Development
+Oxistream fetches everything from YouTube on the server and streams video, audio, thumbnails and subtitles through its own proxy. Browsers never talk to Google, and no YouTube account is used.
 
-With Nix, `nix develop` provides the Rust toolchain, Node, pnpm, sqlx-cli and `rustypipe-botguard` (exported as `OXISTREAM_BOTGUARD_BIN`).
+> Oxistream has not had a first release yet. Expect breaking changes.
 
-## Docker
+## Features
 
-Release images for linux/amd64 and linux/arm64 are published as `ghcr.io/OWNER/oxistream` with tags `X.Y.Z`, `X.Y`, `X` (from 1.0) and `latest`. Each carries SBOM and provenance attestations (`gh attestation verify oci://ghcr.io/OWNER/oxistream:X.Y.Z --owner OWNER`).
+- **Watching**: DASH player with all qualities, codecs and audio tracks, subtitles, chapters, a searchable transcript, keyboard shortcuts, sleep timer and loop. A mini player keeps playing while you browse.
+- **Discovery**: search, channel pages, shorts player, a home page with continue watching, subscriptions and trending rows. URLs mirror YouTube's, so redirect extensions work.
+- **Subscriptions**: a feed with filters (hide watched, hide shorts, per channel), subscription groups, new-upload markers and a private Atom feed. Import from YouTube Takeout, NewPipe, Invidious and Piped; export to NewPipe and Invidious.
+- **Library**: local playlists (private or shared by link), followed YouTube playlists, an up-next queue synced across devices, watch history with resume, search and retention.
+- **Watch together**: parties with an invite link, a shared queue, synchronized playback, chat and reactions. Guests can join without an account.
+- **SponsorBlock**: segment markers, auto-skip or a skip button per category, looked up by the server.
+- **Accounts**: local accounts and OpenID Connect (with back-channel logout), optional login requirement, account self-deletion and a small admin area.
+- **Interface**: light and dark mode, English and German.
+- **Operations**: one container image for amd64 and arm64 next to an external PostgreSQL database, support for multiple replicas, Prometheus metrics, health probes, Docker Compose and Helm.
 
-The root `Dockerfile` builds the frontend, the server with the embedded SPA, and bundles `rustypipe-botguard`. The server is cross-compiled on the build host, so multi-arch builds need no emulation:
+## Quick start
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 \
-  --build-arg VERSION=0.1.0 --build-arg OXISTREAM_GIT_SHA="$(git rev-parse HEAD)" \
-  -t oxistream .
+cd deploy/compose
+cp .env.example .env
+# Set POSTGRES_PASSWORD and OXISTREAM_PROXY_SECRET in .env
+docker compose up -d
 ```
 
-Run it against PostgreSQL 18 or newer; migrations run at startup:
+Open `http://localhost:8080` and register. The first account becomes the admin.
 
-```sh
-docker run -p 8080:8080 \
-  -e OXISTREAM_DATABASE_URL=postgres://oxistream:secret@db:5432/oxistream \
-  -e OXISTREAM_PROXY_SECRET="$(openssl rand -base64 48)" \
-  oxistream
-```
+## Documentation
 
-`OXISTREAM_DATABASE_URL` and `OXISTREAM_PROXY_SECRET` (at least 32 characters, shared across replicas) are required. Set `OXISTREAM_PUBLIC_URL` behind a reverse proxy, and `OXISTREAM_COOKIE_SECURE=false` only for plain-HTTP testing. The image runs as a non-root user on distroless without a shell, so there is no `HEALTHCHECK`; probe `/healthz` (liveness) and `/readyz` (database and OIDC discovery) instead. `/var/lib/oxistream` holds RustyPipe's client cache and may be mounted as a volume.
+The [documentation](docs/README.md) covers installation (Docker, Compose, Kubernetes), configuration, reverse proxies, authentication, administration, operations, privacy, development and releasing.
 
-For a ready-made setup with PostgreSQL, see [`deploy/compose`](deploy/compose/README.md).
+Deployment files live in [`deploy/compose`](deploy/compose/README.md) and [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md). Release images are published as `ghcr.io/OWNER/oxistream`.
 
-## Kubernetes
+## Acknowledgements
 
-A Helm chart with CloudNativePG example values lives in [`deploy/helm/oxistream`](deploy/helm/oxistream/README.md). Releases also publish it as `oci://ghcr.io/OWNER/charts/oxistream`.
+YouTube data comes from [RustyPipe](https://codeberg.org/ThetaDev/rustypipe), via a maintained fork. Oxistream draws on ideas from [Invidious](https://invidious.io), [Piped](https://github.com/TeamPiped/Piped) and [NewPipe](https://newpipe.net). Skip segments come from [SponsorBlock](https://sponsor.ajay.app).
 
-## Releasing
-
-The workspace version in `backend/Cargo.toml` is the source of truth; `version` and `appVersion` in `deploy/helm/oxistream/Chart.yaml` follow it.
-
-1. Bump all three, run `cargo update --workspace` in `backend/` to update `Cargo.lock`, and merge the change.
-2. Tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-
-The `Release` workflow fails if the tag and these versions differ, then pushes the image and the chart to GHCR. Pre-release tags like `v1.2.0-rc.1` do not move `latest`. Run it manually with "dry run" to build a branch or tag without pushing. New GHCR packages start private; make them public once in the package settings.
+Oxistream is not affiliated with or endorsed by YouTube or Google.
 
 ## License
 
 [AGPL-3.0-or-later](LICENSE)
+
+## AI disclaimer
+
+Large parts of Oxistream, including code, tests and documentation, were written with AI coding assistants. Every change is reviewed, tested and merged by a human maintainer, but please review the code with that in mind, and report anything that looks wrong.
