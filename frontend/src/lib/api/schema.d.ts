@@ -1507,6 +1507,12 @@ export interface components {
             subscriber_count?: number | null;
             verified: boolean;
         };
+        Chapter: {
+            /** Format: int32 */
+            start_seconds: number;
+            thumbnails: components["schemas"]["Thumbnail"][];
+            title: string;
+        };
         ContentDisclosure: {
             /** @description Source of the label, e.g. "Info from Google LLC". */
             attribution?: string | null;
@@ -2510,6 +2516,8 @@ export interface components {
             /** @description Empty when the player data could not be fetched or the video has a single track. */
             audio_tracks: components["schemas"]["AudioTrack"][];
             channel: components["schemas"]["ChannelRef"];
+            /** @description Sorted by start; empty when the video has none. */
+            chapters: components["schemas"]["Chapter"][];
             /** @description YouTube's "How this was made" labels, e.g. altered or synthetic content. */
             content_disclosures: components["schemas"]["ContentDisclosure"][];
             /** @description Plain text; links are written out as URLs. */
