@@ -210,7 +210,7 @@ async fn user_repository_deletes_and_keeps_the_last_admin() {
                 subject: unique_suffix(),
             },
             &|attempt| format!("sso_{attempt}_{}", unique_suffix()),
-            false,
+            Role::User,
         )
         .await
         .unwrap();
@@ -510,7 +510,7 @@ async fn api_handles_single_sign_on_accounts() {
                 subject: unique_suffix(),
             },
             &|attempt| format!("sso_{attempt}_{}", unique_suffix()),
-            false,
+            Role::User,
         )
         .await
         .unwrap();

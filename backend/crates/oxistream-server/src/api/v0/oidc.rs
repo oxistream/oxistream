@@ -212,7 +212,7 @@ async fn oidc_login(State(state): State<AppState>, Query(params): Query<LoginPar
 /// Where the provider sends the browser back after sign-in.
 ///
 /// On success, starts a session and redirects to the target given to `/auth/oidc/login`.
-/// Unknown identities get a new account; the first account of an instance becomes an admin.
+/// Unknown identities get a new account, an admin only if in the configured admin group.
 /// Failures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,
 /// `oidc_disabled` or `account_disabled`.
 #[utoipa::path(
@@ -271,6 +271,7 @@ async fn sign_in(
         .find_by_identity(&login.identity)
         .await
         .map_err(db_failed)?;
+    let role = |admin: bool| if admin { Role::Admin } else { Role::User };
     let user = if let Some(user) = existing {
         user
     } else {
@@ -280,7 +281,7 @@ async fn sign_in(
             .provision(
                 &login.identity,
                 &|attempt| claims::username_candidate(&base, attempt),
-                login.admin.unwrap_or(false),
+                role(login.admin.unwrap_or(false)),
             )
             .await
             .map_err(db_failed)?;
@@ -290,37 +291,23 @@ async fn sign_in(
     if user.disabled {
         return Err(LoginError::AccountDisabled);
     }
-    let user = sync_role(state, user, login.admin)
-        .await
-        .map_err(db_failed)?;
+    let user = match login.admin.map(role) {
+        Some(role) if role != user.role => sync_role(state, user, role).await.map_err(db_failed)?,
+        _ => user,
+    };
     auth.start_oidc_session(&user, headers, ip, login.sid, Some(login.id_token))
         .await
         .map_err(|_| LoginError::Failed)
 }
 
-/// Applies the admin group membership; the last admin keeps the role.
-async fn sync_role(
-    state: &AppState,
-    user: User,
-    admin: Option<bool>,
-) -> Result<User, oxistream_db::Error> {
-    let Some(admin) = admin else {
-        return Ok(user);
-    };
-    let role = if admin { Role::Admin } else { Role::User };
-    if user.role == role {
-        return Ok(user);
-    }
+/// Applies the admin group membership, even to the last admin.
+async fn sync_role(state: &AppState, user: User, role: Role) -> Result<User, oxistream_db::Error> {
     let updated = state
         .auth
         .users()
         .sync_role(user.id, role)
         .await?
         .unwrap_or(user);
-    if updated.role == role {
-        tracing::info!(user_id = %updated.id, %role, "role synced from OIDC groups");
-    } else {
-        tracing::warn!(user_id = %updated.id, "not demoting the last admin");
-    }
+    tracing::info!(user_id = %updated.id, %role, "role synced from OIDC groups");
     Ok(updated)
 }

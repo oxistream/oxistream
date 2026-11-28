@@ -204,7 +204,7 @@ export interface paths {
          * @description Where the provider sends the browser back after sign-in.
          *
          *     On success, starts a session and redirects to the target given to `/auth/oidc/login`.
-         *     Unknown identities get a new account; the first account of an instance becomes an admin.
+         *     Unknown identities get a new account, an admin only if in the configured admin group.
          *     Failures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,
          *     `oidc_disabled` or `account_disabled`.
          */

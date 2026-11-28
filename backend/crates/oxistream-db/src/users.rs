@@ -131,18 +131,18 @@ pub trait UserRepository: Send + Sync {
 
     async fn find_by_identity(&self, identity: &Identity) -> Result<Option<User>, Error>;
 
-    /// Creates a user without password linked to `identity`, using the first free username
-    /// from `usernames`. The user becomes an admin if `admin` is set or it is the first user of
-    /// the instance. Returns the already linked user if another request provisioned it first.
+    /// Creates a user with `role` and without password linked to `identity`, using the first
+    /// free username from `usernames`. Returns the already linked user if another request
+    /// provisioned it first.
     async fn provision(
         &self,
         identity: &Identity,
         usernames: &UsernameCandidates<'_>,
-        admin: bool,
+        role: Role,
     ) -> Result<User, Error>;
 
-    /// Sets the role, except that the last admin is never demoted. Returns the updated user,
-    /// or `None` if it does not exist.
+    /// Sets the role, even of the last admin. Returns the updated user, or `None` if it does
+    /// not exist.
     async fn sync_role(&self, id: Uuid, role: Role) -> Result<Option<User>, Error>;
 
     /// Looks up a user by username, ignoring case.
@@ -211,9 +211,9 @@ pub(crate) fn user_from_row(row: &PgRow) -> Result<User, sqlx::Error> {
     })
 }
 
-/// Serializes sign-ups and role changes so exactly one of several concurrent first users
-/// becomes admin and the last admin cannot be demoted concurrently. Reads are not blocked by
-/// this lock mode.
+/// Serializes sign-ups and admin-area role changes so exactly one of several concurrent first
+/// local users becomes admin, an identity is provisioned once and the last admin cannot be
+/// demoted concurrently. Reads are not blocked by this lock mode.
 async fn lock_users(tx: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
     sqlx::query("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
         .execute(tx)
@@ -274,7 +274,7 @@ impl UserRepository for PgUserRepository {
         &self,
         identity: &Identity,
         usernames: &UsernameCandidates<'_>,
-        admin: bool,
+        role: Role,
     ) -> Result<User, Error> {
         let mut tx = self.pool.begin().await?;
         lock_users(&mut tx).await?;
@@ -299,13 +299,11 @@ impl UserRepository for PgUserRepository {
         }
         let username = username.ok_or(Error::UsernameTaken)?;
         let row = sqlx::query(concat!(
-            "INSERT INTO users (username, role) VALUES ($1, \
-             CASE WHEN $2 OR NOT EXISTS (SELECT 1 FROM users) THEN 'admin' ELSE 'user' END) \
-             RETURNING ",
+            "INSERT INTO users (username, role) VALUES ($1, $2) RETURNING ",
             user_columns!()
         ))
         .bind(&username)
-        .bind(admin)
+        .bind(role.as_str())
         .fetch_one(&mut *tx)
         .await?;
         let user = user_from_row(&row)?;
@@ -320,35 +318,17 @@ impl UserRepository for PgUserRepository {
     }
 
     async fn sync_role(&self, id: Uuid, role: Role) -> Result<Option<User>, Error> {
-        let mut tx = self.pool.begin().await?;
-        lock_users(&mut tx).await?;
         let row = sqlx::query(concat!(
-            "UPDATE users SET role = $2, updated_at = now() \
-             WHERE id = $1 AND role <> $2 AND ($2 = 'admin' OR EXISTS \
-                (SELECT 1 FROM users WHERE role = 'admin' AND id <> $1)) \
-             RETURNING ",
+            "UPDATE users SET role = $2, \
+             updated_at = CASE WHEN role = $2 THEN updated_at ELSE now() END \
+             WHERE id = $1 RETURNING ",
             user_columns!()
         ))
         .bind(id)
         .bind(role.as_str())
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&self.pool)
         .await?;
-        let user = match row {
-            Some(row) => Some(user_from_row(&row)?),
-            None => sqlx::query(concat!(
-                "SELECT ",
-                user_columns!(),
-                " FROM users WHERE id = $1"
-            ))
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .as_ref()
-            .map(user_from_row)
-            .transpose()?,
-        };
-        tx.commit().await?;
-        Ok(user)
+        Ok(row.as_ref().map(user_from_row).transpose()?)
     }
 
     async fn find_by_username(&self, username: &str) -> Result<Option<UserCredentials>, Error> {

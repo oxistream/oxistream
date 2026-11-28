@@ -185,7 +185,7 @@ async fn lists_users_with_search_and_pages() {
                 subject: "carol".into(),
             },
             &|attempt| format!("carol_{attempt}"),
-            false,
+            Role::User,
         )
         .await
         .unwrap();

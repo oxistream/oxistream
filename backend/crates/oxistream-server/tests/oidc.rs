@@ -12,8 +12,8 @@ use common::idp::{CLIENT_ID, Idp};
 use common::{TEST_PROXY_SECRET, isolated_test_pool, state_with_auth, test_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    BackchannelLogout, LogoutOutcome, PgPool, PgSessionRepository, PgUserRepository,
-    SessionRepository, UserRepository,
+    AdminUpdate, BackchannelLogout, LogoutOutcome, PgPool, PgSessionRepository, PgUserRepository,
+    Role, SessionRepository, UserRepository,
 };
 use oxistream_server::AppState;
 use oxistream_server::auth::cookie;
@@ -460,7 +460,7 @@ async fn rejects_tokens_for_other_audiences_or_issuers() {
 
 #[tokio::test]
 #[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
-async fn provisioning_makes_the_first_user_admin_and_ignores_closed_registration() {
+async fn provisioning_without_admin_group_makes_users_and_ignores_closed_registration() {
     let db = isolated_test_pool().await;
     let idp = Idp::start().await;
     let state = discovered_with(
@@ -474,14 +474,15 @@ async fn provisioning_makes_the_first_user_admin_and_ignores_closed_registration
     .await;
     let app = oxistream_server::app(state);
 
+    let first_sub = sub();
     let first = sign_in(
         &app,
         &idp,
-        json!({ "sub": sub(), "preferred_username": "mara@example.com" }),
+        json!({ "sub": first_sub, "preferred_username": "mara@example.com", "groups": ["/admins"] }),
     )
     .await;
     let first = me(&app, &first).await;
-    assert_eq!(first["role"], "admin");
+    assert_eq!(first["role"], "user", "first user, no admin group");
     assert_eq!(first["username"], "mara");
 
     let second = sign_in(
@@ -500,30 +501,43 @@ async fn provisioning_makes_the_first_user_admin_and_ignores_closed_registration
 
     let third = sign_in(&app, &idp, json!({ "sub": "248289761001", "name": "李" })).await;
     assert_eq!(me(&app, &third).await["username"], "248289761001");
+
+    let id = first["id"].as_str().unwrap().parse().unwrap();
+    let users = PgUserRepository::new(db.pool.clone());
+    assert!(matches!(
+        users.admin_set_role(id, Role::Admin).await.unwrap(),
+        AdminUpdate::Updated(_)
+    ));
+    let reply = sign_in(&app, &idp, json!({ "sub": first_sub, "groups": [] })).await;
+    assert_eq!(
+        me(&app, &reply).await["role"],
+        "admin",
+        "a promotion in the admin area sticks"
+    );
 }
 
 #[tokio::test]
 #[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
-async fn concurrent_first_sign_ins_make_one_admin() {
+async fn concurrent_first_sign_ins_provision_one_account() {
     let db = isolated_test_pool().await;
     let idp = Idp::start().await;
     let app = oxistream_server::app(discovered(db.pool.clone(), oidc_config(&idp)).await);
+    let subject = sub();
     let replies = futures_util::future::join_all(
-        (0..6).map(|i| sign_in(&app, &idp, json!({ "sub": format!("racer-{i}") }))),
+        (0..6).map(|_| sign_in(&app, &idp, json!({ "sub": subject }))),
     )
     .await;
-    let mut admins = 0;
+    let mut ids = Vec::new();
     for reply in &replies {
-        if me(&app, reply).await["role"] == "admin" {
-            admins += 1;
-        }
+        ids.push(me(&app, reply).await["id"].clone());
     }
-    assert_eq!(admins, 1);
+    ids.dedup();
+    assert_eq!(ids.len(), 1, "{ids:?}");
 }
 
 #[tokio::test]
 #[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
-async fn admin_group_is_synced_on_every_login_but_keeps_one_admin() {
+async fn admin_group_is_synced_on_every_login_even_for_the_last_admin() {
     let db = isolated_test_pool().await;
     let idp = Idp::start().await;
     let mut config = oidc_config(&idp);
@@ -532,18 +546,20 @@ async fn admin_group_is_synced_on_every_login_but_keeps_one_admin() {
     let (alice, bob, carol) = (sub(), sub(), sub());
 
     let reply = sign_in(&app, &idp, json!({ "sub": alice, "groups": ["/users"] })).await;
-    assert_eq!(me(&app, &reply).await["role"], "admin", "first user");
-    let reply = sign_in(&app, &idp, json!({ "sub": alice, "groups": [] })).await;
     assert_eq!(
         me(&app, &reply).await["role"],
-        "admin",
-        "the last admin is not demoted"
+        "user",
+        "first user, no member"
     );
 
     let reply = sign_in(&app, &idp, json!({ "sub": bob, "groups": ["/admins"] })).await;
     assert_eq!(me(&app, &reply).await["role"], "admin", "group member");
-    let reply = sign_in(&app, &idp, json!({ "sub": alice, "groups": ["/users"] })).await;
-    assert_eq!(me(&app, &reply).await["role"], "user", "demoted");
+    let reply = sign_in(&app, &idp, json!({ "sub": bob, "groups": [] })).await;
+    assert_eq!(
+        me(&app, &reply).await["role"],
+        "user",
+        "the last admin is demoted"
+    );
 
     idp.state
         .lock()
@@ -556,8 +572,21 @@ async fn admin_group_is_synced_on_every_login_but_keeps_one_admin() {
         "admin",
         "groups from userinfo"
     );
-    let reply = sign_in(&app, &idp, json!({ "sub": bob, "groups": "/users" })).await;
-    assert_eq!(me(&app, &reply).await["role"], "user");
+
+    let id = me(&app, &reply).await["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let users = PgUserRepository::new(db.pool.clone());
+    assert!(matches!(
+        users.admin_set_role(id, Role::User).await.unwrap(),
+        AdminUpdate::LastAdmin
+    ));
+    let reply = sign_in(&app, &idp, json!({ "sub": alice, "groups": "/admins" })).await;
+    assert_eq!(me(&app, &reply).await["role"], "admin", "promoted");
+    let reply = sign_in(&app, &idp, json!({ "sub": alice, "groups": ["/users"] })).await;
+    assert_eq!(me(&app, &reply).await["role"], "user", "demoted");
 }
 
 #[tokio::test]
