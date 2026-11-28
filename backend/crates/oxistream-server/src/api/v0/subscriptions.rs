@@ -413,6 +413,8 @@ struct FeedParams {
     hide_watched: bool,
     /// Only videos of this subscribed channel (`UC…`).
     channel: Option<String>,
+    /// Only videos of channels in this subscription group.
+    group: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
@@ -447,6 +449,7 @@ impl From<FeedKind> for DbFeedKind {
         (status = OK, body = FeedPage),
         (status = BAD_REQUEST, description = "Invalid continuation, limit, kind or channel", body = ErrorBody),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
+        (status = NOT_FOUND, description = "No such group of the user", body = ErrorBody),
     )
 )]
 async fn feed(
@@ -464,10 +467,26 @@ async fn feed(
     if let Some(id) = &channel_id {
         check_channel_id(id)?;
     }
+    let group_id = match params.group.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(id) => {
+            let id = super::groups::parse_group_id(id)?;
+            // Foreign groups must not reveal which channels they hold.
+            if state.groups.get(user.id, id).await?.is_none() {
+                return Err(ApiError::new(
+                    StatusCode::NOT_FOUND,
+                    ErrorCode::NotFound,
+                    "group not found",
+                ));
+            }
+            Some(id)
+        }
+    };
     let filter = FeedFilter {
         kind: params.kind.unwrap_or_default().into(),
         hide_watched: params.hide_watched,
         channel_id,
+        group_id,
     };
     let limit = params.limit.unwrap_or(FEED_DEFAULT_LIMIT);
     if !(1..=FEED_MAX_LIMIT).contains(&limit) {

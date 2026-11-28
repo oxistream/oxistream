@@ -14,6 +14,7 @@ mod blocks;
 mod cursor;
 pub(crate) mod feed_token;
 mod follows;
+mod groups;
 pub(crate) mod hidden;
 mod history;
 mod likes;
@@ -38,6 +39,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(manifest::router())
         .merge(storyboard::router())
         .merge(subscriptions::router())
+        .merge(groups::router())
         .merge(history::router())
         .merge(playlists::router())
         .merge(follows::router())
