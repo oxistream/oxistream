@@ -14,8 +14,8 @@ use oxistream_db::{
     PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
     PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
     PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PoolOptions,
+    PgSubscriptionGroupRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PoolOptions,
 };
 use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, SponsorBlockConfig, YouTubeConfig};
@@ -118,6 +118,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         ),
         videos: Arc::new(PgVideoRepository::new(db.clone())),
         subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
+        groups: Arc::new(PgSubscriptionGroupRepository::new(db.clone())),
         history: Arc::new(PgHistoryRepository::new(db.clone())),
         history_max_retention: Retention::Forever,
         settings: Arc::new(PgUserSettingsRepository::new(db.clone())),

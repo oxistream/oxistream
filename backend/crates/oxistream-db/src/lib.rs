@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 
 mod blocks;
 mod follows;
+mod groups;
 mod hidden;
 mod history;
 mod likes;
@@ -27,6 +28,10 @@ pub use follows::{
     FollowedPlaylist, PgPlaylistFollowRepository, PgYouTubePlaylistRepository,
     PlaylistFollowRepository, YouTubePlaylist, YouTubePlaylistItem, YouTubePlaylistItemUpsert,
     YouTubePlaylistRepository, YouTubePlaylistUpdate,
+};
+pub use groups::{
+    GroupChannelOutcome, NewSubscriptionGroup, PgSubscriptionGroupRepository, SubscriptionGroup,
+    SubscriptionGroupRepository, SubscriptionGroupUpdate,
 };
 pub use hidden::{HiddenVideoRepository, PgHiddenVideoRepository};
 pub use history::{
@@ -74,6 +79,8 @@ pub enum Error {
     Sqlx(#[from] sqlx::Error),
     #[error("username is already taken")]
     UsernameTaken,
+    #[error("name is already taken")]
+    NameTaken,
     #[error("limit reached")]
     LimitReached,
     #[error("migration failed")]

@@ -148,6 +148,8 @@ pub struct FeedFilter {
     pub hide_watched: bool,
     /// Only videos of this channel.
     pub channel_id: Option<String>,
+    /// Only videos of channels in this group of the user.
+    pub group_id: Option<Uuid>,
 }
 
 impl From<FeedKind> for FeedFilter {
@@ -363,6 +365,8 @@ impl SubscriptionRepository for PgSubscriptionRepository {
              WHERE ($2::timestamptz IS NULL OR (v.sort_at, v.video_id) < ($2, $3)) \
                 AND ($5::boolean IS NULL OR v.is_short = $5) \
                 AND ($6::text IS NULL OR v.channel_id = $6) \
+                AND ($8::uuid IS NULL OR EXISTS (SELECT 1 FROM subscription_group_channels m \
+                    WHERE m.group_id = $8 AND m.user_id = $1 AND m.channel_id = v.channel_id)) \
                 AND NOT ($7 AND EXISTS (SELECT 1 FROM watch_progress p \
                     WHERE p.user_id = $1 AND p.video_id = v.video_id AND p.finished)) \
                 AND NOT EXISTS (SELECT 1 FROM hidden_videos h \
@@ -377,6 +381,7 @@ impl SubscriptionRepository for PgSubscriptionRepository {
         .bind(filter.kind.is_short())
         .bind(filter.channel_id.as_deref())
         .bind(filter.hide_watched)
+        .bind(filter.group_id)
         .fetch_all(&self.pool)
         .await?)
     }

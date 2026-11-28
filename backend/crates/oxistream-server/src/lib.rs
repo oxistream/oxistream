@@ -10,10 +10,10 @@ use oxistream_db::{
     PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
     PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
     PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
-    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
-    PgYouTubePlaylistRepository, PlaylistFollowRepository, PlaylistRepository, QueueRepository,
-    SponsorBlockSettingsRepository, SubscriptionRepository, UserSettingsRepository,
-    VideoRepository,
+    PgSubscriptionGroupRepository, PgSubscriptionRepository, PgUserRepository,
+    PgUserSettingsRepository, PgVideoRepository, PgYouTubePlaylistRepository,
+    PlaylistFollowRepository, PlaylistRepository, QueueRepository, SponsorBlockSettingsRepository,
+    SubscriptionGroupRepository, SubscriptionRepository, UserSettingsRepository, VideoRepository,
 };
 use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
@@ -46,6 +46,7 @@ pub struct AppState {
     pub youtube: youtube::YouTube,
     pub videos: Arc<dyn VideoRepository>,
     pub subscriptions: Arc<dyn SubscriptionRepository>,
+    pub groups: Arc<dyn SubscriptionGroupRepository>,
     pub history: Arc<dyn HistoryRepository>,
     /// Longest retention users may pick; `history` must cap at the same value.
     pub history_max_retention: retention::Retention,
@@ -190,6 +191,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         app(AppState {
             videos: Arc::new(PgVideoRepository::new(db.clone())),
             subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),
+            groups: Arc::new(PgSubscriptionGroupRepository::new(db.clone())),
             history,
             history_max_retention: config.history_max_retention,
             settings: Arc::new(PgUserSettingsRepository::new(db.clone())),
