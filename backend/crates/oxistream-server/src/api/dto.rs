@@ -56,7 +56,16 @@ pub struct VideoDetails {
     pub audio_tracks: Vec<AudioTrack>,
     /// YouTube's "How this was made" labels, e.g. altered or synthetic content.
     pub content_disclosures: Vec<ContentDisclosure>,
+    /// Sorted by start; empty when the video has none.
+    pub chapters: Vec<Chapter>,
     pub related: Vec<VideoSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Chapter {
+    pub title: String,
+    pub start_seconds: u32,
+    pub thumbnails: Vec<Thumbnail>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -456,6 +465,7 @@ impl VideoDetails {
             storyboard_url: None,
             audio_tracks: player.map(AudioTrack::from_player).unwrap_or_default(),
             content_disclosures: ContentDisclosure::from_rp(details.content_disclosures),
+            chapters: chapters(details.chapters, img),
             related: details
                 .recommended
                 .items
@@ -466,6 +476,20 @@ impl VideoDetails {
             title: details.name,
         }
     }
+}
+
+fn chapters(src: Vec<rp::Chapter>, img: &impl Fn(&str) -> String) -> Vec<Chapter> {
+    let mut chapters: Vec<Chapter> = src
+        .into_iter()
+        .map(|c| Chapter {
+            thumbnails: thumbnails(&c.thumbnail, img),
+            title: c.name,
+            start_seconds: c.position,
+        })
+        .collect();
+    chapters.sort_by_key(|c| c.start_seconds);
+    chapters.dedup_by_key(|c| c.start_seconds);
+    chapters
 }
 
 impl Subtitle {
@@ -696,7 +720,11 @@ mod tests {
             "publish_date_txt": "Oct 25, 2009",
             "is_live": false,
             "is_ccommons": false,
-            "chapters": [],
+            "chapters": [
+                { "name": "Chorus", "position": 43,
+                  "thumbnail": [thumb("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_43.jpg")] },
+                { "name": "Intro", "position": 0, "thumbnail": [] },
+            ],
             "content_disclosures": [{
                 "kind": "altered_or_synthetic",
                 "title": "Made with AI",
@@ -853,6 +881,13 @@ mod tests {
                     url: "proxy:subtitle/de.2".into(),
                 },
             ]
+        );
+        assert_eq!(
+            dto.chapters
+                .iter()
+                .map(|c| (c.title.as_str(), c.start_seconds, c.thumbnails.len()))
+                .collect::<Vec<_>>(),
+            [("Intro", 0, 0), ("Chorus", 43, 1)]
         );
         assert_images_mapped(&dto);
     }

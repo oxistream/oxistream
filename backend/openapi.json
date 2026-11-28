@@ -7303,6 +7303,30 @@
           }
         }
       },
+      "Chapter": {
+        "type": "object",
+        "required": [
+          "title",
+          "start_seconds",
+          "thumbnails"
+        ],
+        "properties": {
+          "start_seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Thumbnail"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "ContentDisclosure": {
         "type": "object",
         "required": [
@@ -10320,6 +10344,7 @@
           "subtitles",
           "audio_tracks",
           "content_disclosures",
+          "chapters",
           "related"
         ],
         "properties": {
@@ -10332,6 +10357,13 @@
           },
           "channel": {
             "$ref": "#/components/schemas/ChannelRef"
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Chapter"
+            },
+            "description": "Sorted by start; empty when the video has none."
           },
           "content_disclosures": {
             "type": "array",
