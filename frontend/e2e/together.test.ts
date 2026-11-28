@@ -1063,8 +1063,14 @@ test('the now playing card shows progress, and autoplay continues with a related
 	await expect(hostPanel.getByTestId('party-queue')).toHaveCount(0);
 	await expect(guestPanel.getByTestId('party-up-next')).toContainText(title(SECOND));
 
-	// While playing, the time runs for those who only watch the panel, too.
-	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	// While playing, the time runs for those who only watch the panel, too. The autoplay
+	// state can still pause a play() that started right after the toggle, so retry it.
+	await expect
+		.poll(async () => {
+			await media(host).evaluate((el: HTMLMediaElement) => el.play().catch(() => {}));
+			return room.playing;
+		})
+		.toBe(true);
 	await expect(guestPanel.getByTestId('party-time')).toHaveText(/^0:0[1-6] \/ 0:06$/);
 
 	// When the last entry ends, the preview plays and the next one is picked.
