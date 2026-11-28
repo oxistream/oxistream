@@ -698,7 +698,7 @@
           "auth"
         ],
         "summary": "Handle OIDC callback",
-        "description": "Where the provider sends the browser back after sign-in.\n\nOn success, starts a session and redirects to the target given to `/auth/oidc/login`.\nUnknown identities get a new account; the first account of an instance becomes an admin.\nFailures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,\n`oidc_disabled` or `account_disabled`.",
+        "description": "Where the provider sends the browser back after sign-in.\n\nOn success, starts a session and redirects to the target given to `/auth/oidc/login`.\nUnknown identities get a new account, an admin only if in the configured admin group.\nFailures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,\n`oidc_disabled` or `account_disabled`.",
         "operationId": "oidc_callback",
         "parameters": [
           {

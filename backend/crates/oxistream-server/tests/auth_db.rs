@@ -8,8 +8,8 @@ use axum::http::{Method, Request, StatusCode, header};
 use common::{isolated_test_pool, state_with_auth, test_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    NewSession, NewUser, PgPool, PgSessionRepository, PgUserRepository, SessionRepository,
-    UserRepository,
+    Identity, NewSession, NewUser, PgPool, PgSessionRepository, PgUserRepository, Role,
+    SessionRepository, UserRepository,
 };
 use oxistream_server::auth::cookie;
 use oxistream_server::config::AuthConfig;
@@ -225,6 +225,43 @@ async fn first_user_becomes_admin_exactly_once() {
     let app = app(&db.pool, AuthConfig::default());
     let later = register(&app, &username()).await;
     assert_eq!(later.json["role"], "user");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn provisioning_uses_the_given_role_and_sync_demotes_the_last_admin() {
+    let db = isolated_test_pool().await;
+    let repo = PgUserRepository::new(db.pool.clone());
+    let identity = |subject: &str| Identity {
+        issuer: "https://idp.test".into(),
+        subject: subject.into(),
+    };
+    let first = repo
+        .provision(&identity("first"), &|i| format!("first{i}"), Role::User)
+        .await
+        .unwrap();
+    assert_eq!(first.role, Role::User, "no first-user rule for OIDC");
+    let admin = repo
+        .provision(&identity("admin"), &|i| format!("admin{i}"), Role::Admin)
+        .await
+        .unwrap();
+    assert_eq!(admin.role, Role::Admin);
+    let again = repo
+        .provision(&identity("admin"), &|i| format!("other{i}"), Role::User)
+        .await
+        .unwrap();
+    assert_eq!(again, admin, "already provisioned");
+
+    let demoted = repo.sync_role(admin.id, Role::User).await.unwrap().unwrap();
+    assert_eq!(demoted.role, Role::User, "the last admin is demoted");
+    let unchanged = repo.sync_role(admin.id, Role::User).await.unwrap().unwrap();
+    assert_eq!(unchanged.updated_at, demoted.updated_at);
+    assert_eq!(
+        repo.sync_role(oxistream_db::Uuid::nil(), Role::Admin)
+            .await
+            .unwrap(),
+        None
+    );
 }
 
 #[tokio::test]

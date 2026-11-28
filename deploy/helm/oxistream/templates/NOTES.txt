@@ -8,4 +8,5 @@ Access Oxistream with:
 Over plain HTTP, sign-in needs config.OXISTREAM_COOKIE_SECURE=false.
 {{- end }}
 
-The first account to register becomes admin.
+The first local account to register becomes admin. SSO users become admins
+through OXISTREAM_OIDC_ADMIN_GROUP, which is required without local accounts.

@@ -54,6 +54,11 @@ pub enum ConfigError {
         var: &'static str,
         because: &'static str,
     },
+    #[error("{var} is required when {condition}")]
+    MissingWhen {
+        var: &'static str,
+        condition: &'static str,
+    },
     #[error("{var} has invalid value {value:?}: {reason}")]
     Invalid {
         var: &'static str,
@@ -462,8 +467,17 @@ fn auth_config(
         SESSION_TTL_DAYS,
         NonZeroU32::new(30).unwrap(),
     )?;
+    let local_enabled = parse_or(get(AUTH_LOCAL_ENABLED), AUTH_LOCAL_ENABLED, Toggle(true))?.0;
+    let oidc = oidc_config(get, public_origin.as_deref(), state_secret)?;
+    // OIDC users only become admins through the admin group.
+    if !local_enabled && oidc.as_ref().is_some_and(|oidc| oidc.admin_group.is_none()) {
+        return Err(ConfigError::MissingWhen {
+            var: OIDC_ADMIN_GROUP,
+            condition: "OIDC is enabled and OXISTREAM_AUTH_LOCAL_ENABLED is false",
+        });
+    }
     Ok(AuthConfig {
-        local_enabled: parse_or(get(AUTH_LOCAL_ENABLED), AUTH_LOCAL_ENABLED, Toggle(true))?.0,
+        local_enabled,
         registration_enabled: parse_or(
             get(REGISTRATION_ENABLED),
             REGISTRATION_ENABLED,
@@ -478,7 +492,7 @@ fn auth_config(
         .0,
         session_ttl: Duration::from_hours(u64::from(ttl_days.get()) * 24),
         cookie_secure: parse_or(get(COOKIE_SECURE), COOKIE_SECURE, Toggle(true))?.0,
-        oidc: oidc_config(get, public_origin.as_deref(), state_secret)?,
+        oidc,
         public_origin,
     })
 }
@@ -938,6 +952,36 @@ mod tests {
         assert_eq!(oidc.name, "Authentik");
         assert_eq!(oidc.admin_group.as_deref(), Some("/admins"));
         assert_eq!(oidc.groups_claim, "roles");
+    }
+
+    #[test]
+    fn oidc_without_local_accounts_needs_an_admin_group() {
+        let oidc = [
+            (OIDC_ISSUER, "https://id.example.com"),
+            (OIDC_CLIENT_ID, "oxistream"),
+            (PUBLIC_URL, "https://tube.example.com"),
+        ];
+        let err = with(&[&oidc[..], &[(AUTH_LOCAL_ENABLED, "false")]].concat()).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "OXISTREAM_OIDC_ADMIN_GROUP is required when OIDC is enabled and \
+             OXISTREAM_AUTH_LOCAL_ENABLED is false"
+        );
+        let config = with(
+            &[
+                &oidc[..],
+                &[(AUTH_LOCAL_ENABLED, "false"), (OIDC_ADMIN_GROUP, "/admins")],
+            ]
+            .concat(),
+        )
+        .unwrap();
+        assert!(!config.auth.local_enabled);
+        assert_eq!(
+            config.auth.oidc.unwrap().admin_group.as_deref(),
+            Some("/admins")
+        );
+        assert_eq!(with(&oidc).unwrap().auth.oidc.unwrap().admin_group, None);
+        assert!(with(&[(AUTH_LOCAL_ENABLED, "false")]).is_ok());
     }
 
     #[test]

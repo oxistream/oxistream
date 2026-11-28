@@ -73,13 +73,13 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 ### Auth
 
-- Local accounts (argon2id) and OIDC, each toggleable via ENV. Registration toggleable. First user becomes admin.
+- Local accounts (argon2id) and OIDC, each toggleable via ENV. Registration toggleable. The first local user becomes admin; OIDC users only via the admin group.
 - Exactly one OIDC provider, by design. Authorization code flow with PKCE (`openidconnect`), auto-provisioning, identity is `(issuer, sub)`, never email. Admin role via configurable groups claim.
   - Enabled iff issuer and client ID are set; then `OXISTREAM_PUBLIC_URL` is required (redirect URI `{PUBLIC_URL}/api/v0/auth/oidc/callback`, post-logout redirect `{PUBLIC_URL}/`). Discovery runs in the background with backoff; `/readyz` fails until it succeeds.
   - ENV: `OXISTREAM_OIDC_ISSUER`, `OXISTREAM_OIDC_CLIENT_ID`, `OXISTREAM_OIDC_CLIENT_SECRET` (omit for public clients), `OXISTREAM_OIDC_SCOPES` (default `openid profile email`), `OXISTREAM_OIDC_NAME` (button label, default `SSO`), `OXISTREAM_OIDC_ADMIN_GROUP`, `OXISTREAM_OIDC_GROUPS_CLAIM` (default `groups`, dotted paths like `realm_access.roles` work).
   - `user_identities (issuer, subject) → user_id` links accounts; never linked to existing local accounts. OIDC users have no password. Username from `preferred_username`, else `name`, email local part, `sub`; sanitized, suffixed `-2`, `-3`… when taken.
   - Pending login (state, nonce, PKCE verifier, redirect) is an HMAC-signed `oxistream_oidc` cookie keyed with `OXISTREAM_PROXY_SECRET`, so any replica can finish it.
-  - First user becomes admin for OIDC too (same table lock as local registration); the registration toggle does not block provisioning. With an admin group set, the role is synced from the groups claim (ID token, else userinfo) on every login, but the last admin is never demoted. Disabled users cannot sign in.
+  - OIDC provisioning never applies the first-user rule; the registration toggle does not block it. With an admin group set, new users get their role from the groups claim (ID token, else userinfo) and it is synced on every login, also demoting the last admin (the IdP decides). Without one, OIDC users are provisioned as `user` and never synced, so promotions in the admin area stick. OIDC enabled with `OXISTREAM_AUTH_LOCAL_ENABLED=false` requires `OXISTREAM_OIDC_ADMIN_GROUP` (startup fails otherwise). Disabled users cannot sign in.
   - `OXISTREAM_OIDC_ADMIN_GROUP` must match a claim value exactly (Keycloak full-path groups: `/admins`).
   - Sessions store the `sid` claim and the ID token; `POST /auth/logout` returns `end_session_url` (with `id_token_hint`) when the provider has an end-session endpoint.
 - Back-channel logout: validate the logout token manually against JWKS. Check `iss`, `aud`, `iat`, the `events` claim, presence of `sid` or `sub`, and absence of `nonce`; store `jti` to reject replays. Then end matching sessions.
@@ -96,7 +96,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 ### Admin
 
 - `/api/v0/admin/*` via the `AdminUser` extractor: 401 anonymous, 403 (`forbidden`) for non-admins. Frontend `/admin` (users) and `/admin/status`; the sidebar entry shows for admins only.
-- Users: paginated list (`q`, `limit`, `offset`; newest first) with auth method, last seen (latest session), subscription count. `PATCH /admin/users/{id}` sets `role` / `disabled`, `DELETE` reuses the account deletion. Admins cannot change their own account there (409 `own_account`); the last active admin is never demoted or disabled (409 `last_admin`, under the users table lock). Disabling ends all sessions. OIDC group sync may change the role again on next sign-in.
+- Users: paginated list (`q`, `limit`, `offset`; newest first) with auth method, last seen (latest session), subscription count. `PATCH /admin/users/{id}` sets `role` / `disabled`, `DELETE` reuses the account deletion. Admins cannot change their own account there (409 `own_account`); the last active admin is never demoted or disabled (409 `last_admin`, under the users table lock). Disabling ends all sessions. OIDC group sync may change the role again on next sign-in, even of the last admin.
 - Status: version (+ `OXISTREAM_GIT_SHA` at build time), uptime, DB reachability and version, counts, feed worker (lock held anywhere = running; due/pending/failing; last run of this replica's worker), player cache entries, botguard, auth/OIDC discovery, SponsorBlock, trending region, rate limiting.
 
 ### Watch history

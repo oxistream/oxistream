@@ -29,6 +29,7 @@ config:
   # OXISTREAM_TRENDING_REGION: US
   # OXISTREAM_OIDC_ISSUER: https://id.example.com/realms/main
   # OXISTREAM_OIDC_CLIENT_ID: oxistream
+  # Members become admins on every sign-in; required when OXISTREAM_AUTH_LOCAL_ENABLED is false.
   # OXISTREAM_OIDC_ADMIN_GROUP: /admins
 
 database:
