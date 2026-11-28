@@ -13,7 +13,9 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use tokio::time::Instant;
 
-use super::protocol::{RoomClientMessage, RoomErrorCode, RoomServerMessage, room_state, unix_ms};
+use super::protocol::{
+    RoomClientMessage, RoomErrorCode, RoomServerMessage, history, room_state, unix_ms,
+};
 use super::{check_room_id, ensure_cached};
 use crate::AppState;
 use crate::api::error::ApiError;
@@ -58,6 +60,7 @@ pub async fn connect(
                 lang,
                 socket,
                 limits: Limits::new(),
+                history_sent: None,
             };
             conn.run().await;
         })
@@ -183,6 +186,8 @@ struct Connection {
     lang: Language,
     socket: WebSocket,
     limits: Limits,
+    /// The newest played entry of the history last sent (0 for none), once one was.
+    history_sent: Option<i64>,
 }
 
 /// How the connection ends.
@@ -349,6 +354,15 @@ impl Connection {
     }
 
     async fn send_state(&mut self, snapshot: &Arc<RoomSnapshot>) -> bool {
+        // The history only changes when an entry is played, which then comes first.
+        let newest = snapshot.history.first().and_then(|e| e.played).unwrap_or(0);
+        if self.history_sent != Some(newest) {
+            let entries = history(snapshot, &|url| self.state.image_url(url));
+            if !self.send(&RoomServerMessage::History { entries }).await {
+                return false;
+            }
+            self.history_sent = Some(newest);
+        }
         let room = room_state(snapshot, &|url| self.state.image_url(url));
         self.send(&RoomServerMessage::State {
             room: Box::new(room),

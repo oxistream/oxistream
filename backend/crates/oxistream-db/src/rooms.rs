@@ -9,6 +9,8 @@ use crate::{Error, Video, VideoUpsert};
 
 /// Notifications carry the ID of a room that changed or was deleted.
 pub const ROOM_CHANNEL: &str = "watch_rooms";
+/// Played entries a room keeps as its history.
+pub const MAX_HISTORY: i64 = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Room {
@@ -40,6 +42,8 @@ pub struct RoomEntry {
     pub added_at: OffsetDateTime,
     /// Appended by autoplay rather than by a participant.
     pub autoplay: bool,
+    /// Grows with every entry that finished; `None` until then.
+    pub played: Option<i64>,
     #[sqlx(flatten)]
     pub video: Video,
 }
@@ -62,12 +66,14 @@ pub struct NewParticipant {
     pub display_name: String,
 }
 
-/// A room with its queue (current entry first, then the others in order) and
-/// participants (by join time).
+/// A room with its queue (current entry first, then the others in order), history (newest
+/// first) and participants (by join time).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoomSnapshot {
     pub room: Room,
     pub queue: Vec<RoomEntry>,
+    /// Played entries, at most [`MAX_HISTORY`], one per video.
+    pub history: Vec<RoomEntry>,
     pub participants: Vec<Participant>,
     /// What autoplay appends once the current entry, the last one, is over.
     pub up_next: Option<Video>,
@@ -122,7 +128,7 @@ pub enum RoomOp {
     Advance {
         from: i64,
     },
-    /// Plays a queued entry now; the current one is dropped.
+    /// Plays an upcoming entry now; the current one goes to the history.
     Select {
         entry: i64,
     },
@@ -244,6 +250,11 @@ const ROOM_SELECT: &str = "SELECT r.id, r.owner_id, u.username AS owner, r.curre
         r.autoplay, r.autoplay_source, r.autoplay_video_id \
     FROM watch_rooms r JOIN users u ON u.id = r.owner_id WHERE r.id = $1";
 
+const ENTRY_SELECT: &str = "SELECT q.id AS entry_id, q.added_by, q.added_at, q.autoplay, \
+        q.played, v.id, v.title, v.channel_id, v.channel_name, v.duration_seconds, \
+        v.published_at, v.thumbnail_url, v.updated_at \
+    FROM watch_room_queue q JOIN videos v ON v.id = q.video_id";
+
 #[derive(sqlx::FromRow)]
 struct Locked {
     #[sqlx(rename = "current_entry_id")]
@@ -301,7 +312,31 @@ async fn set_current(
     Ok(())
 }
 
-/// Drops `from` and plays the first remaining entry, else what autoplay picked, if anything.
+/// Moves an entry to the history, replacing an older entry of the same video and dropping
+/// the oldest beyond [`MAX_HISTORY`].
+async fn retire(tx: &mut sqlx::PgConnection, id: &str, entry: i64) -> Result<(), Error> {
+    sqlx::query(
+        "WITH e AS (UPDATE watch_room_queue SET played = nextval('watch_room_played_seq') \
+            WHERE id = $2 RETURNING id, video_id) \
+         DELETE FROM watch_room_queue q USING e \
+         WHERE q.room_id = $1 AND q.played IS NOT NULL AND q.video_id = e.video_id",
+    )
+    .bind(id)
+    .bind(entry)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "DELETE FROM watch_room_queue WHERE id IN (SELECT id FROM watch_room_queue \
+            WHERE room_id = $1 AND played IS NOT NULL ORDER BY played DESC OFFSET $2)",
+    )
+    .bind(id)
+    .bind(MAX_HISTORY)
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+/// Retires `from` and plays the first upcoming entry, else what autoplay picked, if anything.
 async fn advance(
     tx: &mut sqlx::PgConnection,
     id: &str,
@@ -309,12 +344,10 @@ async fn advance(
     from: i64,
     now: OffsetDateTime,
 ) -> Result<(), Error> {
-    sqlx::query("DELETE FROM watch_room_queue WHERE id = $1")
-        .bind(from)
-        .execute(&mut *tx)
-        .await?;
+    retire(tx, id, from).await?;
     let mut next: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM watch_room_queue WHERE room_id = $1 ORDER BY position, id LIMIT 1",
+        "SELECT id FROM watch_room_queue WHERE room_id = $1 AND played IS NULL \
+         ORDER BY position, id LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
@@ -364,7 +397,8 @@ async fn select(
     now: OffsetDateTime,
 ) -> Result<bool, Error> {
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM watch_room_queue WHERE id = $1 AND room_id = $2)",
+        "SELECT EXISTS (SELECT 1 FROM watch_room_queue \
+            WHERE id = $1 AND room_id = $2 AND played IS NULL)",
     )
     .bind(entry)
     .bind(id)
@@ -374,10 +408,7 @@ async fn select(
         return Ok(false);
     }
     if let Some(current) = current {
-        sqlx::query("DELETE FROM watch_room_queue WHERE id = $1")
-            .bind(current)
-            .execute(&mut *tx)
-            .await?;
+        retire(tx, id, current).await?;
     }
     set_current(tx, id, Some(entry), true, now).await?;
     Ok(true)
@@ -407,10 +438,7 @@ async fn add(
     .await?;
     if play {
         if let Some(current) = current {
-            sqlx::query("DELETE FROM watch_room_queue WHERE id = $1")
-                .bind(current)
-                .execute(&mut *tx)
-                .await?;
+            retire(tx, id, current).await?;
         }
         set_current(tx, id, Some(entry), true, now).await?;
     } else if current.is_none() {
@@ -419,13 +447,14 @@ async fn add(
     Ok(())
 }
 
+/// The current and upcoming entries; the history does not count.
 async fn queue_len(tx: &mut sqlx::PgConnection, id: &str) -> Result<i64, Error> {
-    Ok(
-        sqlx::query_scalar("SELECT count(*) FROM watch_room_queue WHERE room_id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?,
+    Ok(sqlx::query_scalar(
+        "SELECT count(*) FROM watch_room_queue WHERE room_id = $1 AND played IS NULL",
     )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?)
 }
 
 async fn add_many(
@@ -470,7 +499,8 @@ async fn upcoming(
 ) -> Result<Vec<(i64, i64)>, Error> {
     Ok(sqlx::query_as(
         "SELECT id, position FROM watch_room_queue \
-         WHERE room_id = $1 AND id IS DISTINCT FROM $2 ORDER BY position, id",
+         WHERE room_id = $1 AND played IS NULL AND id IS DISTINCT FROM $2 \
+         ORDER BY position, id",
     )
     .bind(id)
     .bind(current)
@@ -688,12 +718,14 @@ async fn apply_op(
                 advance(tx, id, locked, *entry, now).await?;
                 return Ok(OpOutcome::Applied);
             }
-            let deleted =
-                sqlx::query("DELETE FROM watch_room_queue WHERE id = $1 AND room_id = $2")
-                    .bind(entry)
-                    .bind(id)
-                    .execute(&mut *tx)
-                    .await?;
+            let deleted = sqlx::query(
+                "DELETE FROM watch_room_queue WHERE id = $1 AND room_id = $2 \
+                     AND played IS NULL",
+            )
+            .bind(entry)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
             changed(deleted.rows_affected() > 0)
         }
         RoomOp::Move {
@@ -781,14 +813,20 @@ impl RoomRepository for PgRoomRepository {
         else {
             return Ok(None);
         };
-        let queue = sqlx::query_as::<_, RoomEntry>(
-            "SELECT q.id AS entry_id, q.added_by, q.added_at, q.autoplay, v.id, v.title, v.channel_id, \
-                v.channel_name, v.duration_seconds, v.published_at, v.thumbnail_url, v.updated_at \
-             FROM watch_room_queue q JOIN videos v ON v.id = q.video_id \
-             WHERE q.room_id = $1 ORDER BY (q.id = $2) IS TRUE DESC, q.position, q.id",
-        )
+        let queue = sqlx::query_as::<_, RoomEntry>(sqlx::AssertSqlSafe(format!(
+            "{ENTRY_SELECT} WHERE q.room_id = $1 AND q.played IS NULL \
+             ORDER BY (q.id = $2) IS TRUE DESC, q.position, q.id"
+        )))
         .bind(id)
         .bind(room.current_entry_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let history = sqlx::query_as::<_, RoomEntry>(sqlx::AssertSqlSafe(format!(
+            "{ENTRY_SELECT} WHERE q.room_id = $1 AND q.played IS NOT NULL \
+             ORDER BY q.played DESC LIMIT $2"
+        )))
+        .bind(id)
+        .bind(MAX_HISTORY)
         .fetch_all(&mut *tx)
         .await?;
         let participants = sqlx::query_as::<_, Participant>(
@@ -817,6 +855,7 @@ impl RoomRepository for PgRoomRepository {
         Ok(Some(RoomSnapshot {
             room,
             queue,
+            history,
             participants,
             up_next,
         }))
@@ -827,7 +866,8 @@ impl RoomRepository for PgRoomRepository {
             "SELECT r.id, r.created_at, r.active_at, \
                 (SELECT count(*) FROM watch_room_participants p WHERE p.room_id = r.id) \
                     AS participant_count, \
-                (SELECT count(*) FROM watch_room_queue q WHERE q.room_id = r.id) AS queue_count, \
+                (SELECT count(*) FROM watch_room_queue q \
+                    WHERE q.room_id = r.id AND q.played IS NULL) AS queue_count, \
                 v.id AS current_video_id, v.title AS current_title \
              FROM watch_rooms r \
              LEFT JOIN watch_room_queue q ON q.id = r.current_entry_id \

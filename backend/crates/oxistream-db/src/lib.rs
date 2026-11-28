@@ -39,8 +39,9 @@ pub use playlists::{
 };
 pub use queue::{PgQueueRepository, Queue, QueueEntry, QueueOp, QueuePosition, QueueRepository};
 pub use rooms::{
-    JoinOutcome, NewParticipant, OpOutcome, Participant, PgRoomRepository, ROOM_CHANNEL, Room,
-    RoomEntry, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, RoomSummary,
+    JoinOutcome, MAX_HISTORY, NewParticipant, OpOutcome, Participant, PgRoomRepository,
+    ROOM_CHANNEL, Room, RoomEntry, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot,
+    RoomSummary,
 };
 pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,
