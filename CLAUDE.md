@@ -33,7 +33,7 @@ MVP:
 - Search, watch page (DASH player, description, related), channel pages
 - Subscriptions with feed, import (YouTube Takeout CSV, NewPipe, Invidious, Piped) and export (NewPipe/Invidious JSON)
 - Local playlists, visibility `private` or `unlisted` (share link)
-- Watch history, resume, continue watching; pause and clear history
+- Watch history, resume, continue watching; pause, search and clear history; retention
 - Accounts, account self-deletion, minimal admin (user list with role/disable/delete, status page)
 - Discovery: home page (continue watching, subscriptions; trending for guests), search and channel tabs, shorts player, follow or import YouTube playlists
 - SponsorBlock: segment markers, auto-skip or skip button per category
@@ -88,6 +88,12 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
   - Non-GET requests need `Origin` (or `Referer`) matching the `Host` header or `OXISTREAM_PUBLIC_URL` (optional, for proxies that rewrite `Host`), else 403.
   - ENV: `OXISTREAM_AUTH_LOCAL_ENABLED`, `OXISTREAM_REGISTRATION_ENABLED` (both default `true`), `OXISTREAM_COOKIE_SECURE` (default `true`, `false` only for plain-HTTP dev).
 - `OXISTREAM_REQUIRE_LOGIN` (default `false`): anonymous users may search and watch. Subscriptions, playlists and history need an account; anonymous progress lives in localStorage.
+
+### Watch history
+
+- `GET /api/v0/history?q=` searches title and channel name (case-insensitive substring, `LIKE` wildcards escaped), same pagination; the UI debounces and keeps `?q=` in the URL.
+- Retention `forever|365d|180d|90d|30d|14d|7d|1d` per user (`user_settings.history_retention_days`, NULL = forever) via `/history/settings`. `OXISTREAM_HISTORY_MAX_RETENTION` (same values, default `forever`, invalid fails startup) caps it: effective = min(user, max), higher values are rejected (422), stored ones above it act as the max, the UI offers only values up to it. `GET /api/v0/instance` reports `history_max_retention`; guests' localStorage progress is trimmed to it.
+- Entries older than the effective retention (by `updated_at`) are filtered from all history queries and deleted hourly by any replica (advisory lock, idempotent).
 
 ### YouTube data
 

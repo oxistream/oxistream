@@ -18,6 +18,7 @@ type Calls = {
 	password: unknown[];
 	deletions: unknown[];
 	feedTokens: string[];
+	retentions: string[];
 	signedOut: boolean;
 };
 
@@ -34,6 +35,7 @@ async function mockApi(
 		password: [],
 		deletions: [],
 		feedTokens: [],
+		retentions: [],
 		signedOut: false
 	};
 	let feedCreatedAt: string | null = null;
@@ -45,6 +47,7 @@ async function mockApi(
 		audio_language: null
 	};
 	let paused = false;
+	let retention = 'forever';
 	await page.route('**/api/v0/**', (route) => json(route, { code: 'not_found', message: '' }, 404));
 	await page.route('**/api/v0/instance', (route) =>
 		json(route, {
@@ -57,7 +60,8 @@ async function mockApi(
 				oidc_enabled: false,
 				oidc_name: null
 			},
-			sponsorblock
+			sponsorblock,
+			history_max_retention: '90d'
 		})
 	);
 	await page.route('**/api/v0/auth/me', (route) =>
@@ -79,9 +83,14 @@ async function mockApi(
 	});
 	await page.route('**/api/v0/history/settings', (route) => {
 		if (route.request().method() === 'PUT') {
-			paused = (route.request().postDataJSON() as { paused: boolean }).paused;
+			const body = route.request().postDataJSON() as { paused?: boolean; retention?: string };
+			if (body.paused !== undefined) paused = body.paused;
+			if (body.retention !== undefined) {
+				retention = body.retention;
+				calls.retentions.push(retention);
+			}
 		}
-		return json(route, { paused });
+		return json(route, { paused, retention });
 	});
 	await page.route('**/api/v0/settings/feed-token', (route) => {
 		const method = route.request().method();
@@ -404,6 +413,24 @@ test('history can be paused from the settings', async ({ page }) => {
 	await expect(toggle).not.toBeChecked();
 	await toggle.click();
 	await expect(toggle).toBeChecked();
+});
+
+test('history retention offers only values up to the instance maximum', async ({ page }) => {
+	const calls = await mockApi(page);
+	await page.goto('/settings/history');
+	const select = page.getByRole('combobox', { name: 'Keep history' });
+	await expect(select).toHaveText('3 months');
+	await select.click();
+	await expect(page.getByRole('option')).toHaveText([
+		'3 months',
+		'1 month',
+		'2 weeks',
+		'1 week',
+		'1 day'
+	]);
+	await page.getByRole('option', { name: '1 week' }).click();
+	await expect(select).toHaveText('1 week');
+	expect(calls.retentions).toEqual(['7d']);
 });
 
 test('the password can be changed', async ({ page }) => {

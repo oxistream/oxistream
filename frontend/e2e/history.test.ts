@@ -59,7 +59,9 @@ async function mockApi(page: Page, { signedIn = true } = {}) {
 			entry(3, new Date(now - 3 * 24 * 3600_000))
 		],
 		paused: false,
-		calls: [] as string[]
+		retention: 'forever',
+		calls: [] as string[],
+		searches: [] as string[]
 	};
 	await page.route('**/proxy/image/**', (route) =>
 		route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL })
@@ -82,9 +84,16 @@ async function mockApi(page: Page, { signedIn = true } = {}) {
 		signedIn ? json(route, account) : json(route, { code: 'unauthorized', message: '' }, 401)
 	);
 	await page.route('**/api/v0/subscriptions', (route) => json(route, []));
-	await page.route('**/api/v0/history?*', (route) =>
-		json(route, { items: state.items, continuation: null })
-	);
+	await page.route('**/api/v0/history?*', (route) => {
+		const q = new URL(route.request().url()).searchParams.get('q') ?? '';
+		state.searches.push(q);
+		const items = state.items.filter(
+			(i) =>
+				i.video.title.toLowerCase().includes(q.toLowerCase()) ||
+				i.video.channel.name.toLowerCase().includes(q.toLowerCase())
+		);
+		return json(route, { items, continuation: null });
+	});
 	await page.route('**/api/v0/history', (route) => {
 		state.calls.push(`${route.request().method()} all`);
 		state.items = [];
@@ -93,10 +102,11 @@ async function mockApi(page: Page, { signedIn = true } = {}) {
 	await page.route('**/api/v0/history/continue?*', (route) => json(route, state.items.slice(0, 2)));
 	await page.route('**/api/v0/history/settings', (route) => {
 		if (route.request().method() === 'PUT') {
-			state.paused = (route.request().postDataJSON() as { paused: boolean }).paused;
+			const body = route.request().postDataJSON() as { paused?: boolean };
+			if (body.paused !== undefined) state.paused = body.paused;
 			state.calls.push(`PUT paused=${state.paused}`);
 		}
-		return json(route, { paused: state.paused });
+		return json(route, { paused: state.paused, retention: state.retention });
 	});
 	await page.route(/\/api\/v0\/history\/hist\w+$/, (route) => {
 		const id = new URL(route.request().url()).pathname.split('/').pop() ?? '';
@@ -238,4 +248,29 @@ test('the watch page resumes from the server unless a start time is given', asyn
 	await page.goto('/watch?v=dQw4w9WgXcQ&t=42');
 	await page.waitForLoadState('networkidle');
 	expect(requests).toEqual(['/api/v0/progress/k3Rv9fTq2Lw']);
+});
+
+test('history search filters on the server and survives a reload', async ({ page }) => {
+	const state = await mockApi(page);
+	state.items[1].video.title = 'Baking bread';
+	await page.goto('/feed/history');
+	await expect(page.getByRole('link', { name: /Watched video 3/ })).toBeVisible();
+
+	await page.getByRole('searchbox', { name: 'Search history' }).fill('bread');
+	await expect(page).toHaveURL(/\/feed\/history\?q=bread$/);
+	await expect(page.getByRole('link', { name: /Baking bread/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Watched video/ })).toHaveCount(0);
+	expect(state.searches.filter((q) => q === 'bread')).toHaveLength(1);
+
+	await page.reload();
+	await expect(page.getByRole('searchbox', { name: 'Search history' })).toHaveValue('bread');
+	await expect(page.getByRole('link', { name: /Baking bread/ })).toBeVisible();
+
+	await page.getByRole('searchbox', { name: 'Search history' }).fill('nothing here');
+	await expect(page.getByRole('heading', { name: 'No results for “nothing here”' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Clear history' })).toBeEnabled();
+
+	await page.getByRole('searchbox', { name: 'Search history' }).fill('');
+	await expect(page).toHaveURL(/\/feed\/history$/);
+	await expect(page.getByRole('link', { name: /Watched video 3/ })).toBeVisible();
 });

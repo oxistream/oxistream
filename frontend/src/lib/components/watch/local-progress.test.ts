@@ -5,7 +5,8 @@ import {
 	recentLocalVideos,
 	removeLocalProgress,
 	resumePosition,
-	saveLocalProgress
+	saveLocalProgress,
+	setLocalProgressMaxAge
 } from './local-progress';
 
 function memoryStorage(): Storage {
@@ -90,6 +91,25 @@ describe('local progress', () => {
 			})
 		);
 		expect(recentLocalVideos(5)).toEqual([]);
+	});
+
+	it('drops entries older than the maximum age', () => {
+		const video = { title: 'First', channel: { id: 'UC1', name: 'One' } };
+		const report = { position: 50, duration: 100, finished: false, reason: 'pause' } as const;
+		saveLocalProgress('old', report, 1_000, video);
+		saveLocalProgress('new', report, 9_000, video);
+		try {
+			setLocalProgressMaxAge(5_000, 10_000);
+			const stored = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}') as object;
+			expect(Object.keys(stored)).toEqual(['new']);
+			expect(readLocalProgress('new', 20_000)).toBeNull();
+			expect(recentLocalVideos(5, 12_000).map((v) => v.id)).toEqual(['new']);
+			saveLocalProgress('later', report, 30_000);
+			expect(readLocalProgress('new', 30_000)).toBeNull();
+			expect(readLocalProgress('later', 30_000)).not.toBeNull();
+		} finally {
+			setLocalProgressMaxAge(null);
+		}
 	});
 
 	it('resumes unfinished videos a little earlier', () => {
