@@ -82,7 +82,7 @@ Oxistream is a single container image for `linux/amd64` and `linux/arm64`, next 
 
 ## First steps
 
-1. Open the instance, e.g. `http://localhost:8080`, and register right away. The first account becomes the admin, see [first admin](../advanced/authentication.md#first-admin).
+1. Open the instance, e.g. `http://localhost:8080`, and register right away. The first local account becomes the admin, see [first admin](../advanced/authentication.md#first-admin). SSO users become admins only through the [admin group](../advanced/authentication.md#admin-role-from-groups).
 2. Put a TLS-terminating [reverse proxy](../advanced/reverse-proxy.md) in front, and set `OXISTREAM_PUBLIC_URL`.
 3. Decide who may use the instance: registration, require-login and SSO are in [Authentication](../advanced/authentication.md).
 4. Look through [Configuration](../configuration.md) for the rest, and check the admin [status page](../administration/index.md#status).

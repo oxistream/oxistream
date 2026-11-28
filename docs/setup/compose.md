@@ -14,7 +14,7 @@ docker compose up -d
 
 If the image does not exist locally, the first `up` builds it from the repository. To use a published image, set `OXISTREAM_IMAGE=ghcr.io/OWNER/oxistream:X.Y.Z` in `.env`.
 
-Open `http://localhost:8080`. The first account to register becomes admin.
+Open `http://localhost:8080`. The first local account to register becomes admin.
 
 ## Settings
 

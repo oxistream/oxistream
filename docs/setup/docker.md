@@ -35,7 +35,7 @@ docker run -d --name oxistream -p 8080:8080 \
 
     If it changes, existing proxy links, pending SSO logins and party guest cookies stop working.
 
-Open `http://localhost:8080`. The first account to register becomes admin.
+Open `http://localhost:8080`. The first local account to register becomes admin.
 
 The two variables above are the only required ones. See [Configuration](../configuration.md) for everything else. Behind a reverse proxy, also read [Reverse proxy](../advanced/reverse-proxy.md).
 

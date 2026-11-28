@@ -1,6 +1,6 @@
 # Administration
 
-The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first account on an instance is an admin, see [Authentication](../advanced/authentication.md#first-admin).
+The "Admin" area has two pages: `/admin` (Users) and `/admin/status` (Status). Only admins can open them. Everyone else gets "Admins only". The first local account on an instance is an admin, see [Authentication](../advanced/authentication.md#first-admin). SSO users become admins through the [admin group](../advanced/authentication.md#admin-role-from-groups).
 
 
 Keeping the instance running is covered in [Upgrades and backups](upgrades.md) and [Monitoring](monitoring.md).
@@ -29,7 +29,7 @@ Actions:
 Guards:
 
 - Admins cannot change or delete their own account here. They use account deletion in their own settings instead.
-- The last active admin cannot be demoted, disabled or deleted.
+- The last active admin cannot be demoted, disabled or deleted here. Sync from the OIDC admin group still demotes them when they are no longer in it.
 - In their own settings, the last admin can delete their account only once no other users remain.
 
 ## Status
