@@ -45,8 +45,8 @@ The replicas have different `OXISTREAM_PROXY_SECRET` values, the secret changed,
 - No SSO button: OIDC needs both `OXISTREAM_OIDC_ISSUER` and `OXISTREAM_OIDC_CLIENT_ID`.
 - The provider rejects the redirect URI: register exactly `{PUBLIC_URL}/api/v0/auth/oidc/callback`, with `OXISTREAM_PUBLIC_URL` as the external origin. See [OIDC setup](advanced/authentication.md#setup).
 - A user is not admin although they are in the admin group: the value must match the groups claim exactly, e.g. `/admins` for Keycloak's full group paths. See [admin role from groups](advanced/authentication.md#admin-role-from-groups).
-- An admin lost the role after signing in: with an admin group, every sign-in syncs the role from the groups claim, even for the last admin. Add them to the group at the provider.
-- No admin although the first user signed in through SSO: SSO accounts become admin only through `OXISTREAM_OIDC_ADMIN_GROUP`. Set it, or register a local account before anyone signs in through SSO. See [first admin](advanced/authentication.md#first-admin).
+- An admin lost the role after signing in: with an admin group, every sign-in syncs the role from the groups claim, even for the last admin. Add them to the group at the provider. Local registrations do not become admin while an admin group is set.
+- No admin although the first user signed in through SSO: SSO accounts become admin only through `OXISTREAM_OIDC_ADMIN_GROUP`. Set it, or, without an admin group, register a local account: while there is no active admin, it becomes one. See [first admin](advanced/authentication.md#first-admin).
 
 ## Reverse proxy
 

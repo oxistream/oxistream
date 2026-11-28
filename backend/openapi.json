@@ -810,7 +810,7 @@
           "auth"
         ],
         "summary": "Register local account",
-        "description": "Creates a local account and signs in. The first account of an instance becomes an admin.",
+        "description": "Creates a local account and signs in. It becomes an admin if the instance has no active admin\nand no OIDC admin group is configured.",
         "operationId": "register",
         "requestBody": {
           "content": {

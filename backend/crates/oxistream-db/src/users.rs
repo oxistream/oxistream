@@ -65,6 +65,8 @@ pub struct UserCredentials {
 pub struct NewUser {
     pub username: String,
     pub password_hash: Option<String>,
+    /// Becomes an admin if no active admin exists.
+    pub admin_if_none: bool,
 }
 
 /// An account at the `OpenID` Connect provider.
@@ -124,7 +126,7 @@ pub type UsernameCandidates<'a> = dyn Fn(u32) -> String + Send + Sync + 'a;
 
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
-    /// Creates a user. The first user of the instance becomes an admin.
+    /// Creates a user. With `admin_if_none`, it becomes an admin if no active admin exists.
     ///
     /// Fails with [`Error::UsernameTaken`] if the username exists, ignoring case.
     async fn create(&self, user: &NewUser) -> Result<User, Error>;
@@ -211,9 +213,9 @@ pub(crate) fn user_from_row(row: &PgRow) -> Result<User, sqlx::Error> {
     })
 }
 
-/// Serializes sign-ups and admin-area role changes so exactly one of several concurrent first
-/// local users becomes admin, an identity is provisioned once and the last admin cannot be
-/// demoted concurrently. Reads are not blocked by this lock mode.
+/// Serializes sign-ups and admin-area role changes so only one of several concurrent local
+/// sign-ups becomes admin while no active admin exists, an identity is provisioned once and
+/// the last admin cannot be demoted concurrently. Reads are not blocked by this lock mode.
 async fn lock_users(tx: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
     sqlx::query("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
         .execute(tx)
@@ -247,12 +249,15 @@ impl UserRepository for PgUserRepository {
         lock_users(&mut tx).await?;
         let row = sqlx::query(concat!(
             "INSERT INTO users (username, password_hash, role) \
-             VALUES ($1, $2, CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'user' ELSE 'admin' END) \
+             VALUES ($1, $2, CASE WHEN $3 AND NOT EXISTS \
+                (SELECT 1 FROM users WHERE role = 'admin' AND NOT disabled) \
+             THEN 'admin' ELSE 'user' END) \
              RETURNING ",
             user_columns!()
         ))
         .bind(&user.username)
         .bind(&user.password_hash)
+        .bind(user.admin_if_none)
         .fetch_one(&mut *tx)
         .await
         .map_err(|err| match &err {

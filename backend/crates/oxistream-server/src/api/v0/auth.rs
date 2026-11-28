@@ -93,7 +93,8 @@ fn signed_in(status: StatusCode, cookie: axum::http::HeaderValue, user: User) ->
 
 /// Register local account
 ///
-/// Creates a local account and signs in. The first account of an instance becomes an admin.
+/// Creates a local account and signs in. It becomes an admin if the instance has no active admin
+/// and no OIDC admin group is configured.
 #[utoipa::path(
     post,
     path = "/auth/register",
@@ -152,6 +153,12 @@ async fn register(
         .create(&NewUser {
             username,
             password_hash: Some(password_hash),
+            // With an OIDC admin group, admins come only from the provider.
+            admin_if_none: auth
+                .config()
+                .oidc
+                .as_ref()
+                .is_none_or(|oidc| oidc.admin_group.is_none()),
         })
         .await
     {

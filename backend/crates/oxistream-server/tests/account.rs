@@ -118,6 +118,7 @@ async fn settings_repository_updates_fields_independently() {
         .create(&NewUser {
             username: username(),
             password_hash: None,
+            admin_if_none: true,
         })
         .await
         .unwrap();
@@ -198,6 +199,7 @@ async fn user_repository_deletes_and_keeps_the_last_admin() {
         .create(&NewUser {
             username: username(),
             password_hash: Some("hash".into()),
+            admin_if_none: true,
         })
         .await
         .unwrap();

@@ -251,7 +251,8 @@ export interface paths {
         put?: never;
         /**
          * Register local account
-         * @description Creates a local account and signs in. The first account of an instance becomes an admin.
+         * @description Creates a local account and signs in. It becomes an admin if the instance has no active admin
+         *     and no OIDC admin group is configured.
          */
         post: operations["register"];
         delete?: never;

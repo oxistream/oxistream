@@ -12,7 +12,7 @@ use oxistream_db::{
     SessionRepository, UserRepository,
 };
 use oxistream_server::auth::cookie;
-use oxistream_server::config::AuthConfig;
+use oxistream_server::config::{AuthConfig, OidcConfig};
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 use tower::ServiceExt;
@@ -210,6 +210,7 @@ async fn first_user_becomes_admin_exactly_once() {
             repo.create(&NewUser {
                 username: format!("racer{i}"),
                 password_hash: None,
+                admin_if_none: true,
             })
             .await
             .unwrap()
@@ -262,6 +263,78 @@ async fn provisioning_uses_the_given_role_and_sync_demotes_the_last_admin() {
             .unwrap(),
         None
     );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn local_registration_becomes_admin_while_no_active_admin_exists() {
+    let db = isolated_test_pool().await;
+    let repo = PgUserRepository::new(db.pool.clone());
+    let identity = |subject: &str| Identity {
+        issuer: "https://idp.test".into(),
+        subject: subject.into(),
+    };
+    repo.provision(&identity("sso"), &|i| format!("sso{i}"), Role::User)
+        .await
+        .unwrap();
+    let server = app(&db.pool, AuthConfig::default());
+    assert_eq!(
+        register(&server, "first").await.json["role"],
+        "admin",
+        "an SSO user signed in first"
+    );
+    assert_eq!(register(&server, "second").await.json["role"], "user");
+
+    let db = isolated_test_pool().await;
+    let repo = PgUserRepository::new(db.pool.clone());
+    let admin = repo
+        .provision(&identity("group"), &|i| format!("group{i}"), Role::Admin)
+        .await
+        .unwrap();
+    let server = app(&db.pool, AuthConfig::default());
+    assert_eq!(
+        register(&server, "local").await.json["role"],
+        "user",
+        "admin from the group"
+    );
+    assert!(repo.set_disabled(admin.id, true).await.unwrap());
+    assert_eq!(
+        register(&server, "after").await.json["role"],
+        "admin",
+        "the only admin is disabled"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn local_registration_never_becomes_admin_with_an_oidc_admin_group() {
+    let db = isolated_test_pool().await;
+    let mut oidc = OidcConfig::new(
+        "https://idp.test",
+        "oxistream",
+        "http://tube.test",
+        "0123456789abcdef0123456789abcdef",
+    );
+    oidc.admin_group = Some("/admins".into());
+    let server = app(
+        &db.pool,
+        AuthConfig {
+            oidc: Some(oidc),
+            ..AuthConfig::default()
+        },
+    );
+    assert_eq!(register(&server, "first").await.json["role"], "user");
+    assert_eq!(register(&server, "second").await.json["role"], "user");
+
+    let user = PgUserRepository::new(db.pool.clone())
+        .create(&NewUser {
+            username: "repo".into(),
+            password_hash: None,
+            admin_if_none: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(user.role, Role::User);
 }
 
 #[tokio::test]
@@ -379,6 +452,7 @@ async fn expired_sessions_are_rejected_and_cleaned_up() {
         .create(&NewUser {
             username: username(),
             password_hash: None,
+            admin_if_none: true,
         })
         .await
         .unwrap();

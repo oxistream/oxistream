@@ -194,6 +194,7 @@ impl Api {
             .create(&NewUser {
                 username: format!("u_{}", unique_suffix()),
                 password_hash: None,
+                admin_if_none: true,
             })
             .await
             .unwrap();
