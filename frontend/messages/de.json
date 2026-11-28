@@ -771,5 +771,19 @@
 	"queue_item_actions": "Aktionen für {title}",
 	"queue_next": "Nächstes Video",
 	"queue_show": "Warteschlange anzeigen",
-	"queue_hide": "Warteschlange ausblenden"
+	"queue_hide": "Warteschlange ausblenden",
+	"feed_filters_label": "Feed-Filter",
+	"feed_filter_hide_watched": "Gesehene ausblenden",
+	"feed_filter_hide_shorts": "Shorts ausblenden",
+	"feed_filter_channel": "Kanal",
+	"feed_filter_all_channels": "Alle Kanäle",
+	"feed_filter_channel_search": "Kanäle durchsuchen",
+	"feed_filter_no_channels": "Keine passenden Kanäle",
+	"feed_filtered_empty_title": "Keine passenden Videos",
+	"video_mark_watched": "Als gesehen markieren",
+	"video_mark_unwatched": "Als ungesehen markieren",
+	"video_not_interested": "Kein Interesse",
+	"video_hidden": "Video ausgeblendet",
+	"video_action_failed": "Das hat nicht geklappt",
+	"action_undo": "Rückgängig"
 }

@@ -24,6 +24,9 @@ export type FeedKind = Exclude<
 	'all' | undefined
 >;
 
+/** Narrows the subscription feed; the backend applies it, so pages stay full. */
+export type FeedFilters = { hideWatched?: boolean; channel?: string };
+
 const FEED_PAGE_SIZE = 30;
 // While a new channel waits for its first fetch, the list and feed are polled until it lands.
 const PENDING_POLL_MS = 4000;
@@ -32,8 +35,24 @@ export const subscriptionKeys = {
 	all: ['subscriptions'] as const,
 	list: ['subscriptions', 'list'] as const,
 	state: (channelId: string) => ['subscriptions', 'state', channelId] as const,
-	feed: ['feed'] as const
+	feed: ['feed'] as const,
+	/** Unfiltered feeds share `{}`, e.g. the home row and the feed page without filters. */
+	feedPages: (kind: FeedKind, filters: FeedFilters) =>
+		['feed', kind, normalizeFilters(filters)] as const
 };
+
+export function normalizeFilters(filters: FeedFilters): FeedFilters {
+	return {
+		...(filters.hideWatched ? { hideWatched: true } : {}),
+		...(filters.channel ? { channel: filters.channel } : {})
+	};
+}
+
+/** Feed pages that leave out watched videos, so marking a video changes them. */
+export function isHidingWatched(queryKey: readonly unknown[]): boolean {
+	const filters = queryKey[2] as FeedFilters | undefined;
+	return queryKey[0] === subscriptionKeys.feed[0] && filters?.hideWatched === true;
+}
 
 async function fetchSubscriptions(signal: AbortSignal): Promise<SubscribedChannel[]> {
 	const list = unwrap(await api.GET('/api/v0/subscriptions', { signal }));
@@ -72,15 +91,18 @@ export function createSubscriptionStateQuery(channelId: () => string | undefined
 
 async function fetchFeedPage(
 	kind: FeedKind,
+	filters: FeedFilters,
 	continuation: string | undefined,
 	signal: AbortSignal
 ): Promise<FeedPage> {
-	const page = unwrap(
-		await api.GET('/api/v0/feed', {
-			params: { query: { limit: FEED_PAGE_SIZE, kind, continuation } },
-			signal
-		})
-	);
+	const query = {
+		limit: FEED_PAGE_SIZE,
+		kind,
+		continuation,
+		hide_watched: filters.hideWatched || undefined,
+		channel: filters.channel
+	};
+	const page = unwrap(await api.GET('/api/v0/feed', { params: { query }, signal }));
 	return {
 		items: page.items.map((video) => (kind === 'shorts' ? toShort(video) : toVideo(video))),
 		continuation: page.continuation ?? undefined
@@ -91,17 +113,24 @@ async function fetchFeedPage(
  * Videos or shorts of subscribed channels, newest first; polls while channels are still being
  * fetched. Regular videos and shorts are listed apart, as grid and shelf.
  */
-export function createFeedQuery(polling: () => boolean, kind: FeedKind = 'videos') {
-	return createInfiniteQuery(() => ({
-		queryKey: [...subscriptionKeys.feed, kind],
-		queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-			fetchFeedPage(kind, pageParam, signal),
-		initialPageParam: undefined as string | undefined,
-		getNextPageParam: (last: FeedPage) => last.continuation,
-		enabled: session.user !== null,
-		staleTime: 60_000,
-		refetchInterval: polling() ? PENDING_POLL_MS : false
-	}));
+export function createFeedQuery(
+	polling: () => boolean,
+	kind: FeedKind = 'videos',
+	options: { filters?: () => FeedFilters; enabled?: () => boolean } = {}
+) {
+	return createInfiniteQuery(() => {
+		const filters = normalizeFilters(options.filters?.() ?? {});
+		return {
+			queryKey: subscriptionKeys.feedPages(kind, filters),
+			queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+				fetchFeedPage(kind, filters, pageParam, signal),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (last: FeedPage) => last.continuation,
+			enabled: session.user !== null && (options.enabled?.() ?? true),
+			staleTime: 60_000,
+			refetchInterval: polling() ? PENDING_POLL_MS : false
+		};
+	});
 }
 
 type SubscriptionChange = { channelId: string; subscribe: boolean };

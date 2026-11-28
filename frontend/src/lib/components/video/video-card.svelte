@@ -16,6 +16,7 @@
 		showChannel = true,
 		now,
 		removal,
+		hideable = false,
 		class: className
 	}: {
 		video: VideoSummary;
@@ -25,6 +26,8 @@
 		now?: Date;
 		/** Offers removing the video from the list it is shown in. */
 		removal?: VideoRemoval;
+		/** Offers "Not interested", for listings that leave hidden videos out. */
+		hideable?: boolean;
 		class?: string;
 	} = $props();
 
@@ -85,6 +88,7 @@
 			<ChannelActionsMenu
 				channel={video.channel}
 				{video}
+				{hideable}
 				removeLabel={removal?.label}
 				onremove={removal && (() => removal.onremove(video))}
 				label={m.block_video_actions({ title: video.title })}

@@ -21,7 +21,9 @@ export const DEFAULT_SETTINGS: Settings = {
 	max_quality: null,
 	default_quality: null,
 	home_sections: null,
-	audio_language: null
+	audio_language: null,
+	feed_hide_watched: false,
+	feed_hide_shorts: false
 };
 
 /** The signed-in user's settings; idle for guests, who always get the defaults. */

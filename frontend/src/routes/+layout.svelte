@@ -9,6 +9,7 @@
 	import AppShell from '#lib/components/app-shell.svelte';
 	import { authHref } from '#lib/auth/links.js';
 	import AuthLayout from '#lib/components/auth/auth-layout.svelte';
+	import { Toaster } from '#lib/components/ui/sonner/index.js';
 	import { setLocalProgressMaxAge } from '#lib/components/watch/local-progress.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, getTextDirection } from '#lib/paraglide/runtime.js';
@@ -49,6 +50,7 @@
 </svelte:head>
 
 <ModeWatcher themeColors={{ light: '#f7f7f8', dark: '#0b0b0d' }} />
+<Toaster position="bottom-left" />
 
 <a
 	href="#main"
