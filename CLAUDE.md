@@ -10,6 +10,7 @@ Self-hosted, privacy-friendly YouTube frontend inspired by Invidious and Piped. 
 - Repo, code, docs, commits: English.
 - Comments only where non-obvious logic needs explaining. No long comments or prose.
 - Always use the latest stable versions of dependencies; verify on crates.io/npm before adding, never assume from memory.
+- User, operator and developer docs live in `docs/`; update them with every user-visible or config change.
 - License: AGPL-3.0-or-later (required by RustyPipe's GPL-3.0). Do not add dependencies with incompatible licenses.
 
 ## Git workflow
