@@ -1,6 +1,6 @@
 import type { Snippet } from 'svelte';
 import type { Attachment } from 'svelte/attachments';
-import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
+import type { PlayerChapter, PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import type { WatchProblem } from '#lib/components/watch/errors.js';
 import { UpNextQueue, type QueueVideo } from './queue.svelte.js';
@@ -13,6 +13,7 @@ export type PlayerMedia = {
 	channel?: { id: string; name: string } | null;
 	poster?: string;
 	subtitles?: PlayerSubtitle[];
+	chapters?: PlayerChapter[];
 	storyboard?: string;
 	/** Seconds to start from; a function is read once the media can seek. */
 	startTime?: number | (() => number);
@@ -106,6 +107,10 @@ export class AppPlayer {
 	paused = $state(true);
 	/** The video played to its end and nothing followed. */
 	ended = $state(false);
+	/** Where playback is, in seconds; updated a few times a second and on seeks. */
+	time = $state(0);
+	/** The `id` of the subtitles showing, `null` with captions off. */
+	captions = $state<string | null>(null);
 	claim = $state.raw<(PlayerClaim & ClaimOptions) | null>(null);
 	controls: PlayerControls | undefined;
 	/** The element around the player, wherever it is shown. */
@@ -168,6 +173,8 @@ export class AppPlayer {
 		this.media = media;
 		this.paused = true;
 		this.ended = false;
+		this.time = 0;
+		this.captions = null;
 		this.generation++;
 	}
 
@@ -320,7 +327,10 @@ export class AppPlayer {
 
 	/** Jumps to `seconds` and keeps playing. */
 	seek(seconds: number) {
-		this.controls?.seek(seconds);
+		if (!this.controls) return;
+		this.controls.seek(seconds);
+		// Ahead of the media, which reports the new time only once it has loaded there.
+		this.time = seconds;
 	}
 
 	play() {
@@ -338,7 +348,9 @@ export class AppPlayer {
 
 	/** Jumps to `seconds` without changing whether it plays. */
 	setTime(seconds: number) {
-		this.controls?.setTime(seconds);
+		if (!this.controls) return;
+		this.controls.setTime(seconds);
+		this.time = seconds;
 	}
 
 	position(): number {

@@ -4,6 +4,7 @@ import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import { m } from '#lib/paraglide/messages.js';
 import type { PlayerMedia } from '#lib/player/app-player.svelte.js';
+import { toChapters } from './chapters';
 
 export function videoPoster(details: VideoDetails): string | undefined {
 	return pickImage(details.thumbnails, 1280);
@@ -29,6 +30,7 @@ export function watchMedia(
 		channel: details.channel,
 		poster: videoPoster(details),
 		subtitles: videoSubtitles(details),
+		chapters: toChapters(details.chapters, details.duration_seconds),
 		storyboard: details.storyboard_url ?? undefined,
 		...options
 	};

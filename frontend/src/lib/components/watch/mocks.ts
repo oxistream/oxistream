@@ -55,6 +55,13 @@ export const mockVideoDetails: VideoDetails = {
 	],
 	audio_tracks: [],
 	content_disclosures: [],
+	chapters: [
+		{ title: 'Picking a shoe', start_seconds: 0, thumbnails: [] },
+		{ title: 'Drawing out the handle', start_seconds: 102, thumbnails: [] },
+		{ title: 'Punching the opener', start_seconds: 378, thumbnails: [] },
+		{ title: 'Filing and finish', start_seconds: 845, thumbnails: [] },
+		{ title: 'First bottle', start_seconds: 1390, thumbnails: [] }
+	],
 	related: mockVideos.slice(1, 9).map((v): components['schemas']['VideoSummary'] => ({
 		id: v.id,
 		title: v.title,
