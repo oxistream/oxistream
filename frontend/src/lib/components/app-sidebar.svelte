@@ -61,11 +61,8 @@
 							<span class="flex size-8 shrink-0 items-center justify-center">
 								<LogoMark class="size-7! text-sidebar-primary" />
 							</span>
-							<span class="grid flex-1 text-start leading-tight">
-								<span class="truncate text-[1.0625rem] font-semibold tracking-[-0.02em]">
-									Oxistream
-								</span>
-								<span class="truncate text-xs text-muted-foreground">{m.app_tagline()}</span>
+							<span class="truncate text-[1.0625rem] font-semibold tracking-[-0.02em]">
+								Oxistream
 							</span>
 						</a>
 					{/snippet}
