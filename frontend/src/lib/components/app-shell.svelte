@@ -38,7 +38,7 @@
 <Sidebar.Provider
 	bind:open
 	data-party-sidebar={partyDocked ? 'open' : undefined}
-	style="--party-sidebar-width: 22rem; --content-inset-end: {partyDocked
+	style="--party-sidebar-width: 23rem; --content-inset-end: {partyDocked
 		? 'var(--party-sidebar-width)'
 		: '0.5rem'};"
 >

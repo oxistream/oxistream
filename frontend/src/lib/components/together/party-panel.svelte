@@ -301,13 +301,13 @@
 			<Tabs.Root bind:value={party.tab} class="gap-1">
 				<Tabs.List
 					variant="line"
-					class="sticky top-0 z-10 w-full shrink-0 [scrollbar-width:none] justify-start gap-0.5 overflow-x-auto bg-sidebar px-1"
+					class="sticky top-0 z-10 w-full shrink-0 [scrollbar-width:none] justify-start gap-0 overflow-x-auto bg-sidebar px-0.5"
 				>
-					<Tabs.Trigger value="queue" class="flex-none px-1.5" data-testid="party-tab-queue">
+					<Tabs.Trigger value="queue" class="flex-none gap-1 px-1" data-testid="party-tab-queue">
 						{m.party_queue()}
 						{@render count(queue.length)}
 					</Tabs.Trigger>
-					<Tabs.Trigger value="chat" class="flex-none px-1.5" data-testid="party-tab-chat">
+					<Tabs.Trigger value="chat" class="flex-none gap-1 px-1" data-testid="party-tab-chat">
 						{m.party_chat()}
 						{#if unread > 0}
 							<span
@@ -323,10 +323,18 @@
 							</span>
 						{/if}
 					</Tabs.Trigger>
-					<Tabs.Trigger value="history" class="flex-none px-1.5" data-testid="party-tab-history">
+					<Tabs.Trigger
+						value="history"
+						class="flex-none gap-1 px-1"
+						data-testid="party-tab-history"
+					>
 						{m.party_history()}
 					</Tabs.Trigger>
-					<Tabs.Trigger value="members" class="flex-none px-1.5" data-testid="party-tab-members">
+					<Tabs.Trigger
+						value="members"
+						class="flex-none gap-1 px-1"
+						data-testid="party-tab-members"
+					>
 						{m.party_members()}
 						{@render count(participants.length)}
 					</Tabs.Trigger>
