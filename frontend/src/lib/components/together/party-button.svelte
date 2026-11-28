@@ -39,5 +39,12 @@
 				{formatNumber(count, getLocale())}
 			</span>
 		{/if}
+		{#if party.unread > 0 && !party.panelOpen}
+			<span
+				class="absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full bg-primary ring-2 ring-background"
+				aria-hidden="true"
+				data-testid="party-unread"
+			></span>
+		{/if}
 	</Button>
 {/if}

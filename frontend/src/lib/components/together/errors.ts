@@ -4,7 +4,8 @@ import type { RoomErrorCode } from '#lib/together/connection.svelte.js';
 const messages: Partial<Record<RoomErrorCode, () => string>> = {
 	queue_full: m.party_error_queue_full,
 	video_unavailable: m.party_error_video,
-	rate_limited: m.party_error_rate
+	rate_limited: m.party_error_rate,
+	forbidden: m.party_error_forbidden
 };
 
 /** What the party server said about something this tab sent. */

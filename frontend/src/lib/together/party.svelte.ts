@@ -15,7 +15,9 @@ import {
 	type MemberPlace,
 	type MemberSync,
 	type RoomClientMessage,
-	type RoomQueueEntry
+	type RoomPermissions,
+	type RoomQueueEntry,
+	type RoomReaction
 } from './connection.svelte';
 import { PartySync } from './party-sync.svelte';
 import { PresenceNotices, StatusReporter, type PresenceNotice } from './presence';
@@ -26,6 +28,16 @@ const SESSION_KEY = 'oxistream:party';
 const PANEL_KEY = 'oxistream:party-panel';
 /** From this width on, the party panel is a sidebar next to the content; below, a sheet. */
 export const PARTY_SIDEBAR_QUERY = 'min-width: 64rem';
+/** How long a reaction floats over the player. */
+export const REACTION_MS = 2400;
+const MAX_FLOATING = 24;
+/** Reactions this client sends at most this often. */
+const REACTION_GAP_MS = 300;
+const EVERYONE: RoomPermissions = { control: 'everyone', add: 'everyone' };
+
+export type PartyTab = 'queue' | 'history' | 'chat' | 'members';
+/** A reaction floating over the player; `x` is its horizontal position in percent. */
+export type FloatingReaction = { key: number; reaction: RoomReaction; x: number };
 
 function readPanelOpen() {
 	try {
@@ -103,6 +115,15 @@ export class Party {
 	overlay: ClaimOptions['overlay'];
 	/** Who just joined or left, for a few seconds. */
 	presence = $state.raw<PresenceNotice | null>(null);
+	/** The tab shown in the party panel. */
+	tab = $state<PartyTab>('queue');
+	/** The newest chat message seen in the chat tab. */
+	chatRead = $state(0);
+	/** Reactions floating over the player right now. */
+	floating = $state.raw<FloatingReaction[]>([]);
+
+	#floatKey = 0;
+	#reactedAt = -Infinity;
 
 	#reporter: StatusReporter | null = null;
 	#notices: PresenceNotices | null = null;
@@ -168,6 +189,64 @@ export class Party {
 		return this.room?.owner ?? '';
 	}
 
+	get chat() {
+		return this.connection?.chat ?? [];
+	}
+
+	/** Messages of others since the chat tab was last seen; those from before joining count as read. */
+	get unread() {
+		const read = Math.max(this.chatRead, this.connection?.chatBase ?? 0);
+		return this.chat.filter((message) => message.id > read && !message.own).length;
+	}
+
+	get permissions(): RoomPermissions {
+		return this.room?.permissions ?? EVERYONE;
+	}
+
+	/** Whether this user may play, pause, seek, skip, pick and reorder. */
+	get canControl() {
+		return this.isOwner || this.permissions.control === 'everyone';
+	}
+
+	get canAdd() {
+		return this.isOwner || this.permissions.add === 'everyone';
+	}
+
+	/** Whether this user may play `videoId` now: from the queue, or by adding it. */
+	canPlayNow(videoId: string) {
+		if (!this.canControl) return false;
+		return this.canAdd || (this.room?.queue.some((e) => e.video.id === videoId) ?? false);
+	}
+
+	/** Called while the chat tab is in view. */
+	markChatRead() {
+		const last = this.chat.at(-1)?.id ?? 0;
+		if (last > this.chatRead) this.chatRead = last;
+	}
+
+	sendChat(text: string) {
+		this.send({ type: 'chat', text });
+	}
+
+	react(reaction: RoomReaction) {
+		const now = performance.now();
+		if (now - this.#reactedAt < REACTION_GAP_MS) return;
+		this.#reactedAt = now;
+		this.send({ type: 'react', reaction });
+	}
+
+	/** Owner only. */
+	setPermissions(permissions: Partial<RoomPermissions>) {
+		this.send({ type: 'permissions', ...permissions });
+	}
+
+	#float(reaction: RoomReaction) {
+		const key = ++this.#floatKey;
+		const x = 8 + Math.random() * 84;
+		this.floating = [...this.floating, { key, reaction, x }].slice(-MAX_FLOATING);
+		setTimeout(() => (this.floating = this.floating.filter((f) => f.key !== key)), REACTION_MS);
+	}
+
 	get inviteUrl() {
 		return this.id ? `${location.origin}${resolve('/party/[id]', { id: this.id })}` : '';
 	}
@@ -190,6 +269,7 @@ export class Party {
 		this.id = id;
 		const name = options.name;
 		const connection = new RoomConnection(id, name ? { name, guestKey: guestKey() } : {});
+		connection.onreaction = (event) => this.#float(event.reaction);
 		connection.connect();
 		this.connection = connection;
 		this.#reporter = new StatusReporter((status) => connection.reportStatus(status));
@@ -344,6 +424,7 @@ export class Party {
 			serverNow: () => connection.serverNow(),
 			clockStats: () => connection.clockStats(),
 			debug: this.debug,
+			canControl: () => this.canControl,
 			onplay: (position, at) => connection.send({ type: 'play', position, at }),
 			onpause: (position) => connection.send({ type: 'pause', position }),
 			onseek: (position, at) => connection.send({ type: 'seek', position, at }),
@@ -387,6 +468,8 @@ export class Party {
 		this.#notices?.destroy();
 		this.#notices = null;
 		this.presence = null;
+		this.chatRead = 0;
+		this.floating = [];
 		this.#claim?.release();
 		this.#claim = null;
 		appPlayer.stop();

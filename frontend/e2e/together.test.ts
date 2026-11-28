@@ -91,6 +91,10 @@ type ClientMessage = {
 	enabled?: boolean;
 	sync?: string | null;
 	place?: string;
+	text?: string;
+	reaction?: string;
+	control?: string;
+	add?: string;
 };
 
 type FakeParticipant = {
@@ -107,7 +111,11 @@ type FakeEntry = {
 	video: ReturnType<typeof summary>;
 	added_by: string;
 	autoplay: boolean;
+	/** Who queued it, see {@link FakeRoom.key}. */
+	key: string;
 };
+
+type FakeMessage = { id: number; name: string; key: string; owner: boolean; text: string };
 
 /** A party server in the test process, shared by both browsers. */
 class FakeRoom {
@@ -126,15 +134,25 @@ class FakeRoom {
 	positionAt = Date.now();
 	revision = 0;
 	nextEntry = 1;
+	permissions = { control: 'everyone', add: 'everyone' };
+	chat: FakeMessage[] = [];
+	/** Every message the room received, by sender. */
+	received: { owner: boolean; type: string }[] = [];
 
 	constructor(first = FIRST) {
 		this.add(first, 'mara');
 	}
 
-	add(videoId: string, by: string, play = false, autoplay = false) {
+	/** Stands in for the server's participant key: one per account or guest name. */
+	key(socket: WebSocketRoute) {
+		const person = this.sockets.get(socket);
+		return person?.owner ? 'host' : `guest:${person?.name}`;
+	}
+
+	add(videoId: string, by: string, play = false, autoplay = false, key = '') {
 		const id = this.nextEntry++;
 		this.seen.add(videoId);
-		this.queue.push({ id, video: summary(videoId), added_by: autoplay ? '' : by, autoplay });
+		this.queue.push({ id, video: summary(videoId), added_by: autoplay ? '' : by, autoplay, key });
 		if (play) {
 			this.retire(this.current);
 			this.current = id;
@@ -165,14 +183,17 @@ class FakeRoom {
 		this.queue = [...this.queue.filter((e) => e.id === this.current), ...upcoming];
 	}
 
-	state() {
+	/** As seen by `viewer`, who owns the entries it queued. */
+	state(viewer?: string) {
+		const entry = ({ key, ...e }: FakeEntry) => ({ ...e, own: key !== '' && key === viewer });
 		const current = this.queue.find((e) => e.id === this.current) ?? null;
 		return {
 			id: ROOM,
 			revision: this.revision,
 			owner: 'mara',
-			current,
-			queue: this.queue.filter((e) => e !== current),
+			current: current && entry(current),
+			queue: this.queue.filter((e) => e !== current).map(entry),
+			permissions: this.permissions,
 			playing: this.playing,
 			position: this.position,
 			position_at: this.positionAt,
@@ -192,13 +213,52 @@ class FakeRoom {
 
 	broadcast() {
 		this.revision++;
-		const history = JSON.stringify({ type: 'history', entries: this.history });
-		const message = JSON.stringify({ type: 'state', room: this.state() });
+		const history = JSON.stringify({
+			type: 'history',
+			entries: this.history.map((e) => ({ ...e, key: undefined, own: false }))
+		});
 		for (const socket of this.sockets.keys()) {
 			if (this.historyChanged) socket.send(history);
-			socket.send(message);
+			socket.send(JSON.stringify({ type: 'state', room: this.state(this.key(socket)) }));
 		}
 		this.historyChanged = false;
+	}
+
+	chatMessage(message: FakeMessage, viewer: string) {
+		return {
+			id: message.id,
+			name: message.name,
+			is_owner: message.owner,
+			is_guest: !message.owner,
+			own: message.key === viewer,
+			text: message.text,
+			sent_at: Date.now()
+		};
+	}
+
+	/** What the host's permissions keep others from doing. */
+	forbidden(owner: boolean, message: ClientMessage) {
+		if (owner) return false;
+		if (message.type === 'permissions') return true;
+		const control = this.permissions.control === 'everyone';
+		const add = this.permissions.add === 'everyone';
+		switch (message.type) {
+			case 'add':
+				return !add || (message.play === true && !control);
+			case 'add_many':
+				return !add;
+			case 'play':
+			case 'pause':
+			case 'seek':
+			case 'select':
+			case 'skip':
+			case 'move':
+			case 'shuffle':
+			case 'autoplay':
+				return !control;
+			default:
+				return false;
+		}
 	}
 
 	setPosition(position: number, playing = this.playing, at = Date.now()) {
@@ -209,6 +269,10 @@ class FakeRoom {
 
 	handle(socket: WebSocketRoute, owner: boolean, raw: string) {
 		const message = JSON.parse(raw) as ClientMessage;
+		this.received.push({ owner, type: message.type });
+		if (this.forbidden(owner, message)) {
+			return socket.send(JSON.stringify({ type: 'error', code: 'forbidden' }));
+		}
 		switch (message.type) {
 			case 'join': {
 				const id = `p${++this.joins}`;
@@ -219,8 +283,39 @@ class FakeRoom {
 					JSON.stringify({ type: 'welcome', participant_id: id, is_owner: owner, server_time: at })
 				);
 				socket.send(JSON.stringify({ type: 'history', entries: this.history }));
+				const viewer = this.key(socket);
+				const messages = this.chat.map((m) => this.chatMessage(m, viewer));
+				socket.send(JSON.stringify({ type: 'chat_history', messages }));
 				return this.broadcast();
 			}
+			case 'chat': {
+				const person = this.sockets.get(socket)!;
+				const text = message.text!.trim().replace(/\s+/g, ' ');
+				const key = this.key(socket);
+				const sent = { id: this.chat.length + 1, name: person.name, owner, key, text };
+				this.chat.push(sent);
+				for (const other of this.sockets.keys()) {
+					const chat = this.chatMessage(sent, this.key(other));
+					other.send(JSON.stringify({ type: 'chat', message: chat }));
+				}
+				return;
+			}
+			case 'react': {
+				const participant = this.sockets.get(socket)!.id;
+				const reaction = JSON.stringify({
+					type: 'reaction',
+					participant,
+					reaction: message.reaction
+				});
+				for (const other of this.sockets.keys()) other.send(reaction);
+				return;
+			}
+			case 'permissions':
+				this.permissions = {
+					control: message.control ?? this.permissions.control,
+					add: message.add ?? this.permissions.add
+				};
+				return this.broadcast();
 			case 'ping':
 				return socket.send(JSON.stringify({ type: 'pong', t: message.t, server_time: Date.now() }));
 			case 'status': {
@@ -248,7 +343,13 @@ class FakeRoom {
 				this.setPosition(message.position!, this.playing, message.at);
 				return this.broadcast();
 			case 'add':
-				this.add(message.video_id!, this.sockets.get(socket)!.name, message.play);
+				this.add(
+					message.video_id!,
+					this.sockets.get(socket)!.name,
+					message.play,
+					false,
+					this.key(socket)
+				);
 				return this.broadcast();
 			case 'select': {
 				if (!this.queue.some((e) => e.id === message.entry)) return;
@@ -1258,4 +1359,128 @@ test('members show how they keep up and where they are, and who comes and goes',
 	});
 
 	await hostContext.close();
+});
+
+test('members chat and react, and the host decides who controls the party', async ({ browser }) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom(LONG);
+	const hostContext = await browser.newContext();
+	const guestContext = await browser.newContext();
+	await mockApi(hostContext, room, { signedIn: true });
+	await mockApi(guestContext, room, { signedIn: false });
+	const host = await hostContext.newPage();
+	const guest = await guestContext.newPage();
+
+	await openParty(host);
+	await expect(host).toHaveURL(watchUrl(LONG));
+	await joinAsGuest(guest);
+	await expect(guest).toHaveURL(watchUrl(LONG));
+	const hostPanel = await openPanel(host);
+	await hostPanel.getByTestId('party-tab-chat').click();
+	await expect(hostPanel.getByTestId('party-chat')).toContainText('No messages yet.');
+
+	// Unread messages mark the chat tab, and the party button while the panel is closed.
+	const input = hostPanel.getByTestId('party-chat-input');
+	await input.fill('  Hello   there  ');
+	await input.press('Enter');
+	await expect(input).toHaveValue('');
+	const hostMessages = hostPanel.getByTestId('party-chat-message');
+	await expect(hostMessages).toHaveText([/Hello there/]);
+	await expect(hostMessages.first()).toHaveAttribute('data-own', '');
+	await expect(hostPanel.getByTestId('party-chat-unread')).toHaveCount(0);
+	let guestPanel = await openPanel(guest);
+	await expect(guestPanel.getByTestId('party-chat-unread')).toContainText('1');
+	await expect(guest.getByTestId('party-unread')).toHaveCount(0);
+	await closePanel(guest);
+	await expect(guest.getByTestId('party-unread')).toBeVisible();
+	guestPanel = await openPanel(guest);
+	await guestPanel.getByTestId('party-tab-chat').click();
+	await expect(guestPanel.getByTestId('party-chat-unread')).toHaveCount(0);
+	const guestMessages = guestPanel.getByTestId('party-chat-message');
+	await expect(guestMessages.first()).toContainText('mara');
+	await expect(guestMessages.first()).toContainText('Host');
+	await expect(guestMessages.first()).not.toHaveAttribute('data-own');
+
+	// Messages are plain text.
+	await guestPanel.getByTestId('party-chat-input').fill('<b>bold</b>');
+	await guestPanel.getByTestId('party-chat-send').click();
+	await expect(hostMessages.nth(1)).toContainText('<b>bold</b>');
+	await expect(hostPanel.locator('[data-testid="party-chat"] b')).toHaveCount(0);
+
+	// Reactions float over everyone's player.
+	await guestPanel.getByTestId('party-react-heart').click();
+	await expect(
+		host.locator('.app-player [data-testid="party-reaction"][data-reaction="heart"]')
+	).toHaveCount(1);
+	await expect(
+		guest.locator('.app-player [data-testid="party-reaction"][data-reaction="heart"]')
+	).toHaveCount(1);
+	await expect(host.locator('[data-testid="party-reaction"]')).toHaveCount(0, { timeout: 5000 });
+
+	// Playback is the host's alone: the guest loses the controls and snaps back.
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await expect.poll(() => hasMetadata(guest)).toBe(true);
+	await expect
+		.poll(async () => {
+			await media(host).evaluate((el: HTMLMediaElement) => void el.play().catch(() => {}));
+			return room.playing;
+		})
+		.toBe(true);
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	room.add(FIRST, 'mara', false, false, 'host');
+	room.add(SECOND, 'mara', false, false, 'host');
+	room.broadcast();
+	await guestPanel.getByTestId('party-tab-queue').click();
+	await expect(guestPanel.getByTestId('party-shuffle')).toBeVisible();
+	await expect(await partyMenu(guest, 'Leave party')).toBeVisible();
+	await expect(guest.getByTestId('party-permission-control-host')).toHaveCount(0);
+	await guest.keyboard.press('Escape');
+
+	await hostPanel.getByTestId('party-menu').click();
+	await host.getByTestId('party-permission-control-host').click();
+	await expect(host.getByTestId('party-permission-control-host')).toHaveAttribute(
+		'data-state',
+		'checked'
+	);
+	await host.keyboard.press('Escape');
+	await expect.poll(() => room.permissions.control).toBe('host');
+	await expect(guestPanel.getByTestId('party-shuffle')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-autoplay')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-queue-handle')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-queue-remove')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-queue-item').getByRole('button')).toHaveCount(0);
+	await hostPanel.getByTestId('party-tab-queue').click();
+	await expect(hostPanel.getByTestId('party-shuffle')).toBeVisible();
+
+	const sentByGuest = () => room.received.filter((m) => !m.owner).map((m) => m.type);
+	await media(guest).evaluate((el: HTMLMediaElement) => el.pause());
+	await expect.poll(() => isPaused(guest), { timeout: 10_000 }).toBe(false);
+	await media(guest).evaluate((el: HTMLMediaElement) => (el.currentTime = 50));
+	await expect
+		.poll(async () => Math.abs((await currentTime(guest)) - live(room)), { timeout: 10_000 })
+		.toBeLessThan(2);
+	expect(room.playing).toBe(true);
+	expect(sentByGuest()).not.toContain('pause');
+	expect(sentByGuest()).not.toContain('seek');
+
+	// Others still queue their own videos and may take them out again.
+	await browseTo(guest, LONG_TOO);
+	await expect(guest.getByTestId('party-play-now')).toHaveCount(0);
+	await guest.getByTestId('party-queue-add').click();
+	await expect.poll(() => room.state().queue.map((e) => e.video.id)).toContain(LONG_TOO);
+	const own = guestPanel.getByTestId('party-queue-item').filter({ hasText: title(LONG_TOO) });
+	await own.getByTestId('party-queue-remove').click();
+	await expect.poll(() => room.state().queue.map((e) => e.video.id)).not.toContain(LONG_TOO);
+
+	// Adding can be the host's alone too.
+	await hostPanel.getByTestId('party-menu').click();
+	await host.getByTestId('party-permission-add-host').click();
+	await host.keyboard.press('Escape');
+	await expect.poll(() => room.permissions.add).toBe('host');
+	await expect(guest.getByTestId('party-queue-add')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-add')).toHaveCount(0);
+	await expect(hostPanel.getByTestId('party-add')).toBeVisible();
+
+	await hostContext.close();
+	await guestContext.close();
 });

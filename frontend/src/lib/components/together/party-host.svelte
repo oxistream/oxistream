@@ -11,6 +11,7 @@
 	import { session } from '#lib/session.svelte.js';
 	import { party, type PartyEnd } from '#lib/together/party.svelte.js';
 	import { placeOf } from '#lib/together/presence.js';
+	import PartyReactions from './party-reactions.svelte';
 	import SyncReadout from './sync-readout.svelte';
 
 	party.overlay = overlay;
@@ -99,6 +100,7 @@
 
 {#snippet overlay()}
 	{@const sync = party.sync}
+	<PartyReactions reactions={party.floating} class="rounded-xl" />
 	{#if sync}
 		{#if party.debug}
 			<SyncReadout stats={sync.stats} class="absolute start-2 top-2 z-10" />

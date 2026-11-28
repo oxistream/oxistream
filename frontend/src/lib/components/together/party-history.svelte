@@ -13,6 +13,8 @@
 	let {
 		history,
 		queued,
+		canPlay = () => true,
+		canQueue = true,
 		onplay,
 		onqueue,
 		class: className
@@ -21,6 +23,9 @@
 		history: RoomQueueEntry[];
 		/** Videos playing or queued, which cannot be queued again. */
 		queued: Set<string>;
+		/** Whether this user may play `entry` now. */
+		canPlay?: (entry: RoomQueueEntry) => boolean;
+		canQueue?: boolean;
 		onplay: (entry: RoomQueueEntry) => void;
 		onqueue: (entry: RoomQueueEntry) => void;
 		class?: string;
@@ -35,16 +40,16 @@
 			{#each history as item (item.id)}
 				{@const video = toVideo(item.video)}
 				{@const isQueued = queued.has(video.id)}
+				{@const playable = canPlay(item)}
+				{@const rowClass = cn(
+					'flex min-w-0 flex-1 items-start gap-2 rounded-md p-1.5 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring',
+					(playable || canQueue) && 'pe-9'
+				)}
 				<li
 					class="group/video relative flex rounded-md transition-colors hover:bg-sidebar-accent"
 					data-testid="party-history-item"
 				>
-					<button
-						type="button"
-						class="flex min-w-0 flex-1 items-start gap-2 rounded-md p-1.5 pe-9 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring"
-						title={m.party_play_now_hint()}
-						onclick={() => onplay(item)}
-					>
+					{#snippet content()}
 						<VideoThumbnail
 							src={video.thumbnailUrl}
 							durationSeconds={video.durationSeconds}
@@ -59,34 +64,52 @@
 									: m.party_added_by({ name: item.added_by })}
 							</span>
 						</span>
-					</button>
-					<DropdownMenu.Root>
-						<DropdownMenu.Trigger
-							class={cn(
-								buttonVariants({ variant: 'ghost', size: 'icon-xs' }),
-								'absolute end-1.5 top-1.5 text-muted-foreground hover:text-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-foreground'
-							)}
-							aria-label={m.queue_item_actions({ title: video.title })}
-							title={m.queue_item_actions({ title: video.title })}
-							data-testid="party-history-menu"
+					{/snippet}
+					{#if playable}
+						<button
+							type="button"
+							class={rowClass}
+							title={m.party_play_now_hint()}
+							onclick={() => onplay(item)}
 						>
-							<EllipsisVerticalIcon />
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end" class="w-auto min-w-44">
-							<DropdownMenu.Item onSelect={() => onplay(item)} data-testid="party-history-play">
-								<PlayIcon />
-								{m.party_play_now()}
-							</DropdownMenu.Item>
-							<DropdownMenu.Item
-								disabled={isQueued}
-								onSelect={() => onqueue(item)}
-								data-testid="party-history-queue"
+							{@render content()}
+						</button>
+					{:else}
+						<div class={rowClass}>{@render content()}</div>
+					{/if}
+					{#if playable || canQueue}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger
+								class={cn(
+									buttonVariants({ variant: 'ghost', size: 'icon-xs' }),
+									'absolute end-1.5 top-1.5 text-muted-foreground hover:text-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-foreground'
+								)}
+								aria-label={m.queue_item_actions({ title: video.title })}
+								title={m.queue_item_actions({ title: video.title })}
+								data-testid="party-history-menu"
 							>
-								<ListPlusIcon />
-								{isQueued ? m.party_already_queued() : m.party_queue_add()}
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
+								<EllipsisVerticalIcon />
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end" class="w-auto min-w-44">
+								{#if playable}
+									<DropdownMenu.Item onSelect={() => onplay(item)} data-testid="party-history-play">
+										<PlayIcon />
+										{m.party_play_now()}
+									</DropdownMenu.Item>
+								{/if}
+								{#if canQueue}
+									<DropdownMenu.Item
+										disabled={isQueued}
+										onSelect={() => onqueue(item)}
+										data-testid="party-history-queue"
+									>
+										<ListPlusIcon />
+										{isQueued ? m.party_already_queued() : m.party_queue_add()}
+									</DropdownMenu.Item>
+								{/if}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/if}
 				</li>
 			{/each}
 		</ol>

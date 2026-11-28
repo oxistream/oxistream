@@ -9,6 +9,11 @@ export type RoomErrorCode = Schemas['RoomErrorCode'];
 export type RoomClientMessage = Schemas['RoomClientMessage'];
 export type MemberSync = Schemas['MemberSync'];
 export type MemberPlace = Schemas['MemberPlace'];
+export type RoomChatMessage = Schemas['RoomChatMessage'];
+export type RoomReaction = Schemas['RoomReaction'];
+export type RoomPermission = Schemas['RoomPermission'];
+export type RoomPermissions = Schemas['RoomPermissions'];
+export type ReactionEvent = { participant: string; reaction: RoomReaction };
 export type MemberStatus = { sync: MemberSync | null; place: MemberPlace };
 type ServerMessage = Schemas['RoomServerMessage'];
 type KnownStatus = { sync: MemberSync | null; place: MemberPlace | null; revision: number };
@@ -28,6 +33,10 @@ export type JoinDetails = { name?: string; guestKey?: string };
 
 /** The most videos one `add_many` may carry, the queue limit. */
 export const MAX_BATCH = 100;
+/** Chat messages a room keeps. */
+const MAX_CHAT = 100;
+/** Longest chat message, in characters. */
+export const MAX_CHAT_LENGTH = 500;
 const PING_INTERVAL = 10_000;
 /** Pings right after joining, so the clock is accurate before the first seek. */
 const PING_BURST = [0, 150, 300, 450, 600, 900];
@@ -53,6 +62,12 @@ export class RoomConnection {
 	lastError = $state<{ code: RoomErrorCode; at: number } | null>(null);
 	/** The answer to the last batch this client queued. */
 	lastAdded = $state<{ added: number; skipped: number; at: number } | null>(null);
+	/** The room's latest chat messages, oldest first. */
+	chat = $state.raw<RoomChatMessage[]>([]);
+	/** The newest chat message when this client first joined, or `null` before that. */
+	chatBase = $state<number | null>(null);
+	/** Called for every reaction, this client's own included. */
+	onreaction: ((event: ReactionEvent) => void) | undefined;
 
 	#roomId: string;
 	#join: JoinDetails;
@@ -208,6 +223,18 @@ export class RoomConnection {
 				break;
 			case 'history':
 				this.history = message.entries;
+				break;
+			case 'chat_history':
+				this.chat = message.messages;
+				this.chatBase ??= message.messages.at(-1)?.id ?? 0;
+				break;
+			case 'chat':
+				if ((this.chat.at(-1)?.id ?? 0) < message.message.id) {
+					this.chat = [...this.chat, message.message].slice(-MAX_CHAT);
+				}
+				break;
+			case 'reaction':
+				this.onreaction?.({ participant: message.participant, reaction: message.reaction });
 				break;
 			case 'added':
 				this.lastAdded = {

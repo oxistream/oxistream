@@ -1,14 +1,22 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { mockParticipants, mockRoomCurrent, mockRoomQueue } from '#lib/mocks/together.js';
+	import {
+		mockChat,
+		mockFloating,
+		mockParticipants,
+		mockRoomCurrent,
+		mockRoomQueue
+	} from '#lib/mocks/together.js';
 	import { mockVideos } from '#lib/mocks/videos.js';
 	import JoinForm from './join-form.svelte';
+	import PartyChat from './party-chat.svelte';
 	import PartyElsewhere from './party-elsewhere.svelte';
 	import PartyHistory from './party-history.svelte';
 	import PartyMembers from './party-members.svelte';
 	import PartyNowPlaying from './party-now-playing.svelte';
 	import PartyPick from './party-pick.svelte';
 	import PartyQueue from './party-queue.svelte';
+	import PartyReactions from './party-reactions.svelte';
 	import PartyStatus from './party-status.svelte';
 	import PartyUpNext from './party-up-next.svelte';
 	import ShareButton from './share-button.svelte';
@@ -36,6 +44,30 @@
 				queue = [...rest.slice(0, to), entry, ...rest.slice(to)];
 			}}
 		/>
+	</div>
+</Story>
+
+<Story name="Queue as member" asChild>
+	<div class="max-w-sm">
+		<PartyQueue queue={mockRoomQueue} onremove={() => {}} canRemove={(entry) => entry.own} />
+	</div>
+</Story>
+
+<Story name="Chat" asChild>
+	<div class="max-w-sm bg-sidebar p-2">
+		<PartyChat messages={mockChat} onsend={() => {}} onreact={() => {}} />
+	</div>
+</Story>
+
+<Story name="Chat empty" asChild>
+	<div class="max-w-sm bg-sidebar p-2">
+		<PartyChat messages={[]} onsend={() => {}} onreact={() => {}} />
+	</div>
+</Story>
+
+<Story name="Reactions" asChild>
+	<div class="relative aspect-video max-w-xl rounded-xl bg-zinc-800">
+		<PartyReactions reactions={mockFloating} class="rounded-xl" />
 	</div>
 </Story>
 
