@@ -547,8 +547,13 @@ test('signed in, the queue lives on the server and takes in the guest queue', as
 
 	// Another device changes the queue; it shows once this tab is back in focus.
 	queue.change(queue.entries.filter((e) => e.video.id !== DELTA));
-	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-	await expect.poll(() => titles(upNext)).toEqual([title(CANYON), title(BEACH)]);
+	// A refresh is skipped while the move is still in flight, so focus again until it lands.
+	await expect
+		.poll(async () => {
+			await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+			return titles(upNext);
+		})
+		.toEqual([title(CANYON), title(BEACH)]);
 
 	await page.reload();
 	await watchPaused(page);
