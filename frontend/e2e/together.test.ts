@@ -403,11 +403,14 @@ class FakeRoom {
 	}
 }
 
+/** The server's view of a guest on an instance that requires login, see {@link mockApi}. */
+type GuestPass = { admitted: boolean; confirmed: number; released: number };
+
 async function mockApi(
 	context: BrowserContext,
 	room: FakeRoom,
-	{ signedIn }: { signedIn: boolean }
-) {
+	{ signedIn, requireLogin = false }: { signedIn: boolean; requireLogin?: boolean }
+): Promise<GuestPass> {
 	await context.route('**/proxy/**', (route) => route.fulfill({ status: 404, body: '' }));
 	await context.route('**/proxy/stream/**', (route) => {
 		const id = new URL(route.request().url()).pathname.split('/').at(-2)!;
@@ -433,7 +436,7 @@ async function mockApi(
 			auth: {
 				local_enabled: true,
 				registration_enabled: true,
-				require_login: false,
+				require_login: requireLogin,
 				oidc_enabled: false,
 				oidc_name: null
 			}
@@ -474,6 +477,35 @@ async function mockApi(
 			room.broadcast();
 		});
 	});
+
+	// Like the server with `OXISTREAM_REQUIRE_LOGIN`: guests in the room get a cookie that lets
+	// them in; everything but the invite page's endpoints needs it. Routes added last run first.
+	const pass: GuestPass = { admitted: false, confirmed: 0, released: 0 };
+	await context.route(`**/api/v0/rooms/${ROOM}/guest`, (route) => {
+		if (route.request().method() === 'DELETE') {
+			pass.admitted = false;
+			pass.released++;
+			return route.fulfill({ status: 204 });
+		}
+		const key = (route.request().postDataJSON() as { guest_key?: string }).guest_key ?? '';
+		const inRoom = [...room.sockets.values()].some((p) => !p.owner);
+		if (key.length < 16 || !inRoom) return json(route, { code: 'not_found', message: '' }, 404);
+		pass.admitted = true;
+		pass.confirmed++;
+		return route.fulfill({ status: 204 });
+	});
+	const gate = (route: Route) => {
+		const path = new URL(route.request().url()).pathname;
+		const exempt =
+			path === '/api/v0/instance' ||
+			path.startsWith('/api/v0/auth/') ||
+			path.startsWith(`/api/v0/rooms/${ROOM}`);
+		if (!requireLogin || signedIn || pass.admitted || exempt) return route.fallback();
+		return json(route, { code: 'unauthorized', message: '' }, 401);
+	};
+	await context.route('**/api/v0/**', gate);
+	await context.route('**/proxy/**', gate);
+	return pass;
 }
 
 /** The party's video, in the watch page slot or the mini player. */
@@ -1483,4 +1515,68 @@ test('members chat and react, and the host decides who controls the party', asyn
 
 	await hostContext.close();
 	await guestContext.close();
+});
+
+test.describe('when login is required', () => {
+	async function guestOnly(browser: Browser) {
+		const room = new FakeRoom();
+		const context = await browser.newContext();
+		const pass = await mockApi(context, room, { signedIn: false, requireLogin: true });
+		const page = await context.newPage();
+		return { room, context, pass, page };
+	}
+
+	test('guests use the app while in the party and are locked out after leaving', async ({
+		browser
+	}) => {
+		const { context, pass, page } = await guestOnly(browser);
+
+		await page.goto('/feed/subscriptions');
+		await expect(page).toHaveURL(/\/login\?redirect=%2Ffeed%2Fsubscriptions$/);
+
+		// The invite link still works, and joining lets the guest in.
+		await joinAsGuest(page);
+		await expect(page).toHaveURL(watchUrl(FIRST));
+		expect(pass.confirmed).toBeGreaterThan(0);
+		await expect(page.getByRole('heading', { level: 1, name: title(FIRST) })).toBeVisible();
+		await expect.poll(() => hasMetadata(page)).toBe(true);
+
+		await browseTo(page, SECOND);
+		await expect(page.getByTestId('mini-player-title')).toHaveText(title(FIRST));
+
+		// A reload rejoins without a detour through sign-in.
+		await page.reload();
+		await expect(page).toHaveURL(watchUrl(SECOND));
+		await expect(page.getByTestId('party-button')).toBeVisible();
+		await expect(page.getByRole('heading', { level: 1, name: title(SECOND) })).toBeVisible();
+
+		await (await partyMenu(page, 'Leave party')).click();
+		await expect(page.getByRole('alertdialog')).toContainText('this instance needs an account');
+		await page.getByTestId('party-leave-confirm').click();
+		await expect(page).toHaveURL(/\/login\?redirect=%2Fwatch%3Fv%3D/);
+		await expect.poll(() => pass.released).toBe(1);
+
+		await page.goto(`/watch?v=${FIRST}`);
+		await expect(page).toHaveURL(/\/login\?redirect=/);
+
+		await context.close();
+	});
+
+	test('guests removed from the party see why, with sign-in actions', async ({ browser }) => {
+		const { room, context, page } = await guestOnly(browser);
+		await joinAsGuest(page);
+		await expect(page).toHaveURL(watchUrl(FIRST));
+
+		for (const socket of room.sockets.keys()) socket.send(JSON.stringify({ type: 'kicked' }));
+		await expect(page).toHaveURL(new RegExp(`/party/${ROOM}$`));
+		await expect(
+			page.getByRole('heading', { name: 'You were removed from the party' })
+		).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
+
+		await page.goto('/');
+		await expect(page).toHaveURL(/\/login$/);
+
+		await context.close();
+	});
 });

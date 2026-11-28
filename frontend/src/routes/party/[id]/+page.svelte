@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { ApiError, isNotFound } from '#lib/api/mapping.js';
+	import { isNotFound } from '#lib/api/mapping.js';
 	import { createRoomQuery } from '#lib/api/rooms.js';
 	import SignInActions from '#lib/components/sign-in-actions.svelte';
 	import EmptyState from '#lib/components/state/empty-state.svelte';
@@ -41,7 +41,7 @@
 
 	// Joined: on to the watch page of what the party is playing.
 	$effect(() => {
-		if (party.id !== roomId || party.status !== 'open' || !party.room) return;
+		if (party.id !== roomId || party.status !== 'open' || !party.room || !party.admitted) return;
 		const current = party.current;
 		untrack(() => {
 			party.panelOpen = true;
@@ -55,7 +55,10 @@
 		guestName = name;
 	}
 
-	const loginRequired = $derived(info.error instanceof ApiError && info.error.status === 401);
+	// Without an account the app is locked again once out of the party.
+	const signInOnly = $derived(
+		session.capabilities?.require_login === true && session.ready && !session.account
+	);
 	const title = $derived(
 		pageTitle(info.data ? m.party_owner_title({ owner: info.data.owner }) : m.party_title())
 	);
@@ -65,11 +68,11 @@
 	<title>{title}</title>
 </svelte:head>
 
-{#snippet notice(icon: typeof DoorClosedIcon, heading: string, body?: string, withSignIn = false)}
+{#snippet notice(icon: typeof DoorClosedIcon, heading: string, body?: string)}
 	<div class="px-(--page-gutter) py-6">
 		<EmptyState {icon} title={heading} description={body} headingLevel={2}>
 			{#snippet actions()}
-				{#if withSignIn}
+				{#if signInOnly}
 					<SignInActions />
 				{:else}
 					<Button href={resolve('/')} variant="outline">{m.nav_home()}</Button>
@@ -79,9 +82,7 @@
 	</div>
 {/snippet}
 
-{#if loginRequired}
-	{@render notice(UsersRoundIcon, m.party_title(), m.party_login_required(), true)}
-{:else if (info.isError && isNotFound(info.error)) || ended === 'not_found'}
+{#if (info.isError && isNotFound(info.error)) || ended === 'not_found'}
 	{@render notice(DoorClosedIcon, m.party_not_found_title(), m.party_not_found_body())}
 {:else if info.isError}
 	<div class="px-(--page-gutter) py-6">

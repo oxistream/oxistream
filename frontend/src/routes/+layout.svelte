@@ -2,6 +2,7 @@
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { ModeWatcher } from 'mode-watcher';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import { createQueryClient } from '#lib/api/query-client.js';
@@ -14,6 +15,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { getLocale, getTextDirection } from '#lib/paraglide/runtime.js';
 	import { session } from '#lib/session.svelte.js';
+	import { party } from '#lib/together/party.svelte.js';
 	import type { LayoutProps } from './$types';
 	import './layout.css';
 
@@ -27,8 +29,14 @@
 	document.documentElement.dir = getTextDirection();
 
 	const authRoute = $derived(page.route.id === '/login' || page.route.id === '/register');
+	// Party guests may browse like anonymous users while in the party, and join from its link.
+	const partyRoute = $derived(page.route.id === '/party/[id]');
 	const locked = $derived(
-		!authRoute && session.capabilities?.require_login === true && !session.account
+		!authRoute &&
+			!partyRoute &&
+			!party.guest &&
+			session.capabilities?.require_login === true &&
+			!session.account
 	);
 
 	$effect(() => {
@@ -36,11 +44,16 @@
 	});
 
 	$effect(() => {
-		if (locked && session.ready) {
-			void goto(authHref('/login', page.url.pathname + page.url.search), {
-				replaceState: true
-			});
+		if (!locked || !session.ready) return;
+		// Removed from a party or it ended: its invite page says why.
+		const ended = party.ended;
+		if (ended) {
+			void goto(resolve('/party/[id]', { id: ended.id }), { replaceState: true });
+			return;
 		}
+		void goto(authHref('/login', page.url.pathname + page.url.search), {
+			replaceState: true
+		});
 	});
 </script>
 
