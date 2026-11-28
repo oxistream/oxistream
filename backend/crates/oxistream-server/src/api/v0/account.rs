@@ -66,7 +66,9 @@ async fn verify_password(
     Ok(state.auth.hasher().verify(password, hash).await?)
 }
 
-/// Change the password of a local account. Ends the account's other sessions.
+/// Change password
+///
+/// Only for local accounts. Ends the account's other sessions.
 #[utoipa::path(
     post,
     path = "/account/password",
@@ -124,9 +126,11 @@ async fn change_password(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Delete the signed-in account with everything it owns: subscriptions, playlists, history,
-/// settings and sessions. The last admin can only delete their account once no other users
-/// remain. Single sign-on users get a new, empty account on their next sign-in.
+/// Delete current account
+///
+/// Deletes the signed-in account with everything it owns: subscriptions, playlists, history,
+/// settings and sessions. The last admin can only delete their account once no other users remain.
+/// Single sign-on users get a new, empty account on their next sign-in.
 #[utoipa::path(
     delete,
     path = "/account",

@@ -45,8 +45,10 @@ fn check_video_id(id: &str) -> Result<(), ApiError> {
     validate::video_id(id).map_err(|_| ApiError::bad_request("invalid video id"))
 }
 
-/// Mark a video as not interesting. It is left out of the subscription feed, "Continue
-/// watching" and trending. Idempotent.
+/// Hide video
+///
+/// Marks a video as not interesting. It is left out of the subscription feed, "Continue watching"
+/// and trending. Idempotent.
 #[utoipa::path(
     put,
     path = "/hidden-videos/{video_id}",
@@ -70,7 +72,9 @@ async fn hide(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Show a hidden video again. Succeeds if it is not hidden, too.
+/// Unhide video
+///
+/// Shows a hidden video again. Succeeds if it is not hidden, too.
 #[utoipa::path(
     delete,
     path = "/hidden-videos/{video_id}",

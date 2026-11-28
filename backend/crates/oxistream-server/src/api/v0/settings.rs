@@ -222,6 +222,8 @@ impl SettingsPatch {
     }
 }
 
+/// Get settings
+///
 /// The signed-in user's preferences.
 #[utoipa::path(
     get,
@@ -240,7 +242,9 @@ async fn get_settings(
     Ok(Json(state.settings.get(user.id).await?.into()))
 }
 
-/// Change some of the signed-in user's preferences.
+/// Update settings
+///
+/// Changes some of the signed-in user's preferences.
 #[utoipa::path(
     patch,
     path = "/settings",

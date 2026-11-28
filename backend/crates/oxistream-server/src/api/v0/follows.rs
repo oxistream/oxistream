@@ -88,6 +88,8 @@ fn check_id(id: &str) -> Result<(), ApiError> {
     youtube::check_playlist_id(id).map_err(ApiError::from)
 }
 
+/// List followed playlists
+///
 /// YouTube playlists the signed-in user follows, ordered by title.
 #[utoipa::path(
     get,
@@ -112,6 +114,8 @@ async fn list_follows(
     ))
 }
 
+/// Get playlist follow state
+///
 /// Whether the signed-in user follows a YouTube playlist.
 #[utoipa::path(
     get,
@@ -136,8 +140,10 @@ async fn follow_state(
     Ok(Json(FollowState { following }))
 }
 
-/// Follow a YouTube playlist. Idempotent; new playlists are fetched in the background and
-/// then kept up to date by the feed worker.
+/// Follow playlist
+///
+/// Follows a YouTube playlist. Idempotent; new playlists are fetched in the background and then
+/// kept up to date by the feed worker.
 #[utoipa::path(
     put,
     path = "/playlist-follows/{playlist_id}",
@@ -172,7 +178,9 @@ async fn follow(
     Ok((status, Json(body)).into_response())
 }
 
-/// Stop following a YouTube playlist. Succeeds if not followed, too.
+/// Unfollow playlist
+///
+/// Succeeds if not followed, too.
 #[utoipa::path(
     delete,
     path = "/playlist-follows/{playlist_id}",
@@ -197,7 +205,9 @@ async fn unfollow(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Mark the videos of a followed playlist as seen, resetting `new_video_count`.
+/// Mark playlist as seen
+///
+/// Marks the videos of a followed playlist as seen, resetting `new_video_count`.
 #[utoipa::path(
     put,
     path = "/playlist-follows/{playlist_id}/seen",

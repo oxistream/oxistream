@@ -26,8 +26,9 @@ pub struct VideoSegments {
     pub segments: Vec<Segment>,
 }
 
-/// SponsorBlock segments of a video. The server looks them up by hash prefix, so SponsorBlock
-/// never learns the video ID.
+/// Get SponsorBlock segments
+///
+/// The server looks them up by hash prefix, so SponsorBlock never learns the video ID.
 #[utoipa::path(
     get,
     path = "/videos/{id}/segments",
@@ -132,6 +133,8 @@ impl Default for SponsorBlockSettings {
     }
 }
 
+/// Get SponsorBlock settings
+///
 /// The signed-in user's SponsorBlock preferences.
 #[utoipa::path(
     get,
@@ -156,7 +159,9 @@ async fn settings(
     ))
 }
 
-/// Replace the signed-in user's SponsorBlock preferences.
+/// Replace SponsorBlock settings
+///
+/// Replaces the signed-in user's SponsorBlock preferences.
 #[utoipa::path(
     put,
     path = "/settings/sponsorblock",

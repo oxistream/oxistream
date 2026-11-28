@@ -69,8 +69,9 @@ fn entry(liked: LikedVideo, img: &impl Fn(&str) -> String) -> LikedVideoEntry {
     }
 }
 
-/// The signed-in user's liked videos, most recently liked first. Likes stay on this
-/// instance and are never sent to YouTube.
+/// List liked videos
+///
+/// Most recently liked first. Likes stay on this instance and are never sent to YouTube.
 #[utoipa::path(
     get,
     path = "/likes",
@@ -124,6 +125,8 @@ async fn list_likes(
     }))
 }
 
+/// Get like state
+///
 /// Whether the signed-in user liked a video.
 #[utoipa::path(
     get,
@@ -150,7 +153,9 @@ async fn like_state(
     }))
 }
 
-/// Like a video, shorts included. Idempotent; liking again keeps the original date.
+/// Like video
+///
+/// Shorts included. Idempotent; liking again keeps the original date.
 #[utoipa::path(
     put,
     path = "/likes/{video_id}",
@@ -192,7 +197,9 @@ async fn like(
     Ok((status, Json(body)).into_response())
 }
 
-/// Remove a like. Succeeds if the video was not liked, too.
+/// Remove like
+///
+/// Succeeds if the video was not liked, too.
 #[utoipa::path(
     delete,
     path = "/likes/{video_id}",

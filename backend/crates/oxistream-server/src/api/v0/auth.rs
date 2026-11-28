@@ -91,7 +91,9 @@ fn signed_in(status: StatusCode, cookie: axum::http::HeaderValue, user: User) ->
         .into_response()
 }
 
-/// Create a local account and sign in. The first account of an instance becomes an admin.
+/// Register local account
+///
+/// Creates a local account and signs in. The first account of an instance becomes an admin.
 #[utoipa::path(
     post,
     path = "/auth/register",
@@ -167,7 +169,7 @@ async fn register(
     Ok(signed_in(StatusCode::CREATED, cookie, user))
 }
 
-/// Sign in with a local account.
+/// Sign in with local account
 #[utoipa::path(
     post,
     path = "/auth/login",
@@ -234,7 +236,9 @@ pub struct LoggedOut {
     pub end_session_url: Option<String>,
 }
 
-/// End the current session. Succeeds without a session, too.
+/// Sign out
+///
+/// Ends the current session. Succeeds without a session, too.
 #[utoipa::path(
     post,
     path = "/auth/logout",
@@ -268,7 +272,7 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Res
         .into_response())
 }
 
-/// The signed-in account.
+/// Get current account
 #[utoipa::path(
     get,
     path = "/auth/me",

@@ -74,6 +74,8 @@ fn not_found() -> ApiError {
     ApiError::new(StatusCode::NOT_FOUND, ErrorCode::NotFound, "not found")
 }
 
+/// Get feed URL status
+///
 /// Whether the signed-in user has a feed URL.
 #[utoipa::path(
     get,
@@ -94,7 +96,9 @@ async fn get_feed_token(
     }))
 }
 
-/// Create a personal Atom feed URL of the subscription feed; an existing one stops working.
+/// Create feed URL
+///
+/// Creates a personal Atom feed URL of the subscription feed; an existing one stops working.
 #[utoipa::path(
     post,
     path = "/settings/feed-token",
@@ -124,7 +128,7 @@ async fn create_feed_token(
     ))
 }
 
-/// Revoke the signed-in user's feed URL.
+/// Revoke feed URL
 #[utoipa::path(
     delete,
     path = "/settings/feed-token",
@@ -144,8 +148,10 @@ async fn delete_feed_token(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// The newest videos of a user's subscriptions as Atom. The token from
-/// `POST /settings/feed-token` authenticates; no session is needed.
+/// Get Atom feed
+///
+/// The newest videos of a user's subscriptions as Atom. The token from `POST /settings/feed-token`
+/// authenticates; no session is needed.
 #[utoipa::path(
     get,
     path = "/feed/atom/{token}",

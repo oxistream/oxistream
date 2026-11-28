@@ -15,9 +15,10 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete the signed-in account with everything it owns: subscriptions, playlists, history,
-         *     settings and sessions. The last admin can only delete their account once no other users
-         *     remain. Single sign-on users get a new, empty account on their next sign-in.
+         * Delete current account
+         * @description Deletes the signed-in account with everything it owns: subscriptions, playlists, history,
+         *     settings and sessions. The last admin can only delete their account once no other users remain.
+         *     Single sign-on users get a new, empty account on their next sign-in.
          */
         delete: operations["delete_account"];
         options?: never;
@@ -34,7 +35,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change the password of a local account. Ends the account's other sessions. */
+        /**
+         * Change password
+         * @description Only for local accounts. Ends the account's other sessions.
+         */
         post: operations["change_password"];
         delete?: never;
         options?: never;
@@ -50,7 +54,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Instance status: build, database, feed worker and configuration. Caches and the feed
+         * Get instance status
+         * @description Instance status: build, database, feed worker and configuration. Caches and the feed
          *     worker's last run are those of the replica that answers. Admins only.
          */
         get: operations["status"];
@@ -69,7 +74,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Users, newest first. Admins only. */
+        /**
+         * List users
+         * @description Users, newest first. Admins only.
+         */
         get: operations["list_users"];
         put?: never;
         post?: never;
@@ -90,14 +98,16 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete a user with everything they own, ending their sessions. Admins delete their own
+         * Delete user
+         * @description Delete a user with everything they own, ending their sessions. Admins delete their own
          *     account via `DELETE /account`.
          */
         delete: operations["delete_user"];
         options?: never;
         head?: never;
         /**
-         * Change a user's role or disable them. Admins cannot change their own account, and the last
+         * Update user
+         * @description Change a user's role or disable them. Admins cannot change their own account, and the last
          *     active admin is never demoted or disabled. With an OIDC admin group, the role of single
          *     sign-on users is synced again on their next sign-in.
          */
@@ -113,7 +123,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sign in with a local account. */
+        /** Sign in with local account */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -130,7 +140,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** End the current session. Succeeds without a session, too. */
+        /**
+         * Sign out
+         * @description Ends the current session. Succeeds without a session, too.
+         */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -145,7 +158,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in account. */
+        /** Get current account */
         get: operations["me"];
         put?: never;
         post?: never;
@@ -165,8 +178,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Back-channel logout: the provider ends sessions server to server.
-         * @description Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure
+         * Handle OIDC back-channel logout
+         * @description Back-channel logout: the provider ends sessions server to server.
+         *
+         *     Signs out the sessions with the token's `sid`, or all sessions of its `sub`. Configure
          *     `{PUBLIC_URL}/api/v0/auth/oidc/backchannel-logout` as the client's back-channel logout URL.
          *     Needs no `Origin` header or session.
          */
@@ -185,8 +200,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Where the provider sends the browser back after sign-in.
-         * @description On success, starts a session and redirects to the target given to `/auth/oidc/login`.
+         * Handle OIDC callback
+         * @description Where the provider sends the browser back after sign-in.
+         *
+         *     On success, starts a session and redirects to the target given to `/auth/oidc/login`.
          *     Unknown identities get a new account; the first account of an instance becomes an admin.
          *     Failures redirect to `/login?error=` with `oidc_denied`, `oidc_failed`, `oidc_unavailable`,
          *     `oidc_disabled` or `account_disabled`.
@@ -208,8 +225,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Start single sign-on with the configured provider.
-         * @description Redirects the browser to the provider. Failures redirect to `/login?error=` with
+         * Start single sign-on
+         * @description Start single sign-on with the configured provider.
+         *
+         *     Redirects the browser to the provider. Failures redirect to `/login?error=` with
          *     `oidc_disabled` or `oidc_unavailable`.
          */
         get: operations["oidc_login"];
@@ -230,7 +249,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a local account and sign in. The first account of an instance becomes an admin. */
+        /**
+         * Register local account
+         * @description Creates a local account and signs in. The first account of an instance becomes an admin.
+         */
         post: operations["register"];
         delete?: never;
         options?: never;
@@ -245,7 +267,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Channels the signed-in user blocked, most recently blocked first. */
+        /**
+         * List blocked channels
+         * @description Most recently blocked first.
+         */
         get: operations["list_blocks"];
         put?: never;
         post?: never;
@@ -264,13 +289,16 @@ export interface paths {
         };
         get?: never;
         /**
-         * Block a channel. Its videos, shorts and playlists are left out of search, related videos and
-         *     trending, and a subscription to it ends. Subscribing to the channel again lifts the block.
-         *     Idempotent.
+         * Block channel
+         * @description Its videos, shorts and playlists are left out of search, related videos and trending, and a
+         *     subscription to it ends. Subscribing to the channel again lifts the block. Idempotent.
          */
         put: operations["block"];
         post?: never;
-        /** Unblock a channel. Succeeds if not blocked, too. */
+        /**
+         * Unblock channel
+         * @description Succeeds if not blocked, too.
+         */
         delete: operations["unblock"];
         options?: never;
         head?: never;
@@ -284,7 +312,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Channel header and the first page of its videos. */
+        /**
+         * Get channel
+         * @description Channel header and the first page of its videos.
+         */
         get: operations["channel"];
         put?: never;
         post?: never;
@@ -301,7 +332,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A page of a channel's past, current and upcoming livestreams. */
+        /**
+         * List channel livestreams
+         * @description A page of a channel's past, current and upcoming livestreams.
+         */
         get: operations["channel_live"];
         put?: never;
         post?: never;
@@ -318,7 +352,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A page of a channel's playlists. */
+        /**
+         * List channel playlists
+         * @description A page of a channel's playlists.
+         */
         get: operations["channel_playlists"];
         put?: never;
         post?: never;
@@ -335,7 +372,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search within a channel's videos. */
+        /**
+         * Search channel
+         * @description Searches within a channel's videos.
+         */
         get: operations["channel_search"];
         put?: never;
         post?: never;
@@ -352,7 +392,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A page of a channel's shorts. */
+        /**
+         * List channel shorts
+         * @description A page of a channel's shorts.
+         */
         get: operations["channel_shorts"];
         put?: never;
         post?: never;
@@ -369,7 +412,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A page of a channel's videos. */
+        /**
+         * List channel videos
+         * @description A page of a channel's videos.
+         */
         get: operations["channel_videos"];
         put?: never;
         post?: never;
@@ -387,8 +433,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Videos of subscribed channels, newest first. Videos the user is not interested in are left
-         *     out.
+         * Get subscription feed
+         * @description Videos of subscribed channels, newest first. Videos the user is not interested in are left out.
          */
         get: operations["feed"];
         put?: never;
@@ -407,8 +453,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The newest videos of a user's subscriptions as Atom. The token from
-         *     `POST /settings/feed-token` authenticates; no session is needed.
+         * Get Atom feed
+         * @description The newest videos of a user's subscriptions as Atom. The token from `POST /settings/feed-token`
+         *     authenticates; no session is needed.
          */
         get: operations["atom_feed"];
         put?: never;
@@ -428,12 +475,16 @@ export interface paths {
         };
         get?: never;
         /**
-         * Mark a video as not interesting. It is left out of the subscription feed, "Continue
-         *     watching" and trending. Idempotent.
+         * Hide video
+         * @description Marks a video as not interesting. It is left out of the subscription feed, "Continue watching"
+         *     and trending. Idempotent.
          */
         put: operations["hide"];
         post?: never;
-        /** Show a hidden video again. Succeeds if it is not hidden, too. */
+        /**
+         * Unhide video
+         * @description Shows a hidden video again. Succeeds if it is not hidden, too.
+         */
         delete: operations["unhide"];
         options?: never;
         head?: never;
@@ -447,11 +498,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Watched videos, most recently watched first. */
+        /**
+         * List watch history
+         * @description Most recently watched first.
+         */
         get: operations["history"];
         put?: never;
         post?: never;
-        /** Clear the whole watch history, including resume points. */
+        /**
+         * Clear watch history
+         * @description Clears the whole watch history, including resume points.
+         */
         delete: operations["clear_history"];
         options?: never;
         head?: never;
@@ -466,8 +523,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Started but unfinished videos, most recently watched first. Videos known to be shorts are
-         *     left out.
+         * List videos to continue watching
+         * @description Started but unfinished videos, most recently watched first. Videos known to be shorts are left
+         *     out.
          */
         get: operations["continue_watching"];
         put?: never;
@@ -489,8 +547,9 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Hide a video from "Continue watching" until it is watched again. It stays in the history
-         *     and keeps its resume point. Succeeds if it is not in the history, too.
+         * Dismiss from continue watching
+         * @description Hides a video from "Continue watching" until it is watched again. It stays in the history and
+         *     keeps its resume point. Succeeds if it is not in the history, too.
          */
         delete: operations["dismiss_continue"];
         options?: never;
@@ -505,9 +564,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the watch history is paused, and how long it is kept. */
+        /**
+         * Get history settings
+         * @description Whether the watch history is paused, and how long it is kept.
+         */
         get: operations["history_settings"];
-        /** Pause or resume the watch history, or change how long it is kept. */
+        /**
+         * Update history settings
+         * @description Pauses or resumes the watch history, or changes how long it is kept.
+         */
         put: operations["update_history_settings"];
         post?: never;
         delete?: never;
@@ -525,12 +590,16 @@ export interface paths {
         };
         get?: never;
         /**
-         * Mark a video as watched: it moves to the top of the history, finished. Recorded even while
-         *     the history is paused, as the user asked for it. Not for shorts, which have no history.
+         * Mark video as watched
+         * @description The video moves to the top of the history, finished. Recorded even while the history is paused,
+         *     as the user asked for it. Not for shorts, which have no history.
          */
         put: operations["mark_watched"];
         post?: never;
-        /** Remove one video from the watch history. Succeeds if it is not in there, too. */
+        /**
+         * Remove video from history
+         * @description Succeeds if it is not in there, too.
+         */
         delete: operations["delete_entry"];
         options?: never;
         head?: never;
@@ -544,7 +613,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Basic information about this instance. */
+        /**
+         * Get instance info
+         * @description Basic information about this instance.
+         */
         get: operations["instance"];
         put?: never;
         post?: never;
@@ -562,8 +634,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The signed-in user's liked videos, most recently liked first. Likes stay on this
-         *     instance and are never sent to YouTube.
+         * List liked videos
+         * @description Most recently liked first. Likes stay on this instance and are never sent to YouTube.
          */
         get: operations["list_likes"];
         put?: never;
@@ -581,12 +653,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the signed-in user liked a video. */
+        /**
+         * Get like state
+         * @description Whether the signed-in user liked a video.
+         */
         get: operations["like_state"];
-        /** Like a video, shorts included. Idempotent; liking again keeps the original date. */
+        /**
+         * Like video
+         * @description Shorts included. Idempotent; liking again keeps the original date.
+         */
         put: operations["like"];
         post?: never;
-        /** Remove a like. Succeeds if the video was not liked, too. */
+        /**
+         * Remove like
+         * @description Succeeds if the video was not liked, too.
+         */
         delete: operations["unlike"];
         options?: never;
         head?: never;
@@ -600,7 +681,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** YouTube playlists the signed-in user follows, ordered by title. */
+        /**
+         * List followed playlists
+         * @description YouTube playlists the signed-in user follows, ordered by title.
+         */
         get: operations["list_follows"];
         put?: never;
         post?: never;
@@ -617,15 +701,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the signed-in user follows a YouTube playlist. */
+        /**
+         * Get playlist follow state
+         * @description Whether the signed-in user follows a YouTube playlist.
+         */
         get: operations["follow_state"];
         /**
-         * Follow a YouTube playlist. Idempotent; new playlists are fetched in the background and
-         *     then kept up to date by the feed worker.
+         * Follow playlist
+         * @description Follows a YouTube playlist. Idempotent; new playlists are fetched in the background and then
+         *     kept up to date by the feed worker.
          */
         put: operations["follow"];
         post?: never;
-        /** Stop following a YouTube playlist. Succeeds if not followed, too. */
+        /**
+         * Unfollow playlist
+         * @description Succeeds if not followed, too.
+         */
         delete: operations["unfollow"];
         options?: never;
         head?: never;
@@ -640,7 +731,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Mark the videos of a followed playlist as seen, resetting `new_video_count`. */
+        /**
+         * Mark playlist as seen
+         * @description Marks the videos of a followed playlist as seen, resetting `new_video_count`.
+         */
         put: operations["mark_seen"];
         post?: never;
         delete?: never;
@@ -656,10 +750,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user's playlists, most recently changed first. */
+        /**
+         * List playlists
+         * @description The signed-in user's playlists, most recently changed first.
+         */
         get: operations["list_playlists"];
         put?: never;
-        /** Create a playlist. */
+        /** Create playlist */
         post: operations["create_playlist"];
         delete?: never;
         options?: never;
@@ -677,9 +774,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Copy a YouTube playlist into a new private playlist, which can then be edited. Copies at
-         *     most 5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each
-         *     video once: a repeated video keeps its first place.
+         * Import YouTube playlist
+         * @description Copies a YouTube playlist into a new private playlist, which can then be edited. Copies at most
+         *     5000 videos; unavailable ones are skipped. Like any local playlist, the copy holds each video
+         *     once: a repeated video keeps its first place.
          */
         post: operations["import_playlist"];
         delete?: never;
@@ -696,17 +794,21 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * A playlist with its items. Private playlists are only visible to their owner; unlisted
-         *     ones to anyone with the ID, including anonymous users.
+         * Get playlist
+         * @description A playlist with its items. Private playlists are only visible to their owner; unlisted ones to
+         *     anyone with the ID, including anonymous users.
          */
         get: operations["get_playlist"];
         put?: never;
         post?: never;
-        /** Delete a playlist. */
+        /** Delete playlist */
         delete: operations["delete_playlist"];
         options?: never;
         head?: never;
-        /** Change title, description or visibility. */
+        /**
+         * Update playlist
+         * @description Changes title, description or visibility.
+         */
         patch: operations["update_playlist"];
         trace?: never;
     };
@@ -718,10 +820,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Append a video. Idempotent; a video appears at most once per playlist. */
+        /**
+         * Add video to playlist
+         * @description Appends the video. Idempotent; a video appears at most once per playlist.
+         */
         put: operations["add_item"];
         post?: never;
-        /** Remove a video. Succeeds if it is not in the playlist, too. */
+        /**
+         * Remove video from playlist
+         * @description Succeeds if it is not in the playlist, too.
+         */
         delete: operations["remove_item"];
         options?: never;
         head?: never;
@@ -736,7 +844,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Move a video to another position. */
+        /**
+         * Move video in playlist
+         * @description Moves a video to another position.
+         */
         put: operations["move_item"];
         post?: never;
         delete?: never;
@@ -753,7 +864,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Remember which item the owner is playing, for continuing later. */
+        /**
+         * Set last played item
+         * @description Remembers which item the owner is playing, for continuing later.
+         */
         put: operations["set_last_played"];
         post?: never;
         delete?: never;
@@ -770,15 +884,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Progress of several videos, e.g. for the progress bars of a list. Videos never watched
-         *     are left out.
+         * Get progress of videos
+         * @description For example for the progress bars of a list. Videos never watched are left out.
          */
         get: operations["batch_progress"];
         put?: never;
         /**
-         * Record how far the signed-in user got into a video. Ignored while history is paused and for
+         * Report watch progress
+         * @description Records how far the signed-in user got into a video. Ignored while history is paused and for
          *     videos known to be shorts.
-         * @description The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
+         *
+         *     The body is JSON, sent as `application/json` or, for `navigator.sendBeacon`, `text/plain`.
          */
         post: operations["report_progress"];
         delete?: never;
@@ -794,7 +910,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Progress of one video, to resume where the signed-in user left off. */
+        /**
+         * Get progress of video
+         * @description To resume where the signed-in user left off.
+         */
         get: operations["video_progress"];
         put?: never;
         post?: never;
@@ -811,11 +930,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user's up-next queue. Guests keep theirs in the browser. */
+        /**
+         * Get up-next queue
+         * @description The signed-in user's up-next queue. Guests keep theirs in the browser.
+         */
         get: operations["get_queue"];
         put?: never;
         post?: never;
-        /** Remove all entries. */
+        /**
+         * Clear queue
+         * @description Removes all entries.
+         */
         delete: operations["clear_queue"];
         options?: never;
         head?: never;
@@ -831,7 +956,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add entries at the start or end. A full queue loses entries at the end. */
+        /**
+         * Add queue entries
+         * @description Adds entries at the start or end. A full queue loses entries at the end.
+         */
         post: operations["add_entries"];
         delete?: never;
         options?: never;
@@ -850,8 +978,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Remove an entry. Succeeds if it is not queued, too, so two players taking the same
-         *     entry do not fail.
+         * Remove queue entry
+         * @description Succeeds if it is not queued, too, so two players taking the same entry do not fail.
          */
         delete: operations["remove_entry"];
         options?: never;
@@ -867,7 +995,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Move an entry to another position. Succeeds if it is not queued, too. */
+        /**
+         * Move queue entry
+         * @description Moves an entry to another position. Succeeds if it is not queued, too.
+         */
         put: operations["move_entry"];
         post?: never;
         delete?: never;
@@ -883,7 +1014,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve a YouTube URL to a video, channel or playlist ID. */
+        /**
+         * Resolve YouTube URL
+         * @description Resolves a YouTube URL to a video, channel or playlist ID.
+         */
         get: operations["resolve"];
         put?: never;
         post?: never;
@@ -900,13 +1034,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the signed-in user's open rooms, newest first. */
+        /**
+         * List rooms
+         * @description The signed-in user's open rooms, newest first.
+         */
         get: operations["list_rooms"];
         put?: never;
         /**
-         * Open a room. Anyone with its link can join through the WebSocket at
-         *     `/api/v0/rooms/{id}/ws`, speaking `RoomClientMessage` and `RoomServerMessage`. Rooms
-         *     expire a day after the last participant left.
+         * Create room
+         * @description Opens a room. Anyone with its link can join through the WebSocket at `/api/v0/rooms/{id}/ws`,
+         *     speaking `RoomClientMessage` and `RoomServerMessage`. Rooms expire a day after the last
+         *     participant left.
          */
         post: operations["create_room"];
         delete?: never;
@@ -922,11 +1060,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Look up a room before joining it. */
+        /**
+         * Get room
+         * @description Looks up a room before joining it.
+         */
         get: operations["get_room"];
         put?: never;
         post?: never;
-        /** Close a room; everyone in it is disconnected. */
+        /**
+         * Close room
+         * @description Everyone in it is disconnected.
+         */
         delete: operations["delete_room"];
         options?: never;
         head?: never;
@@ -943,12 +1087,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
+         * Update party guest cookie
+         * @description Confirms that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
          *     may use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it
          *     stays in the room. Clients call this after joining and every 30 s.
          */
         post: operations["admit_guest"];
-        /** Give up guest access, e.g. after leaving the room. */
+        /**
+         * Clear party guest cookie
+         * @description Gives up guest access, e.g. after leaving the room.
+         */
         delete: operations["release_guest"];
         options?: never;
         head?: never;
@@ -962,7 +1110,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search videos, shorts, channels and playlists. */
+        /**
+         * Search
+         * @description Searches videos, shorts, channels and playlists.
+         */
         get: operations["search"];
         put?: never;
         post?: never;
@@ -979,7 +1130,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search suggestions for a partial query; empty when YouTube fails. */
+        /**
+         * Get search suggestions
+         * @description Suggestions for a partial query; empty when YouTube fails.
+         */
         get: operations["search_suggestions"];
         put?: never;
         post?: never;
@@ -996,14 +1150,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user's preferences. */
+        /**
+         * Get settings
+         * @description The signed-in user's preferences.
+         */
         get: operations["get_settings"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Change some of the signed-in user's preferences. */
+        /**
+         * Update settings
+         * @description Changes some of the signed-in user's preferences.
+         */
         patch: operations["update_settings"];
         trace?: never;
     };
@@ -1014,12 +1174,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the signed-in user has a feed URL. */
+        /**
+         * Get feed URL status
+         * @description Whether the signed-in user has a feed URL.
+         */
         get: operations["get_feed_token"];
         put?: never;
-        /** Create a personal Atom feed URL of the subscription feed; an existing one stops working. */
+        /**
+         * Create feed URL
+         * @description Creates a personal Atom feed URL of the subscription feed; an existing one stops working.
+         */
         post: operations["create_feed_token"];
-        /** Revoke the signed-in user's feed URL. */
+        /** Revoke feed URL */
         delete: operations["delete_feed_token"];
         options?: never;
         head?: never;
@@ -1033,9 +1199,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user's SponsorBlock preferences. */
+        /**
+         * Get SponsorBlock settings
+         * @description The signed-in user's SponsorBlock preferences.
+         */
         get: operations["settings"];
-        /** Replace the signed-in user's SponsorBlock preferences. */
+        /**
+         * Replace SponsorBlock settings
+         * @description Replaces the signed-in user's SponsorBlock preferences.
+         */
         put: operations["update_settings"];
         post?: never;
         delete?: never;
@@ -1052,12 +1224,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Endless shorts to swipe through, like YouTube's shorts player. Each page continues the
-         *     current sequence and starts a new one from the next seed, interleaved. Seeds are the
-         *     signed-in user's liked shorts and the latest shorts of their subscriptions, plus trending
-         *     videos; anonymous users get trending seeds only. Nothing about the user is sent to YouTube
-         *     but the seed video IDs. Shorts of blocked channels are left out, so a page may be empty
-         *     while more follow.
+         * Discover shorts
+         * @description Endless shorts to swipe through, like YouTube's shorts player. Each page continues the current
+         *     sequence and starts a new one from the next seed, interleaved. Seeds are the signed-in user's
+         *     liked shorts and the latest shorts of their subscriptions, plus trending videos; anonymous users
+         *     get trending seeds only. Nothing about the user is sent to YouTube but the seed video IDs.
+         *     Shorts of blocked channels are left out, so a page may be empty while more follow.
          */
         get: operations["discover"];
         put?: never;
@@ -1075,7 +1247,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The shorts player overlay of a short: its title and the full video it links to. */
+        /**
+         * Get short
+         * @description The shorts player overlay of a short: its title and the full video it links to.
+         */
         get: operations["short"];
         put?: never;
         post?: never;
@@ -1092,10 +1267,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user's subscription groups, in their order. */
+        /**
+         * List subscription groups
+         * @description The signed-in user's subscription groups, in their order.
+         */
         get: operations["list_groups"];
         put?: never;
-        /** Create a subscription group, after the existing ones. */
+        /**
+         * Create subscription group
+         * @description The new group goes after the existing ones.
+         */
         post: operations["create_group"];
         delete?: never;
         options?: never;
@@ -1113,11 +1294,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a group. Its channels stay subscribed. */
+        /**
+         * Delete subscription group
+         * @description Its channels stay subscribed.
+         */
         delete: operations["delete_group"];
         options?: never;
         head?: never;
-        /** Rename a group or change whether it shows on the home page. */
+        /**
+         * Update subscription group
+         * @description Renames a group or changes whether it shows on the home page.
+         */
         patch: operations["update_group"];
         trace?: never;
     };
@@ -1129,10 +1316,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Add a subscribed channel to a group. Idempotent. */
+        /**
+         * Add channel to group
+         * @description The channel must be subscribed. Idempotent.
+         */
         put: operations["add_channel"];
         post?: never;
-        /** Remove a channel from a group. Succeeds if it is not in the group, too. */
+        /**
+         * Remove channel from group
+         * @description Succeeds if it is not in the group, too.
+         */
         delete: operations["remove_channel"];
         options?: never;
         head?: never;
@@ -1147,7 +1340,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Move a group to another position. */
+        /** Move subscription group */
         put: operations["move_group"];
         post?: never;
         delete?: never;
@@ -1163,7 +1356,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Channels the signed-in user subscribed to, ordered by name. */
+        /**
+         * List subscriptions
+         * @description Channels the signed-in user subscribed to, ordered by name.
+         */
         get: operations["list_subscriptions"];
         put?: never;
         post?: never;
@@ -1180,7 +1376,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download the signed-in user's subscriptions as a file. */
+        /**
+         * Export subscriptions
+         * @description Downloads the signed-in user's subscriptions as a file.
+         */
         get: operations["export_subscriptions"];
         put?: never;
         post?: never;
@@ -1200,11 +1399,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Import subscriptions from a file.
-         * @description Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON
-         *     export, or an OPML file; the format is detected from the content. Idempotent. Only
-         *     channels given by ID or `/channel/UC…` URL can be imported. New channels are fetched
-         *     by the feed worker over the following minutes.
+         * Import subscriptions
+         * @description Accepts a YouTube Takeout `subscriptions.csv`, a NewPipe, Invidious or Piped JSON export, or an
+         *     OPML file; the format is detected from the content. Idempotent. Only channels given by ID or
+         *     `/channel/UC…` URL can be imported. New channels are fetched by the feed worker over the
+         *     following minutes.
          */
         post: operations["import_subscriptions"];
         delete?: never;
@@ -1220,12 +1419,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether the signed-in user is subscribed to a channel. */
+        /**
+         * Get subscription state
+         * @description Whether the signed-in user is subscribed to a channel.
+         */
         get: operations["subscription_state"];
-        /** Subscribe to a channel. Idempotent; new channels are fetched in the background. */
+        /**
+         * Subscribe to channel
+         * @description Idempotent; new channels are fetched in the background.
+         */
         put: operations["subscribe"];
         post?: never;
-        /** Unsubscribe from a channel. Succeeds if not subscribed, too. */
+        /**
+         * Unsubscribe from channel
+         * @description Succeeds if not subscribed, too.
+         */
         delete: operations["unsubscribe"];
         options?: never;
         head?: never;
@@ -1241,8 +1449,9 @@ export interface paths {
         };
         get?: never;
         /**
-         * Record that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if
-         *     not subscribed, too.
+         * Record channel visit
+         * @description Records that the signed-in user opened a channel's page, clearing its `has_new`. Succeeds if not
+         *     subscribed, too.
          */
         put: operations["visit_channel"];
         post?: never;
@@ -1259,7 +1468,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`). */
+        /**
+         * Get trending videos
+         * @description Trending videos of the instance's region (`OXISTREAM_TRENDING_REGION`).
+         */
         get: operations["trending"];
         put?: never;
         post?: never;
@@ -1276,7 +1488,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Video details and related videos. */
+        /**
+         * Get video
+         * @description Video details and related videos.
+         */
         get: operations["video"];
         put?: never;
         post?: never;
@@ -1293,7 +1508,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** DASH manifest of a video, with all stream URLs pointing to the proxy. */
+        /**
+         * Get DASH manifest
+         * @description All stream URLs point to the proxy.
+         */
         get: operations["manifest"];
         put?: never;
         post?: never;
@@ -1311,8 +1529,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * SponsorBlock segments of a video. The server looks them up by hash prefix, so SponsorBlock
-         *     never learns the video ID.
+         * Get SponsorBlock segments
+         * @description The server looks them up by hash prefix, so SponsorBlock never learns the video ID.
          */
         get: operations["segments"];
         put?: never;
@@ -1330,7 +1548,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets. */
+        /**
+         * Get storyboard
+         * @description Seek preview thumbnails as a `WebVTT` track, with cues pointing into proxied sprite sheets.
+         */
         get: operations["storyboard"];
         put?: never;
         post?: never;
@@ -1347,7 +1568,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A YouTube playlist with the first page of its videos. */
+        /**
+         * Get YouTube playlist
+         * @description A YouTube playlist with the first page of its videos.
+         */
         get: operations["playlist"];
         put?: never;
         post?: never;
@@ -1364,7 +1588,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A further page of a YouTube playlist's videos. */
+        /**
+         * List YouTube playlist videos
+         * @description A further page of a YouTube playlist's videos.
+         */
         get: operations["playlist_videos"];
         put?: never;
         post?: never;
