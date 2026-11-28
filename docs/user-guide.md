@@ -270,7 +270,7 @@ Watch videos in sync with others. Only signed-in users can start a party, but an
 
 - Start a party with "Watch together" on a watch page, or "Start a party" in the party panel (header button). The panel also lists your open parties.
 - "Invite" offers "Copy link", a QR code and the device's share dialog. The link looks like `/party/{id}`.
-- Guests enter a name to join, which is remembered in the browser. They can also sign in first. If the instance requires login, guests cannot join.
+- Guests enter a name to join, which is remembered in the browser. They can also sign in first. On instances that require login, guests can use the app only while they are in the party.
 
 Joining opens the watch page of the current video. Everyone can then browse the app while the party keeps playing in the mini player. If someone opens another video, the watch page offers "Play now" and "Add to queue" instead of its own player.
 
@@ -344,7 +344,7 @@ Settings > Account > "Delete account". Type your username to confirm, plus your 
 | --- | --- | --- |
 | Search, watch, shorts, channels, YouTube playlists | yes | yes |
 | Open unlisted playlists by link | yes | yes |
-| Join watch parties | yes, with a name (unless login is required) | yes |
+| Join watch parties | yes, with a name | yes |
 | Resume points | in the browser | in the account |
 | Up-next queue | in the browser | in the account |
 | SponsorBlock settings, audio language | in the browser | SponsorBlock in the account, audio language in the browser |
@@ -354,7 +354,7 @@ Settings > Account > "Delete account". Type your username to confirm, plus your 
 | Start watch parties | – | yes |
 | Home row customization, codec and quality settings | – | yes |
 
-Instances can require sign-in for everything (`OXISTREAM_REQUIRE_LOGIN`), and can turn off registration.
+Instances can require sign-in for everything (`OXISTREAM_REQUIRE_LOGIN`), and can turn off registration. Guests can still join a watch party there by its invite link. While they are in the party, they can search and watch like other guests. Once they leave, are removed or the party ends, they have to sign in.
 
 ## YouTube-compatible URLs
 

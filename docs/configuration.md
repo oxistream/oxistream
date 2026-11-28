@@ -27,7 +27,7 @@ See [Authentication](authentication.md).
 | --- | --- | --- | --- |
 | `OXISTREAM_AUTH_LOCAL_ENABLED` | `true` | no | Username and password sign-in. |
 | `OXISTREAM_REGISTRATION_ENABLED` | `true` | no | Self-registration of local accounts. Does not affect OIDC provisioning. |
-| `OXISTREAM_REQUIRE_LOGIN` | `false` | no | Rejects anonymous API and proxy requests with 401. Guests can then neither watch nor join parties. |
+| `OXISTREAM_REQUIRE_LOGIN` | `false` | no | Rejects anonymous API and proxy requests with 401. Guests can still join a watch party by its invite link and use the app while they are in it. |
 | `OXISTREAM_SESSION_TTL_DAYS` | `30` | no | Session lifetime in days since last use (sliding). At least 1. |
 | `OXISTREAM_COOKIE_SECURE` | `true` | no | `Secure` flag on cookies. Set it to `false` only for plain-HTTP testing on a host other than `localhost`. |
 
