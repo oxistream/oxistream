@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxistream_db::FeedFilter;
+use oxistream_db::FeedKind;
 use rustypipe::model::paginator::Paginator;
 use rustypipe::model::{ShortDetails as RpShortDetails, ShortItem};
 use rustypipe::param::{Language, TrendingCategory};
@@ -294,7 +294,7 @@ async fn initial_seeds(
 
         let feed = state
             .subscriptions
-            .feed(user, FeedFilter::Shorts, None, 30)
+            .feed(user, &FeedKind::Shorts.into(), None, 30)
             .await?;
         let mut subscribed = feed.into_iter().map(|v| v.video_id).collect::<Vec<_>>();
         shuffle(&mut subscribed);

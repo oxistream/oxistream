@@ -8,6 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 
 mod blocks;
 mod follows;
+mod hidden;
 mod history;
 mod likes;
 mod lock;
@@ -27,6 +28,7 @@ pub use follows::{
     PlaylistFollowRepository, YouTubePlaylist, YouTubePlaylistItem, YouTubePlaylistItemUpsert,
     YouTubePlaylistRepository, YouTubePlaylistUpdate,
 };
+pub use hidden::{HiddenVideoRepository, PgHiddenVideoRepository};
 pub use history::{
     HistoryCursor, HistoryEntry, HistoryRepository, PgHistoryRepository, ProgressUpdate,
     WatchProgress,
@@ -53,8 +55,8 @@ pub use settings::{
 pub use sponsorblock::{PgSponsorBlockSettingsRepository, SponsorBlockSettingsRepository};
 pub use subscriptions::{
     Channel, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
-    FeedStatus, FeedVideo, Image, ImportedChannel, PgChannelRepository, PgSubscriptionRepository,
-    Subscription, SubscriptionRepository,
+    FeedKind, FeedStatus, FeedVideo, Image, ImportedChannel, PgChannelRepository,
+    PgSubscriptionRepository, Subscription, SubscriptionRepository,
 };
 pub use users::{
     DeleteOutcome, Identity, NewUser, PgUserRepository, Role, User, UserCredentials,

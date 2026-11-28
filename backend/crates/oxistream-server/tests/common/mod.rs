@@ -11,10 +11,11 @@ use http_body_util::BodyExt;
 use std::sync::Arc;
 
 use oxistream_db::{
-    PgChannelBlockRepository, PgChannelRepository, PgHistoryRepository, PgLikeRepository,
-    PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository, PgRoomRepository,
-    PgSessionRepository, PgSponsorBlockSettingsRepository, PgSubscriptionRepository,
-    PgUserRepository, PgUserSettingsRepository, PgVideoRepository, PoolOptions,
+    PgChannelBlockRepository, PgChannelRepository, PgHiddenVideoRepository, PgHistoryRepository,
+    PgLikeRepository, PgPlaylistFollowRepository, PgPlaylistRepository, PgPool, PgQueueRepository,
+    PgRoomRepository, PgSessionRepository, PgSponsorBlockSettingsRepository,
+    PgSubscriptionRepository, PgUserRepository, PgUserSettingsRepository, PgVideoRepository,
+    PoolOptions,
 };
 use oxistream_server::auth::Auth;
 use oxistream_server::config::{AuthConfig, ProxyConfig, SponsorBlockConfig, YouTubeConfig};
@@ -125,6 +126,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         likes: Arc::new(PgLikeRepository::new(db.clone())),
         queue: Arc::new(PgQueueRepository::new(db.clone())),
         blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
+        hidden: Arc::new(PgHiddenVideoRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
         rooms: Rooms::new(Arc::new(PgRoomRepository::new(db.clone())), None),

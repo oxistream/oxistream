@@ -288,6 +288,8 @@ async fn api_reads_and_patches_settings() {
             "default_quality": null,
             "home_sections": null,
             "audio_language": null,
+            "feed_hide_watched": false,
+            "feed_hide_shorts": false,
         })
     );
 
@@ -323,6 +325,8 @@ async fn api_reads_and_patches_settings() {
             "default_quality": 720,
             "home_sections": ["trending-news", "subscriptions"],
             "audio_language": "interface",
+            "feed_hide_watched": false,
+            "feed_hide_shorts": false,
         })
     );
 

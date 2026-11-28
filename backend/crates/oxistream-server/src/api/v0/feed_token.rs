@@ -2,7 +2,7 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::FeedFilter;
+use oxistream_db::FeedKind;
 use reqwest::Url;
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -171,7 +171,7 @@ async fn atom_feed(
         .ok_or_else(|| ApiError::bad_request("cannot tell this instance's URL"))?;
     let videos = state
         .subscriptions
-        .feed(user_id, FeedFilter::All, None, ATOM_FEED_LIMIT)
+        .feed(user_id, &FeedKind::All.into(), None, ATOM_FEED_LIMIT)
         .await?;
     let body = AtomFeed {
         id: &format!("urn:uuid:{user_id}"),

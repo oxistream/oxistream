@@ -4,6 +4,7 @@ use axum::extract::rejection::{BytesRejection, QueryRejection};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use oxistream_db::FeedKind as DbFeedKind;
 use oxistream_db::{FeedCursor, FeedFilter, FeedVideo, Image, Subscription};
 use rustypipe::validate;
 use serde::{Deserialize, Serialize};
@@ -407,6 +408,11 @@ struct FeedParams {
     /// Defaults to `all`.
     #[param(inline)]
     kind: Option<FeedKind>,
+    /// Leave out finished videos.
+    #[serde(default)]
+    hide_watched: bool,
+    /// Only videos of this subscribed channel (`UC…`).
+    channel: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
@@ -419,7 +425,7 @@ pub enum FeedKind {
     Shorts,
 }
 
-impl From<FeedKind> for FeedFilter {
+impl From<FeedKind> for DbFeedKind {
     fn from(kind: FeedKind) -> Self {
         match kind {
             FeedKind::All => Self::All,
@@ -429,7 +435,8 @@ impl From<FeedKind> for FeedFilter {
     }
 }
 
-/// Videos of subscribed channels, newest first.
+/// Videos of subscribed channels, newest first. Videos the user is not interested in are left
+/// out.
 #[utoipa::path(
     get,
     path = "/feed",
@@ -438,7 +445,7 @@ impl From<FeedKind> for FeedFilter {
     params(FeedParams),
     responses(
         (status = OK, body = FeedPage),
-        (status = BAD_REQUEST, description = "Invalid continuation, limit or kind", body = ErrorBody),
+        (status = BAD_REQUEST, description = "Invalid continuation, limit, kind or channel", body = ErrorBody),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
     )
 )]
@@ -450,6 +457,18 @@ async fn feed(
     let Query(params) = params.map_err(|_| {
         ApiError::bad_request("invalid query; `kind` must be `all`, `videos` or `shorts`")
     })?;
+    let channel_id = params
+        .channel
+        .map(|id| id.trim().to_owned())
+        .filter(|id| !id.is_empty());
+    if let Some(id) = &channel_id {
+        check_channel_id(id)?;
+    }
+    let filter = FeedFilter {
+        kind: params.kind.unwrap_or_default().into(),
+        hide_watched: params.hide_watched,
+        channel_id,
+    };
     let limit = params.limit.unwrap_or(FEED_DEFAULT_LIMIT);
     if !(1..=FEED_MAX_LIMIT).contains(&limit) {
         return Err(ApiError::bad_request(format!(
@@ -466,12 +485,7 @@ async fn feed(
     };
     let mut videos = state
         .subscriptions
-        .feed(
-            user.id,
-            params.kind.unwrap_or_default().into(),
-            after.as_ref(),
-            limit + 1,
-        )
+        .feed(user.id, &filter, after.as_ref(), limit + 1)
         .await?;
     let continuation = if videos.len() > limit as usize {
         videos.truncate(limit as usize);

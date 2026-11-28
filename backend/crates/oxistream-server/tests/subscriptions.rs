@@ -13,7 +13,7 @@ use axum::http::{Method, Request, StatusCode, header};
 use common::{isolated_test_pool, state_with_pool, unique_suffix};
 use http_body_util::BodyExt;
 use oxistream_db::{
-    AdvisoryLock, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedFilter,
+    AdvisoryLock, ChannelRepository, ChannelUpdate, ChannelVideoUpsert, FeedCursor, FeedKind,
     Image, LockKey, NewSession, NewUser, PgChannelRepository, PgPool, PgSessionRepository,
     PgSubscriptionRepository, PgUserRepository, SessionRepository, SubscriptionRepository, User,
     UserRepository,
@@ -158,7 +158,10 @@ async fn feed_is_newest_first_paginated_and_per_user() {
         .await
         .unwrap();
 
-    let first = subs.feed(alice.id, FeedFilter::All, None, 2).await.unwrap();
+    let first = subs
+        .feed(alice.id, &FeedKind::All.into(), None, 2)
+        .await
+        .unwrap();
     let ids: Vec<_> = first.iter().map(|v| v.video_id.as_str()).collect();
     assert_eq!(ids, ["aaaaaaaaaa2", "bbbbbbbbbb1"]);
     assert_eq!(first[1].channel_name.as_deref(), Some("Bravo"));
@@ -166,13 +169,16 @@ async fn feed_is_newest_first_paginated_and_per_user() {
     assert_eq!(first[1].thumbnails.len(), 1);
 
     let rest = subs
-        .feed(alice.id, FeedFilter::All, Some(&first[1].cursor()), 2)
+        .feed(alice.id, &FeedKind::All.into(), Some(&first[1].cursor()), 2)
         .await
         .unwrap();
     let ids: Vec<_> = rest.iter().map(|v| v.video_id.as_str()).collect();
     assert_eq!(ids, ["aaaaaaaaaa1"]);
 
-    let bobs = subs.feed(bob.id, FeedFilter::All, None, 10).await.unwrap();
+    let bobs = subs
+        .feed(bob.id, &FeedKind::All.into(), None, 10)
+        .await
+        .unwrap();
     assert_eq!(bobs.len(), 1);
     assert_eq!(bobs[0].video_id, "cccccccccc1");
 
@@ -181,7 +187,7 @@ async fn feed_is_newest_first_paginated_and_per_user() {
         video_id: "bbbbbbbbbb1".into(),
     };
     let after = subs
-        .feed(alice.id, FeedFilter::All, Some(&cursor), 10)
+        .feed(alice.id, &FeedKind::All.into(), Some(&cursor), 10)
         .await
         .unwrap();
     assert_eq!(after.len(), 1, "the cursor itself is excluded");
@@ -218,7 +224,7 @@ async fn feed_filters_shorts_and_keeps_their_channel_order() {
         videos.into_iter().map(|v| v.video_id).collect::<Vec<_>>()
     };
     let shorts = subs
-        .feed(alice.id, FeedFilter::Shorts, None, 10)
+        .feed(alice.id, &FeedKind::Shorts.into(), None, 10)
         .await
         .unwrap();
     assert_eq!(
@@ -227,12 +233,12 @@ async fn feed_filters_shorts_and_keeps_their_channel_order() {
         "undated shorts keep the channel's order"
     );
     let videos = subs
-        .feed(alice.id, FeedFilter::Videos, None, 10)
+        .feed(alice.id, &FeedKind::Videos.into(), None, 10)
         .await
         .unwrap();
     assert_eq!(ids(videos), ["aaaaaaaaaa1"]);
     let all = subs
-        .feed(alice.id, FeedFilter::All, None, 10)
+        .feed(alice.id, &FeedKind::All.into(), None, 10)
         .await
         .unwrap();
     assert_eq!(all.len(), 4);
@@ -280,7 +286,7 @@ async fn refetch_keeps_publish_date_and_owner() {
         .unwrap();
 
     let feed = subs
-        .feed(alice.id, FeedFilter::All, None, 10)
+        .feed(alice.id, &FeedKind::All.into(), None, 10)
         .await
         .unwrap();
     assert_eq!(feed.len(), 1);
@@ -381,14 +387,14 @@ async fn worker_fetches_each_subscribed_channel_once() {
     assert_eq!(source.fetches(CHANNEL_A), 1, "once despite two subscribers");
     assert_eq!(source.fetches(CHANNEL_B), 1);
     assert_eq!(
-        subs.feed(alice.id, FeedFilter::All, None, 10)
+        subs.feed(alice.id, &FeedKind::All.into(), None, 10)
             .await
             .unwrap()
             .len(),
         1
     );
     assert_eq!(
-        subs.feed(bob.id, FeedFilter::All, None, 10)
+        subs.feed(bob.id, &FeedKind::All.into(), None, 10)
             .await
             .unwrap()
             .len(),
@@ -420,7 +426,7 @@ async fn worker_prunes_unsubscribed_channels() {
     let worker = worker(&db.pool, &source);
     worker.run_once().await.unwrap().unwrap();
     assert_eq!(
-        subs.feed(alice.id, FeedFilter::All, None, 10)
+        subs.feed(alice.id, &FeedKind::All.into(), None, 10)
             .await
             .unwrap()
             .len(),

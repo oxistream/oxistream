@@ -80,13 +80,23 @@ pub trait HistoryRepository: Send + Sync {
     ) -> Result<Vec<HistoryEntry>, Error>;
 
     /// Unfinished videos watched for at least `min_position` seconds, most recent first.
-    /// Videos known to be shorts are left out.
+    /// Videos known to be shorts and hidden videos are left out.
     async fn unfinished(
         &self,
         user_id: Uuid,
         min_position: f64,
         limit: u32,
     ) -> Result<Vec<HistoryEntry>, Error>;
+
+    /// Marks a video as finished, recorded even while the history is paused. The duration is
+    /// taken from an existing entry, else `duration_seconds`, else the metadata caches. Returns
+    /// `None`, storing nothing, when the duration is unknown or for a video known to be a short.
+    async fn mark_watched(
+        &self,
+        user_id: Uuid,
+        video_id: &str,
+        duration_seconds: Option<f64>,
+    ) -> Result<Option<WatchProgress>, Error>;
 
     /// Hides a video from [`Self::unfinished`] until its next progress report; the history
     /// entry and resume point stay. Returns whether an entry existed.
@@ -249,6 +259,8 @@ impl HistoryRepository for PgHistoryRepository {
                 AND p.position_seconds >= $3 \
                 AND NOT EXISTS (SELECT 1 FROM channel_videos cv \
                 WHERE cv.video_id = p.video_id AND cv.is_short) \
+                AND NOT EXISTS (SELECT 1 FROM hidden_videos h \
+                WHERE h.user_id = p.user_id AND h.video_id = p.video_id) \
              ORDER BY p.updated_at DESC, p.video_id DESC \
              LIMIT $4"
             )))
@@ -259,6 +271,41 @@ impl HistoryRepository for PgHistoryRepository {
             .fetch_all(&self.pool)
             .await?,
         )
+    }
+
+    async fn mark_watched(
+        &self,
+        user_id: Uuid,
+        video_id: &str,
+        duration_seconds: Option<f64>,
+    ) -> Result<Option<WatchProgress>, Error> {
+        Ok(sqlx::query_as::<_, WatchProgress>(
+            "INSERT INTO watch_progress \
+                (user_id, video_id, position_seconds, duration_seconds, finished) \
+             SELECT $1, $2, d, d, true FROM (SELECT COALESCE( \
+                (SELECT duration_seconds FROM watch_progress \
+                    WHERE user_id = $1 AND video_id = $2), \
+                $3::double precision, \
+                (SELECT duration_seconds::double precision FROM videos \
+                    WHERE id = $2 AND duration_seconds > 0), \
+                (SELECT duration_seconds::double precision FROM channel_videos \
+                    WHERE video_id = $2 AND duration_seconds > 0)) AS d) t \
+             WHERE d IS NOT NULL \
+                AND NOT EXISTS (SELECT 1 FROM channel_videos \
+                WHERE video_id = $2 AND is_short) \
+             ON CONFLICT (user_id, video_id) DO UPDATE SET \
+                position_seconds = EXCLUDED.position_seconds, \
+                duration_seconds = EXCLUDED.duration_seconds, \
+                finished = true, \
+                continue_dismissed = false, \
+                updated_at = now() \
+             RETURNING video_id, position_seconds, duration_seconds, finished, updated_at",
+        )
+        .bind(user_id)
+        .bind(video_id)
+        .bind(duration_seconds)
+        .fetch_optional(&self.pool)
+        .await?)
     }
 
     async fn dismiss_continue(&self, user_id: Uuid, video_id: &str) -> Result<bool, Error> {

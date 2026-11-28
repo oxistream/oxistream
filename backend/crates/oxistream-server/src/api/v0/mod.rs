@@ -14,6 +14,7 @@ mod blocks;
 mod cursor;
 pub(crate) mod feed_token;
 mod follows;
+pub(crate) mod hidden;
 mod history;
 mod likes;
 mod manifest;
@@ -41,6 +42,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(playlists::router())
         .merge(follows::router())
         .merge(blocks::router())
+        .merge(hidden::router())
         .merge(likes::router())
         .merge(queue::router())
         .merge(sponsorblock::router())
