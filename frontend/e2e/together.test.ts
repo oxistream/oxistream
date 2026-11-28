@@ -88,13 +88,24 @@ type ClientMessage = {
 	video_ids?: string[];
 	to?: number;
 	revision?: number;
+	enabled?: boolean;
+};
+
+type FakeEntry = {
+	id: number;
+	video: ReturnType<typeof summary>;
+	added_by: string;
+	autoplay: boolean;
 };
 
 /** A party server in the test process, shared by both browsers. */
 class FakeRoom {
 	sockets = new Map<WebSocketRoute, { id: string; name: string; owner: boolean }>();
-	queue: { id: number; video: ReturnType<typeof summary>; added_by: string }[] = [];
+	queue: FakeEntry[] = [];
 	current: number | null = null;
+	autoplay = false;
+	/** Every video queued so far, which autoplay does not repeat. */
+	seen = new Set<string>();
 	playing = false;
 	position = 0;
 	positionAt = Date.now();
@@ -105,9 +116,10 @@ class FakeRoom {
 		this.add(first, 'mara');
 	}
 
-	add(videoId: string, by: string, play = false) {
+	add(videoId: string, by: string, play = false, autoplay = false) {
 		const id = this.nextEntry++;
-		this.queue.push({ id, video: summary(videoId), added_by: by });
+		this.seen.add(videoId);
+		this.queue.push({ id, video: summary(videoId), added_by: autoplay ? '' : by, autoplay });
 		if (play) {
 			this.queue = this.queue.filter((e) => e.id !== this.current);
 			this.current = id;
@@ -118,6 +130,12 @@ class FakeRoom {
 
 	upcoming() {
 		return this.queue.filter((e) => e.id !== this.current);
+	}
+
+	/** What autoplay appends once the current entry, the last one, ends: the first unseen title. */
+	upNext() {
+		if (!this.autoplay || this.current === null || this.upcoming().length > 0) return null;
+		return Object.keys(TITLES).find((id) => !this.seen.has(id) && !id.startsWith('live')) ?? null;
 	}
 
 	reorder(upcoming: typeof this.queue) {
@@ -135,6 +153,8 @@ class FakeRoom {
 			playing: this.playing,
 			position: this.position,
 			position_at: this.positionAt,
+			autoplay: this.autoplay,
+			up_next: this.upNext() ? summary(this.upNext()!) : null,
 			participants: [...this.sockets.values()].map((p) => ({
 				id: p.id,
 				name: p.name,
@@ -212,14 +232,21 @@ class FakeRoom {
 				// Reversed, so the test knows the outcome.
 				this.reorder(this.upcoming().reverse());
 				return this.broadcast();
+			case 'autoplay':
+				this.autoplay = message.enabled!;
+				return this.broadcast();
 			case 'remove':
 				this.queue = this.queue.filter((e) => e.id !== message.entry || e.id === this.current);
 				return this.broadcast();
 			case 'ended':
 			case 'skip':
 				if (message.entry !== this.current) return;
-				this.queue = this.queue.filter((e) => e.id !== message.entry);
-				this.current = this.queue[0]?.id ?? null;
+				{
+					const next = this.upNext();
+					this.queue = this.queue.filter((e) => e.id !== message.entry);
+					this.current = this.queue[0]?.id ?? null;
+					if (!this.current && next) this.add(next, '', false, true);
+				}
 				this.setPosition(0, this.current !== null);
 				return this.broadcast();
 		}
@@ -984,6 +1011,7 @@ test('the queue is filled from the panel, reordered and shuffled', async ({ brow
 	// Dragging the last entry to the top.
 	const handles = hostPanel.getByTestId('party-queue-handle');
 	await expect(handles).toHaveCount(4);
+	await handles.last().scrollIntoViewIfNeeded();
 	const from = (await handles.last().boundingBox())!;
 	const to = (await handles.first().boundingBox())!;
 	await host.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
@@ -1006,6 +1034,51 @@ test('the queue is filled from the panel, reordered and shuffled', async ({ brow
 	await guestPanel.getByTestId('party-shuffle').click();
 	await expect.poll(ids).toEqual([SECOND, FIRST, LONG_TOO, SECOND]);
 	await expect(titles.nth(2)).toContainText(title(LONG_TOO));
+
+	await hostContext.close();
+	await guestContext.close();
+});
+
+test('the now playing card shows progress, and autoplay continues with a related video', async ({
+	browser
+}) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom();
+	const { host, guest, hostContext, guestContext } = await joinParty(browser, room);
+
+	// Everyone sees where the party is.
+	const hostPanel = await openPanel(host);
+	const guestPanel = await openPanel(guest);
+	await expect(guestPanel.getByTestId('party-time')).toHaveText('0:00 / 0:06');
+	await expect(guestPanel.getByTestId('party-progress')).toHaveAttribute('aria-valuenow', '0');
+
+	// Anyone may turn on autoplay; everyone sees the same preview instead of an empty queue.
+	const toggle = guestPanel.getByTestId('party-autoplay');
+	await expect(toggle).toHaveAttribute('aria-checked', 'false');
+	await toggle.click();
+	await expect.poll(() => room.autoplay).toBe(true);
+	await expect(hostPanel.getByTestId('party-autoplay')).toHaveAttribute('aria-checked', 'true');
+	const upNext = hostPanel.getByTestId('party-up-next');
+	await expect(upNext).toContainText(title(SECOND));
+	await expect(hostPanel.getByTestId('party-queue')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-up-next')).toContainText(title(SECOND));
+
+	// While playing, the time runs for those who only watch the panel, too.
+	await media(host).evaluate((el: HTMLMediaElement) => el.play());
+	await expect(guestPanel.getByTestId('party-time')).toHaveText(/^0:0[1-6] \/ 0:06$/);
+
+	// When the last entry ends, the preview plays and the next one is picked.
+	await expect(hostPanel.getByTestId('party-current')).toContainText(title(SECOND), {
+		timeout: 15_000
+	});
+	expect(room.state().current?.autoplay).toBe(true);
+	await expect(upNext).toContainText(title(LONG));
+	await expect.poll(() => isPaused(guest)).toBe(false);
+
+	// Turned off, the preview goes away.
+	await hostPanel.getByTestId('party-autoplay').click();
+	await expect(guestPanel.getByTestId('party-up-next')).toHaveCount(0);
+	await expect(guestPanel.getByTestId('party-queue')).toContainText('Nothing up next.');
 
 	await hostContext.close();
 	await guestContext.close();
