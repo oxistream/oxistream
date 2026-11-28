@@ -16,7 +16,6 @@
 <Story name="Sign in" asChild>
 	<AuthForm
 		title={m.auth_login_title()}
-		subtitle={m.auth_login_subtitle()}
 		submitLabel={m.auth_sign_in_submit()}
 		onsubmit={noop}
 		{sso}
@@ -30,7 +29,6 @@
 <Story name="Validation errors" asChild>
 	<AuthForm
 		title={m.auth_register_title()}
-		subtitle={m.auth_register_subtitle()}
 		submitLabel={m.auth_register_submit()}
 		status={m.auth_error_summary({ count: 2, formatted: '2' })}
 		onsubmit={noop}
@@ -65,7 +63,6 @@
 <Story name="Single sign-on only" asChild>
 	<AuthForm
 		title={m.auth_login_title()}
-		subtitle={m.auth_login_subtitle()}
 		submitLabel={m.auth_sign_in_submit()}
 		local={false}
 		onsubmit={noop}

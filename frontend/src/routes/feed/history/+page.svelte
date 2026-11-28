@@ -118,11 +118,7 @@
 	{#if !session.ready}
 		<HistoryList loading />
 	{:else if !session.user}
-		<EmptyState
-			icon={ClockIcon}
-			title={m.empty_history_title()}
-			description={m.empty_sign_in_hint()}
-		>
+		<EmptyState icon={ClockIcon} title={m.empty_history_title()}>
 			{#snippet actions()}<SignInActions />{/snippet}
 		</EmptyState>
 	{:else if history.isPending}
@@ -132,11 +128,7 @@
 	{:else if items.length === 0 && query}
 		<EmptyState icon={SearchIcon} title={m.search_empty_title({ query })} />
 	{:else if items.length === 0}
-		<EmptyState
-			icon={ClockIcon}
-			title={m.empty_history_title()}
-			description={m.empty_history_body()}
-		/>
+		<EmptyState icon={ClockIcon} title={m.empty_history_title()} />
 	{:else}
 		<HistoryList {days} onremove={(id) => remove.mutate(id)} />
 		<InfiniteLoader

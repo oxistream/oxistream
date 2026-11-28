@@ -86,7 +86,7 @@
 	{/snippet}
 </SettingRow>
 
-<SettingRow label={m.history_clear()} description={m.settings_history_clear_hint()}>
+<SettingRow label={m.history_clear()}>
 	{#snippet control()}
 		<div class="flex items-center gap-3">
 			{#if cleared}

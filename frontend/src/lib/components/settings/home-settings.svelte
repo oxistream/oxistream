@@ -44,7 +44,7 @@
 	const keys = (items: { key: HomeSectionKey }[]) => items.map((s) => s.key);
 </script>
 
-<SettingRow label={m.settings_home_shown()} description={m.settings_home_shown_hint()} stacked>
+<SettingRow label={m.settings_home_shown()} stacked>
 	{#snippet control()}
 		<Button
 			variant="outline"

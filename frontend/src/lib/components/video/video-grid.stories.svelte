@@ -30,11 +30,7 @@
 
 <Story name="Empty" asChild>
 	<div class="p-6">
-		<EmptyState
-			icon={ListVideoIcon}
-			title={m.empty_playlists_title()}
-			description={m.empty_playlists_body()}
-		/>
+		<EmptyState icon={ListVideoIcon} title={m.empty_playlists_title()} />
 	</div>
 </Story>
 

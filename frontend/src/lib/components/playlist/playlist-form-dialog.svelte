@@ -113,9 +113,7 @@
 			<SegmentedControl
 				name="{uid}-visibility"
 				legend={m.playlist_field_visibility()}
-				description={visibility === 'unlisted'
-					? m.playlist_visibility_unlisted_hint()
-					: m.playlist_visibility_private_hint()}
+				description={visibility === 'unlisted' ? m.playlist_visibility_unlisted_hint() : undefined}
 				options={[
 					{ value: 'private', label: m.playlist_visibility_private() },
 					{ value: 'unlisted', label: m.playlist_visibility_unlisted() }

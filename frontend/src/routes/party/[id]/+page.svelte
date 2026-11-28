@@ -65,7 +65,7 @@
 	<title>{title}</title>
 </svelte:head>
 
-{#snippet notice(icon: typeof DoorClosedIcon, heading: string, body: string, withSignIn = false)}
+{#snippet notice(icon: typeof DoorClosedIcon, heading: string, body?: string, withSignIn = false)}
 	<div class="px-(--page-gutter) py-6">
 		<EmptyState {icon} title={heading} description={body} headingLevel={2}>
 			{#snippet actions()}
@@ -92,7 +92,7 @@
 		/>
 	</div>
 {:else if ended === 'closed'}
-	{@render notice(DoorClosedIcon, m.party_closed_title(), m.party_closed_body())}
+	{@render notice(DoorClosedIcon, m.party_closed_title())}
 {:else if ended === 'kicked'}
 	{@render notice(UserRoundXIcon, m.party_kicked_title(), m.party_kicked_body())}
 {:else if ended === 'full'}

@@ -281,12 +281,7 @@
 
 {#if !videoId}
 	<div class="px-(--page-gutter) py-6">
-		<EmptyState
-			icon={TvMinimalPlayIcon}
-			title={m.watch_no_video_title()}
-			description={m.watch_no_video_body()}
-			headingLevel={2}
-		/>
+		<EmptyState icon={TvMinimalPlayIcon} title={m.watch_no_video_title()} headingLevel={2} />
 	</div>
 {:else}
 	<div class="@container flex-1">

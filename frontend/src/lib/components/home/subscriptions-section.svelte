@@ -41,7 +41,7 @@
 		<EmptyState
 			icon={pending ? HourglassIcon : TvMinimalPlayIcon}
 			title={pending ? m.feed_fetching_title() : m.feed_no_videos_title()}
-			description={pending ? m.feed_fetching_body() : m.feed_no_videos_body()}
+			description={pending ? m.feed_fetching_body() : undefined}
 			headingLevel={3}
 		/>
 	</HomeRow>
