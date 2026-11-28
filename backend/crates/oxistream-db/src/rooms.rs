@@ -12,8 +12,16 @@ use crate::{Error, Video, VideoUpsert};
 pub const ROOM_CHANNEL: &str = "watch_rooms";
 /// Notifications carry a participant's new status.
 pub const STATUS_CHANNEL: &str = "watch_room_status";
+/// Notifications carry a new chat message.
+pub const CHAT_CHANNEL: &str = "watch_room_chat";
+/// Notifications carry a reaction; reactions are not stored.
+pub const REACTION_CHANNEL: &str = "watch_room_reaction";
 /// Played entries a room keeps as its history.
 pub const MAX_HISTORY: i64 = 100;
+/// Chat messages a room keeps.
+pub const MAX_MESSAGES: i64 = 100;
+/// Longest chat message, in characters.
+pub const MAX_MESSAGE_CHARS: usize = 500;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Room {
@@ -35,6 +43,20 @@ pub struct Room {
     /// The entry `autoplay_video_id` was picked for; with no video, nothing was found.
     pub autoplay_source: Option<i64>,
     pub autoplay_video_id: Option<String>,
+    /// Who may play, pause, seek, skip, pick and reorder.
+    #[sqlx(try_from = "String")]
+    pub control_permission: Permission,
+    /// Who may add videos.
+    #[sqlx(try_from = "String")]
+    pub add_permission: Permission,
+}
+
+/// Who besides the owner, who always may, may do something in a room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Permission {
+    #[default]
+    Everyone,
+    Host,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
@@ -47,6 +69,8 @@ pub struct RoomEntry {
     pub autoplay: bool,
     /// Grows with every entry that finished; `None` until then.
     pub played: Option<i64>,
+    /// Participant key of whoever queued it; `None` for autoplay.
+    pub added_key: Option<String>,
     #[sqlx(flatten)]
     pub video: Video,
 }
@@ -93,6 +117,46 @@ macro_rules! text_enum {
 
 text_enum!(SyncState { Synced => "synced", Buffering => "buffering", Behind => "behind" });
 text_enum!(Place { Watching => "watching", Browsing => "browsing", Shorts => "shorts" });
+text_enum!(Permission { Everyone => "everyone", Host => "host" });
+text_enum!(Reaction {
+    Heart => "heart",
+    Laugh => "laugh",
+    Wow => "wow",
+    Sad => "sad",
+    Clap => "clap",
+    Fire => "fire",
+});
+
+impl TryFrom<String> for Permission {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+/// The fixed set of reactions participants may send.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reaction {
+    Heart,
+    Laugh,
+    Wow,
+    Sad,
+    Clap,
+    Fire,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct ChatMessage {
+    pub id: i64,
+    pub room_id: String,
+    /// Participant key of the author.
+    pub author_key: String,
+    /// Display name of the author when it was sent.
+    pub name: String,
+    pub body: String,
+    pub sent_at: OffsetDateTime,
+}
 
 /// What a participant last reported about itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -249,6 +313,11 @@ pub enum RoomOp {
     SetAutoplay {
         enabled: bool,
     },
+    /// Owner only; `None` keeps the current setting.
+    SetPermissions {
+        control: Option<Permission>,
+        add: Option<Permission>,
+    },
     /// Stores the first of `candidates` the room has not queued yet as what autoplay appends
     /// after `source`, if that is still the current and last entry and nothing was picked for it.
     Pick {
@@ -267,6 +336,8 @@ pub enum OpOutcome {
     Stale,
     /// [`RoomOp::AddMany`] queued this many videos; the rest did not fit.
     Added(u32),
+    /// The room's permissions do not allow the participant this.
+    Forbidden,
 }
 
 #[async_trait::async_trait]
@@ -312,14 +383,47 @@ pub trait RoomRepository: Send + Sync {
     /// Keeps participants and their rooms from being cleaned up.
     async fn heartbeat(&self, participants: &[Uuid], rooms: &[String]) -> Result<(), Error>;
 
-    /// Fails with [`Error::LimitReached`] when adding to a full queue. Changes bump the
-    /// revision. `now` becomes the position's reference time.
+    /// Applies an op as the server itself, without permission checks.
     async fn apply(
         &self,
         room_id: &str,
         op: &RoomOp,
         now: OffsetDateTime,
+    ) -> Result<OpOutcome, Error> {
+        self.apply_as(room_id, op, None, now).await
+    }
+
+    /// Applies an op for the participant with key `actor` if the room's permissions allow it,
+    /// else answers [`OpOutcome::Forbidden`]. Fails with [`Error::LimitReached`] when adding to
+    /// a full queue. Changes bump the revision. `now` becomes the position's reference time.
+    async fn apply_as(
+        &self,
+        room_id: &str,
+        op: &RoomOp,
+        actor: Option<&str>,
+        now: OffsetDateTime,
     ) -> Result<OpOutcome, Error>;
+
+    /// Stores a chat message, dropping the oldest beyond [`MAX_MESSAGES`], and tells all
+    /// replicas. `None` if there is no such room. The revision does not change.
+    async fn post_message(
+        &self,
+        room_id: &str,
+        author_key: &str,
+        name: &str,
+        body: &str,
+    ) -> Result<Option<ChatMessage>, Error>;
+
+    /// The room's chat, oldest first.
+    async fn messages(&self, room_id: &str) -> Result<Vec<ChatMessage>, Error>;
+
+    /// Tells all replicas about a reaction, without storing it.
+    async fn react(
+        &self,
+        room_id: &str,
+        participant_id: Uuid,
+        reaction: Reaction,
+    ) -> Result<(), Error>;
 
     /// Drops participants not seen for `stale_after` and rooms nobody was in for
     /// `expire_after`. Returns the number of deleted rooms.
@@ -339,11 +443,12 @@ impl PgRoomRepository {
 
 const ROOM_SELECT: &str = "SELECT r.id, r.owner_id, u.username AS owner, r.current_entry_id, \
         r.playing, r.position_ms, r.position_at, r.revision, r.banned, r.created_at, r.active_at, \
-        r.autoplay, r.autoplay_source, r.autoplay_video_id \
+        r.autoplay, r.autoplay_source, r.autoplay_video_id, r.control_permission, \
+        r.add_permission \
     FROM watch_rooms r JOIN users u ON u.id = r.owner_id WHERE r.id = $1";
 
 const ENTRY_SELECT: &str = "SELECT q.id AS entry_id, q.added_by, q.added_at, q.autoplay, \
-        q.played, v.id, v.title, v.channel_id, v.channel_name, v.duration_seconds, \
+        q.played, q.added_key, v.id, v.title, v.channel_id, v.channel_name, v.duration_seconds, \
         v.published_at, v.thumbnail_url, v.updated_at \
     FROM watch_room_queue q JOIN videos v ON v.id = q.video_id";
 
@@ -355,6 +460,14 @@ struct Locked {
     autoplay: bool,
     autoplay_source: Option<i64>,
     autoplay_video_id: Option<String>,
+    owner_id: Uuid,
+    playing: bool,
+    position_ms: i64,
+    position_at: OffsetDateTime,
+    #[sqlx(try_from = "String")]
+    control_permission: Permission,
+    #[sqlx(try_from = "String")]
+    add_permission: Permission,
 }
 
 impl Locked {
@@ -368,7 +481,8 @@ impl Locked {
 
 async fn lock_room(tx: &mut sqlx::PgConnection, id: &str) -> Result<Option<Locked>, Error> {
     Ok(sqlx::query_as(
-        "SELECT current_entry_id, revision, autoplay, autoplay_source, autoplay_video_id \
+        "SELECT current_entry_id, revision, autoplay, autoplay_source, autoplay_video_id, \
+            owner_id, playing, position_ms, position_at, control_permission, add_permission \
          FROM watch_rooms WHERE id = $1 FOR UPDATE",
     )
     .bind(id)
@@ -511,6 +625,7 @@ async fn add(
     id: &str,
     current: Option<i64>,
     (video_id, added_by, max_queue, play): (&str, &str, u32, bool),
+    added_key: Option<&str>,
     now: OffsetDateTime,
 ) -> Result<(), Error> {
     let count = queue_len(tx, id).await?;
@@ -520,12 +635,13 @@ async fn add(
         return Err(Error::LimitReached);
     }
     let entry: i64 = sqlx::query_scalar(
-        "INSERT INTO watch_room_queue (room_id, video_id, added_by) VALUES ($1, $2, $3) \
-         RETURNING id",
+        "INSERT INTO watch_room_queue (room_id, video_id, added_by, added_key) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
     )
     .bind(id)
     .bind(video_id)
     .bind(added_by)
+    .bind(added_key)
     .fetch_one(&mut *tx)
     .await?;
     if play {
@@ -554,6 +670,7 @@ async fn add_many(
     id: &str,
     current: Option<i64>,
     (video_ids, added_by, max_queue): (&[String], &str, u32),
+    added_key: Option<&str>,
     now: OffsetDateTime,
 ) -> Result<u32, Error> {
     let free = i64::from(max_queue) - queue_len(tx, id).await?;
@@ -566,12 +683,13 @@ async fn add_many(
     // One by one, so positions follow the given order.
     for video_id in video_ids.iter().take(take) {
         let entry: i64 = sqlx::query_scalar(
-            "INSERT INTO watch_room_queue (room_id, video_id, added_by) VALUES ($1, $2, $3) \
-             RETURNING id",
+            "INSERT INTO watch_room_queue (room_id, video_id, added_by, added_key) \
+             VALUES ($1, $2, $3, $4) RETURNING id",
         )
         .bind(id)
         .bind(video_id)
         .bind(added_by)
+        .bind(added_key)
         .fetch_one(&mut *tx)
         .await?;
         first.get_or_insert(entry);
@@ -742,6 +860,105 @@ async fn pick(
     Ok(true)
 }
 
+async fn set_permissions(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    control: Option<Permission>,
+    add: Option<Permission>,
+) -> Result<bool, Error> {
+    let updated = sqlx::query(
+        "UPDATE watch_rooms SET control_permission = COALESCE($2, control_permission), \
+            add_permission = COALESCE($3, add_permission) \
+         WHERE id = $1 AND (control_permission IS DISTINCT FROM COALESCE($2, control_permission) \
+            OR add_permission IS DISTINCT FROM COALESCE($3, add_permission))",
+    )
+    .bind(id)
+    .bind(control.map(Permission::as_str))
+    .bind(add.map(Permission::as_str))
+    .execute(&mut *tx)
+    .await?;
+    Ok(updated.rows_affected() > 0)
+}
+
+/// How close to its end a video must be for anyone to report it as ended.
+const END_SLACK_MS: i64 = 5000;
+
+/// Whether the current entry `from` has played to its end, as far as the room knows.
+async fn at_end(
+    tx: &mut sqlx::PgConnection,
+    locked: &Locked,
+    from: i64,
+    now: OffsetDateTime,
+) -> Result<bool, Error> {
+    let duration: Option<Option<i32>> = sqlx::query_scalar(
+        "SELECT v.duration_seconds FROM watch_room_queue q JOIN videos v ON v.id = q.video_id \
+         WHERE q.id = $1",
+    )
+    .bind(from)
+    .fetch_optional(&mut *tx)
+    .await?;
+    // Without a known duration, the report is trusted.
+    let Some(Some(duration)) = duration else {
+        return Ok(true);
+    };
+    let elapsed = if locked.playing {
+        i64::try_from((now - locked.position_at).whole_milliseconds()).unwrap_or(0)
+    } else {
+        0
+    };
+    Ok(locked.position_ms + elapsed.max(0) >= i64::from(duration) * 1000 - END_SLACK_MS)
+}
+
+/// Whether the room's permissions let the participant with key `actor` apply `op`. The owner
+/// may do anything but pick for autoplay, which only the server does.
+async fn allowed(
+    tx: &mut sqlx::PgConnection,
+    id: &str,
+    locked: &Locked,
+    op: &RoomOp,
+    actor: &str,
+    now: OffsetDateTime,
+) -> Result<bool, Error> {
+    if matches!(op, RoomOp::Pick { .. }) {
+        return Ok(false);
+    }
+    if actor == format!("u:{}", locked.owner_id) {
+        return Ok(true);
+    }
+    let control = locked.control_permission == Permission::Everyone;
+    let add = locked.add_permission == Permission::Everyone;
+    Ok(match op {
+        RoomOp::Kick { .. } | RoomOp::SetPermissions { .. } | RoomOp::Pick { .. } => false,
+        // Playing a video now also changes what plays.
+        RoomOp::Add { play: true, .. } => add && control,
+        RoomOp::Add { .. } | RoomOp::AddMany { .. } => add,
+        RoomOp::Remove { entry } => {
+            control
+                || (locked.current != Some(*entry)
+                    && sqlx::query_scalar::<_, bool>(
+                        "SELECT EXISTS (SELECT 1 FROM watch_room_queue \
+                            WHERE id = $1 AND room_id = $2 AND added_key = $3)",
+                    )
+                    .bind(entry)
+                    .bind(id)
+                    .bind(actor)
+                    .fetch_one(&mut *tx)
+                    .await?)
+        }
+        // Everyone's player reports the end of a video, but only there.
+        RoomOp::Advance { from } => {
+            control || (locked.current == Some(*from) && at_end(tx, locked, *from, now).await?)
+        }
+        RoomOp::Play { .. }
+        | RoomOp::Pause { .. }
+        | RoomOp::Seek { .. }
+        | RoomOp::Select { .. }
+        | RoomOp::Move { .. }
+        | RoomOp::Shuffle
+        | RoomOp::SetAutoplay { .. } => control,
+    })
+}
+
 fn changed(applied: bool) -> OpOutcome {
     if applied {
         OpOutcome::Applied
@@ -755,6 +972,7 @@ async fn apply_op(
     id: &str,
     locked: &Locked,
     op: &RoomOp,
+    actor: Option<&str>,
     now: OffsetDateTime,
 ) -> Result<OpOutcome, Error> {
     let current = locked.current;
@@ -792,6 +1010,7 @@ async fn apply_op(
                 id,
                 current,
                 (video_id, added_by, *max_queue, *play),
+                actor,
                 now,
             )
             .await?;
@@ -801,7 +1020,16 @@ async fn apply_op(
             video_ids,
             added_by,
             max_queue,
-        } => match add_many(tx, id, current, (video_ids, added_by, *max_queue), now).await? {
+        } => match add_many(
+            tx,
+            id,
+            current,
+            (video_ids, added_by, *max_queue),
+            actor,
+            now,
+        )
+        .await?
+        {
             0 => OpOutcome::Unchanged,
             added => OpOutcome::Added(added),
         },
@@ -833,6 +1061,9 @@ async fn apply_op(
         RoomOp::Shuffle => changed(shuffle(tx, id, current).await?),
         RoomOp::Kick { participant } => changed(kick(tx, id, *participant).await?),
         RoomOp::SetAutoplay { enabled } => changed(set_autoplay(tx, id, *enabled).await?),
+        RoomOp::SetPermissions { control, add } => {
+            changed(set_permissions(tx, id, *control, *add).await?)
+        }
         RoomOp::Pick { source, candidates } => {
             changed(pick(tx, id, locked, *source, candidates).await?)
         }
@@ -1069,22 +1300,88 @@ impl RoomRepository for PgRoomRepository {
         Ok(())
     }
 
-    async fn apply(
+    async fn apply_as(
         &self,
         room_id: &str,
         op: &RoomOp,
+        actor: Option<&str>,
         now: OffsetDateTime,
     ) -> Result<OpOutcome, Error> {
         let mut tx = self.pool.begin().await?;
         let Some(locked) = lock_room(&mut tx, room_id).await? else {
             return Ok(OpOutcome::NotFound);
         };
-        let outcome = apply_op(&mut tx, room_id, &locked, op, now).await?;
+        if let Some(actor) = actor
+            && !allowed(&mut tx, room_id, &locked, op, actor, now).await?
+        {
+            return Ok(OpOutcome::Forbidden);
+        }
+        let outcome = apply_op(&mut tx, room_id, &locked, op, actor, now).await?;
         if matches!(outcome, OpOutcome::Applied | OpOutcome::Added(_)) {
             bump(&mut tx, room_id).await?;
             tx.commit().await?;
         }
         Ok(outcome)
+    }
+
+    async fn post_message(
+        &self,
+        room_id: &str,
+        author_key: &str,
+        name: &str,
+        body: &str,
+    ) -> Result<Option<ChatMessage>, Error> {
+        let mut tx = self.pool.begin().await?;
+        let message = sqlx::query_as::<_, ChatMessage>(
+            "INSERT INTO watch_room_messages (room_id, author_key, name, body) \
+             SELECT id, $2, $3, $4 FROM watch_rooms WHERE id = $1 \
+             RETURNING id, room_id, author_key, name, body, sent_at",
+        )
+        .bind(room_id)
+        .bind(author_key)
+        .bind(name)
+        .bind(body)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if message.is_some() {
+            sqlx::query(
+                "DELETE FROM watch_room_messages WHERE id IN (SELECT id FROM watch_room_messages \
+                    WHERE room_id = $1 ORDER BY id DESC OFFSET $2)",
+            )
+            .bind(room_id)
+            .bind(MAX_MESSAGES)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(message)
+    }
+
+    async fn messages(&self, room_id: &str) -> Result<Vec<ChatMessage>, Error> {
+        let mut messages = sqlx::query_as::<_, ChatMessage>(
+            "SELECT id, room_id, author_key, name, body, sent_at FROM watch_room_messages \
+             WHERE room_id = $1 ORDER BY id DESC LIMIT $2",
+        )
+        .bind(room_id)
+        .bind(MAX_MESSAGES)
+        .fetch_all(&self.pool)
+        .await?;
+        messages.reverse();
+        Ok(messages)
+    }
+
+    async fn react(
+        &self,
+        room_id: &str,
+        participant_id: Uuid,
+        reaction: Reaction,
+    ) -> Result<(), Error> {
+        sqlx::query("SELECT pg_notify($1, $2)")
+            .bind(REACTION_CHANNEL)
+            .bind(format!("{room_id} {participant_id} {}", reaction.as_str()))
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     async fn cleanup(&self, stale_after: Duration, expire_after: Duration) -> Result<u64, Error> {
@@ -1119,6 +1416,12 @@ pub enum RoomEvent {
         participant: Uuid,
         status: ParticipantStatus,
     },
+    Chat(ChatMessage),
+    Reaction {
+        room: String,
+        participant: Uuid,
+        reaction: Reaction,
+    },
     /// The connection was lost and re-established; notifications may have been missed.
     Reconnected,
 }
@@ -1131,7 +1434,9 @@ pub struct RoomListener {
 impl RoomListener {
     pub async fn connect(pool: &PgPool) -> Result<Self, Error> {
         let mut listener = PgListener::connect_with(pool).await?;
-        listener.listen_all([ROOM_CHANNEL, STATUS_CHANNEL]).await?;
+        listener
+            .listen_all([ROOM_CHANNEL, STATUS_CHANNEL, CHAT_CHANNEL, REACTION_CHANNEL])
+            .await?;
         Ok(Self { listener })
     }
 
@@ -1159,11 +1464,53 @@ impl RoomListener {
 
 fn event(notification: &PgNotification) -> Option<RoomEvent> {
     let payload = notification.payload();
-    if notification.channel() == STATUS_CHANNEL {
-        parse_status(payload)
-    } else {
-        Some(RoomEvent::Changed(payload.to_owned()))
+    match notification.channel() {
+        STATUS_CHANNEL => parse_status(payload),
+        CHAT_CHANNEL => parse_chat(payload).map(RoomEvent::Chat),
+        REACTION_CHANNEL => parse_reaction(payload),
+        _ => Some(RoomEvent::Changed(payload.to_owned())),
     }
+}
+
+/// Parses `<room> <id> <sent ms> <author key>\n<name>\n<body>`.
+fn parse_chat(payload: &str) -> Option<ChatMessage> {
+    let mut lines = payload.splitn(3, '\n');
+    let mut head = lines.next()?.split(' ');
+    let name = lines.next()?.to_owned();
+    let body = lines.next()?.to_owned();
+    let room_id = head.next()?.to_owned();
+    let id = head.next()?.parse().ok()?;
+    let sent_ms: i64 = head.next()?.parse().ok()?;
+    let author_key = head.next()?.to_owned();
+    if head.next().is_some() {
+        return None;
+    }
+    let sent_at =
+        OffsetDateTime::from_unix_timestamp_nanos(i128::from(sent_ms) * 1_000_000).ok()?;
+    Some(ChatMessage {
+        id,
+        room_id,
+        author_key,
+        name,
+        body,
+        sent_at,
+    })
+}
+
+/// Parses `<room> <participant> <reaction>`.
+fn parse_reaction(payload: &str) -> Option<RoomEvent> {
+    let mut parts = payload.split(' ');
+    let room = parts.next()?.to_owned();
+    let participant = parts.next()?.parse().ok()?;
+    let reaction = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(RoomEvent::Reaction {
+        room,
+        participant,
+        reaction,
+    })
 }
 
 /// Parses `<room> <participant> <revision> <sync or -> <place or ->`.
@@ -1225,5 +1572,38 @@ mod tests {
         assert_eq!(parse_status(&format!("room {id} 1 lost watching")), None);
         assert_eq!(parse_status(&format!("room {id} 1 - - extra")), None);
         assert_eq!(parse_status("room nope 1 - -"), None);
+    }
+
+    #[test]
+    fn chat_payloads_parse() {
+        let message = parse_chat("room 12 1700000000123 g:ab\nAda L.\nhi  there\nnot a line")
+            .expect("parses");
+        assert_eq!(message.room_id, "room");
+        assert_eq!(message.id, 12);
+        assert_eq!(message.author_key, "g:ab");
+        assert_eq!(message.name, "Ada L.");
+        assert_eq!(message.body, "hi  there\nnot a line");
+        assert_eq!(
+            message.sent_at.unix_timestamp_nanos(),
+            1_700_000_000_123_000_000
+        );
+        assert_eq!(parse_chat("room 12 1 g:ab\nAda"), None);
+        assert_eq!(parse_chat("room x 1 g:ab\nAda\nhi"), None);
+        assert_eq!(parse_chat("room 12 1 g:ab extra\nAda\nhi"), None);
+    }
+
+    #[test]
+    fn reaction_payloads_parse() {
+        let id = Uuid::from_u128(7);
+        assert_eq!(
+            parse_reaction(&format!("room {id} clap")),
+            Some(RoomEvent::Reaction {
+                room: "room".into(),
+                participant: id,
+                reaction: Reaction::Clap,
+            })
+        );
+        assert_eq!(parse_reaction(&format!("room {id} poop")), None);
+        assert_eq!(parse_reaction(&format!("room {id} clap extra")), None);
     }
 }
