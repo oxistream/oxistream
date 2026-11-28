@@ -16,6 +16,7 @@ import {
 	toSubscribedChannel,
 	withoutSubscription,
 	withSubscription,
+	withVisit,
 	type SubscribedChannel
 } from './subscription-list';
 
@@ -195,5 +196,25 @@ export function createSubscriptionMutation() {
 			// Subscribing lifts a block of the channel.
 			if (subscribe) void client.invalidateQueries({ queryKey: blockKeys.list });
 		}
+	}));
+}
+
+/** Records a visit of a subscribed channel's page, clearing its new-uploads dot right away. */
+export function createChannelVisitMutation() {
+	const client = useQueryClient();
+	return createMutation(() => ({
+		mutationFn: async (channelId: string) => {
+			const { response, error } = await api.PUT('/api/v0/subscriptions/{channel_id}/visit', {
+				params: { path: { channel_id: channelId } }
+			});
+			if (!response.ok) unwrap({ error, response });
+		},
+		onMutate: async (channelId: string) => {
+			await client.cancelQueries({ queryKey: subscriptionKeys.list });
+			client.setQueryData<SubscribedChannel[]>(subscriptionKeys.list, (list) =>
+				list ? withVisit(list, channelId) : list
+			);
+		},
+		onSettled: () => void client.invalidateQueries({ queryKey: subscriptionKeys.list })
 	}));
 }
