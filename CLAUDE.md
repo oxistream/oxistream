@@ -62,7 +62,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 - Tables:
   - `users`, `user_identities` (OIDC `(issuer, sub)`), `sessions` (incl. OIDC `sid` and ID token), `user_settings` (codec/quality prefs, history paused, feed filters), `oidc_logout_jti`
   - `videos`: metadata upsert cache (no media)
-  - `channels`, `subscriptions`, `channel_videos` (feed), `feed_tokens` (Atom feed URL, SHA-256 only), `hidden_videos` ("Not interested")
+  - `channels`, `subscriptions`, `channel_videos` (feed), `feed_tokens` (Atom feed URL, SHA-256 only), `hidden_videos` ("Not interested"), `subscription_groups`, `subscription_group_channels`
   - `playlists`, `playlist_items` (ordered)
   - `queues`, `queue_entries` (up-next queue of signed-in users, ordered)
   - `youtube_playlists`, `playlist_follows`, `youtube_playlist_items` (followed YouTube playlists)
@@ -100,6 +100,8 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 ### Subscription feed
 
 - `GET /api/v0/feed?kind=&hide_watched=&channel=` filters server-side, so pages stay full; hidden videos are always left out, `hide_watched` drops finished videos. "Hide watched" and "Hide shorts" (no shorts shelf) are `user_settings.feed_hide_*` via `PATCH /settings`, so they follow the account; the channel filter is `?channel=` in the page URL, so it can be linked.
+- Subscription groups (like NewPipe's channel groups): `/api/v0/subscription-groups` CRUD, `PUT …/{id}/position`, `PUT`/`DELETE …/{id}/channels/{channel_id}`. Many-to-many; members must be subscribed (FK to `subscriptions`, so unsubscribing or blocking drops them). At most 50 per user, names 1–50 chars, unique per user ignoring case (422 `taken`). Not part of import/export.
+- `?group=` filters the feed (404 for other users' groups); the feed page shows group tabs (`?group=` in the URL, a deleted group falls back to all), the channels page has the same tabs, a per-channel group picker and a dialog to create, rename, reorder and delete groups. Groups with `show_on_home` get a home row after the subscriptions row (at the end without it); empty ones are hidden.
 
 ### YouTube data
 
