@@ -2,12 +2,14 @@ import { MediaQuery } from 'svelte/reactivity';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { page } from '$app/state';
+import { api } from '#lib/api/client.js';
 import { pickImage } from '#lib/api/mapping.js';
 import type { VideoDetails } from '#lib/api/video.js';
 import type { PlayerSubtitle } from '#lib/components/player/player.svelte';
 import type { PlaybackPreferences } from '#lib/components/player/playback.js';
 import type { WatchProblem } from '#lib/components/watch/errors.js';
 import { m } from '#lib/paraglide/messages.js';
+import { session } from '#lib/session.svelte.js';
 import { appPlayer, type ClaimOptions, type PlayerClaim } from '#lib/player/app-player.svelte.js';
 import {
 	RoomConnection,
@@ -33,6 +35,8 @@ export const REACTION_MS = 2400;
 const MAX_FLOATING = 24;
 /** Reactions this client sends at most this often. */
 const REACTION_GAP_MS = 300;
+/** How often a guest confirms it is still in the party, see {@link Party.admitted}. */
+const GUEST_RENEW_MS = 30_000;
 const EVERYONE: RoomPermissions = { control: 'everyone', add: 'everyone' };
 
 export type PartyTab = 'queue' | 'history' | 'chat' | 'members';
@@ -122,8 +126,14 @@ export class Party {
 	/** Reactions floating over the player right now. */
 	floating = $state.raw<FloatingReaction[]>([]);
 
+	/** Joined, or about to rejoin after a reload, as a guest. */
+	guest = $state(readSaved()?.name !== undefined);
+	/** The party the server confirmed this guest in. */
+	#admittedId = $state<string | null>(null);
+
 	#floatKey = 0;
 	#reactedAt = -Infinity;
+	#guestRenew: ReturnType<typeof setInterval> | undefined;
 
 	#reporter: StatusReporter | null = null;
 	#notices: PresenceNotices | null = null;
@@ -269,6 +279,7 @@ export class Party {
 		this.debug = options.debug ?? false;
 		this.id = id;
 		const name = options.name;
+		this.guest = name !== undefined;
 		const connection = new RoomConnection(id, name ? { name, guestKey: guestKey() } : {});
 		connection.onreaction = (event) => this.#float(event.reaction);
 		connection.connect();
@@ -276,6 +287,44 @@ export class Party {
 		this.#reporter = new StatusReporter((status) => connection.reportStatus(status));
 		this.#notices = new PresenceNotices((notice) => (this.presence = notice));
 		writeSaved({ id, name });
+	}
+
+	/**
+	 * Whether the server lets this tab use the app. Guests on instances that require login get
+	 * a cookie for that once they are in the party; everyone else always may.
+	 */
+	get admitted() {
+		return !this.#needsGuestPass() || (this.id !== null && this.#admittedId === this.id);
+	}
+
+	/** Leaving locks this guest out of the app until it signs in. */
+	get locksOnLeave() {
+		return this.#needsGuestPass();
+	}
+
+	#needsGuestPass() {
+		return this.guest && session.capabilities?.require_login === true;
+	}
+
+	/** Call whenever the connection status changes: guests confirm they are in, then every 30 s. */
+	admit() {
+		clearInterval(this.#guestRenew);
+		const id = this.id;
+		if (!id || !this.#needsGuestPass() || this.status !== 'open') return;
+		const confirm = async () => {
+			const { response } = await api
+				.POST('/api/v0/rooms/{id}/guest', {
+					params: { path: { id } },
+					body: { guest_key: guestKey() }
+				})
+				.catch(() => ({ response: undefined }));
+			if (response?.ok && this.id === id && this.#admittedId !== id) {
+				this.#admittedId = id;
+				session.refetchRejected();
+			}
+		};
+		void confirm();
+		this.#guestRenew = setInterval(() => void confirm(), GUEST_RENEW_MS);
 	}
 
 	/** Tells the others how this player keeps up and where this tab is; call on every change. */
@@ -462,6 +511,14 @@ export class Party {
 	}
 
 	#reset() {
+		clearInterval(this.#guestRenew);
+		if (this.id && this.#needsGuestPass()) {
+			void api
+				.DELETE('/api/v0/rooms/{id}/guest', { params: { path: { id: this.id } } })
+				.catch(() => undefined);
+		}
+		this.guest = false;
+		this.#admittedId = null;
 		this.sync?.destroy();
 		this.sync = null;
 		this.#reporter?.destroy();

@@ -85,6 +85,11 @@ class Session {
 		return account ? { id: account.id, name: account.username, username: account.username } : null;
 	}
 
+	/** Loads again what the server turned away for lack of a session, e.g. once a party guest is let in. */
+	refetchRejected() {
+		void this.#client?.refetchQueries({ predicate: (query) => query.state.status === 'error' });
+	}
+
 	/** Stores the account returned by login or registration. */
 	signedIn(account: Account) {
 		this.#client?.setQueryData(sessionKeys.me, account);

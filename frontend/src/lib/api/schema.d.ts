@@ -933,6 +933,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v0/rooms/{id}/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest
+         *     may use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it
+         *     stays in the room. Clients call this after joining and every 30 s.
+         */
+        post: operations["admit_guest"];
+        /** Give up guest access, e.g. after leaving the room. */
+        delete: operations["release_guest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v0/search": {
         parameters: {
             query?: never;
@@ -1694,6 +1716,10 @@ export interface components {
              * @description As reported by YouTube.
              */
             video_count?: number | null;
+        };
+        GuestCredential: {
+            /** @description The key the guest joined the room's WebSocket with. */
+            guest_key: string;
         };
         HistoryItem: {
             progress: components["schemas"]["VideoProgress"];
@@ -6109,6 +6135,88 @@ export interface operations {
             };
             /** @description No such room of the user */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admit_guest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Room ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestCredential"];
+            };
+        };
+        responses: {
+            /** @description Cookie set */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Foreign origin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such room, or the guest is not in it */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    release_guest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Room ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cookie cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Foreign origin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

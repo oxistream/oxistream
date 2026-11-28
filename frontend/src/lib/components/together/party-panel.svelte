@@ -238,7 +238,10 @@
 						{/snippet}
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-auto min-w-44">
-						<DropdownMenu.Item onSelect={() => party.leave()} data-testid="party-leave">
+						<DropdownMenu.Item
+							onSelect={() => (party.locksOnLeave ? (party.leaveOpen = true) : party.leave())}
+							data-testid="party-leave"
+						>
 							<LogOutIcon />
 							{m.party_leave()}
 						</DropdownMenu.Item>

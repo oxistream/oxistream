@@ -26,6 +26,12 @@
 		if (session.ready) untrack(() => party.restore(session.account !== null));
 	});
 
+	$effect(() => {
+		void party.status;
+		void session.capabilities?.require_login;
+		untrack(() => party.admit());
+	});
+
 	// Like the watch page: the video cannot play, so the player shows why instead.
 	const problem = $derived.by(() => {
 		if (!currentId) return null;
@@ -120,7 +126,9 @@
 	<AlertDialog.Content>
 		<AlertDialog.Header>
 			<AlertDialog.Title>{m.party_leave_title()}</AlertDialog.Title>
-			<AlertDialog.Description>{m.party_leave_body()}</AlertDialog.Description>
+			<AlertDialog.Description>
+				{party.locksOnLeave ? m.party_leave_body_locked() : m.party_leave_body()}
+			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>{m.action_cancel()}</AlertDialog.Cancel>
