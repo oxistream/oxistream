@@ -6,7 +6,9 @@ use axum::extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgr
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Uri};
 use axum::response::{IntoResponse, Response};
-use oxistream_db::{JoinOutcome, NewParticipant, OpOutcome, RoomOp, RoomSnapshot, User, Uuid};
+use oxistream_db::{
+    JoinOutcome, MAX_MESSAGE_CHARS, NewParticipant, OpOutcome, RoomOp, RoomSnapshot, User, Uuid,
+};
 use rustypipe::param::Language;
 use rustypipe::validate;
 use sha2::{Digest, Sha256};
@@ -15,15 +17,15 @@ use tokio::sync::broadcast;
 use tokio::time::Instant;
 
 use super::protocol::{
-    MemberPlace, MemberSync, RoomClientMessage, RoomErrorCode, RoomServerMessage, history,
-    room_state, status_message, unix_ms,
+    MemberPlace, MemberSync, RoomClientMessage, RoomErrorCode, RoomReaction, RoomServerMessage,
+    chat_message, history, room_state, status_message, unix_ms,
 };
 use super::{check_room_id, ensure_cached};
 use crate::AppState;
 use crate::api::error::ApiError;
 use crate::api::lang::ContentLanguage;
 use crate::auth::{OptionalUser, csrf};
-use crate::rooms::{MAX_PARTICIPANTS, MAX_QUEUE, Subscription, Update};
+use crate::rooms::{Event, MAX_PARTICIPANTS, MAX_QUEUE, Subscription, Update};
 
 const MAX_MESSAGE_BYTES: usize = 4096;
 /// How often a participant's status is stored and passed on at most.
@@ -65,18 +67,22 @@ pub async fn connect(
                 socket,
                 limits: Limits::new(),
                 history_sent: None,
+                chat_sent: 0,
                 participant: Uuid::nil(),
+                key: String::new(),
                 status: StatusReports::default(),
             };
             conn.run().await;
         })
 }
 
-/// Token buckets per connection: one for all messages, a stricter one for adding videos,
-/// which may ask YouTube. A batch takes one, plus one per video not cached yet.
+/// Token buckets per connection: one for all messages, stricter ones for chat, reactions and
+/// adding videos, which may ask YouTube. A batch takes one, plus one per video not cached yet.
 struct Limits {
     messages: Bucket,
     adds: Bucket,
+    chat: Bucket,
+    reactions: Bucket,
 }
 
 impl Limits {
@@ -84,6 +90,8 @@ impl Limits {
         Self {
             messages: Bucket::new(20.0, 10.0),
             adds: Bucket::new(5.0, 0.5),
+            chat: Bucket::new(5.0, 0.5),
+            reactions: Bucket::new(5.0, 1.5),
         }
     }
 }
@@ -155,6 +163,32 @@ fn identity(user: Option<&User>, name: Option<&str>, guest_key: Option<&str>) ->
     })
 }
 
+/// Bidirectional formatting characters, which could reorder the text around a message.
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
+/// A chat message with whitespace collapsed to single spaces and control characters dropped;
+/// `None` if nothing is left or it is too long.
+fn chat_text(text: &str) -> Option<String> {
+    let mut out = String::with_capacity(text.len());
+    for word in text.split(char::is_whitespace) {
+        let word: String = word
+            .chars()
+            .filter(|c| !c.is_control() && !is_bidi_control(*c))
+            .collect();
+        if word.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(&word);
+    }
+    let length = out.chars().count();
+    (1..=MAX_MESSAGE_CHARS).contains(&length).then_some(out)
+}
+
 fn position_ms(seconds: f64) -> Option<i64> {
     #[allow(clippy::cast_possible_truncation)]
     (seconds.is_finite() && (0.0..=MAX_POSITION_SECONDS).contains(&seconds))
@@ -194,7 +228,11 @@ struct Connection {
     limits: Limits,
     /// The newest played entry of the history last sent (0 for none), once one was.
     history_sent: Option<i64>,
+    /// The newest chat message sent.
+    chat_sent: i64,
     participant: Uuid,
+    /// Of the participant, see [`identity`].
+    key: String,
     status: StatusReports,
 }
 
@@ -315,6 +353,7 @@ impl Connection {
 
         let rooms = self.state.rooms.clone();
         self.participant = participant;
+        self.key.clone_from(&identity.key);
         let subscription = rooms.subscribe(&self.room_id, participant).await;
         let end = self.session(participant, &identity, subscription).await;
         rooms.unsubscribe(&self.room_id, participant);
@@ -344,7 +383,7 @@ impl Connection {
     ) -> End {
         let Subscription {
             state: mut rx,
-            mut statuses,
+            mut events,
         } = subscription;
         let owner_id = match &*rx.borrow_and_update() {
             Update::Open(snapshot) => snapshot.room.owner_id,
@@ -357,7 +396,7 @@ impl Connection {
             is_owner,
             server_time: now_ms(),
         };
-        if !self.send(&welcome).await {
+        if !self.send(&welcome).await || !self.send_chat_history(owner_id).await {
             return End::Gone;
         }
         // Marked as changed so the first state goes out right away.
@@ -369,14 +408,18 @@ impl Connection {
             tokio::select! {
                 () = tokio::time::sleep_until(status_due.unwrap_or_else(Instant::now)),
                     if status_due.is_some() => self.store_status().await,
-                change = statuses.recv() => match change {
-                    Ok(change) => {
-                        if !self.send(&status_message(change.participant, change.status)).await {
+                event = events.recv() => match event {
+                    Ok(event) => {
+                        if !self.send_event(event, owner_id).await {
                             return End::Gone;
                         }
                     }
-                    // The next state carries every status.
-                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    // The next state carries every status; missed chat is sent again.
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        if !self.send_chat_history(owner_id).await {
+                            return End::Gone;
+                        }
+                    }
                     Err(broadcast::error::RecvError::Closed) => return End::Retry,
                 },
                 message = self.socket.recv() => match message {
@@ -416,6 +459,49 @@ impl Connection {
         }
     }
 
+    /// The room's chat so far, replacing what the client has.
+    async fn send_chat_history(&mut self, owner_id: Uuid) -> bool {
+        let messages = match self.state.rooms.repo().messages(&self.room_id).await {
+            Ok(messages) => messages,
+            Err(err) => {
+                tracing::warn!(error = ?err, "could not load watch room chat");
+                return true;
+            }
+        };
+        self.chat_sent = messages.last().map_or(self.chat_sent, |m| m.id);
+        let messages = messages
+            .iter()
+            .map(|m| chat_message(m, owner_id, &self.key))
+            .collect();
+        self.send(&RoomServerMessage::ChatHistory { messages })
+            .await
+    }
+
+    async fn send_event(&mut self, event: Event, owner_id: Uuid) -> bool {
+        let message = match event {
+            Event::Status {
+                participant,
+                status,
+            } => status_message(participant, status),
+            // Already sent with the history.
+            Event::Chat(message) if message.id <= self.chat_sent => return true,
+            Event::Chat(message) => {
+                self.chat_sent = message.id;
+                RoomServerMessage::Chat {
+                    message: chat_message(&message, owner_id, &self.key),
+                }
+            }
+            Event::Reaction {
+                participant,
+                reaction,
+            } => RoomServerMessage::Reaction {
+                participant,
+                reaction: reaction.into(),
+            },
+        };
+        self.send(&message).await
+    }
+
     async fn store_status(&mut self) {
         let Some((sync, place)) = self.status.take(Instant::now()) else {
             return;
@@ -435,13 +521,13 @@ impl Connection {
         // The history only changes when an entry is played, which then comes first.
         let newest = snapshot.history.first().and_then(|e| e.played).unwrap_or(0);
         if self.history_sent != Some(newest) {
-            let entries = history(snapshot, &|url| self.state.image_url(url));
+            let entries = history(snapshot, &|url| self.state.image_url(url), &self.key);
             if !self.send(&RoomServerMessage::History { entries }).await {
                 return false;
             }
             self.history_sent = Some(newest);
         }
-        let room = room_state(snapshot, &|url| self.state.image_url(url));
+        let room = room_state(snapshot, &|url| self.state.image_url(url), &self.key);
         self.send(&RoomServerMessage::State {
             room: Box::new(room),
         })
@@ -474,6 +560,12 @@ impl Connection {
                 self.status.report((sync, place));
                 return self.store_status().await;
             }
+            RoomClientMessage::Chat { text } => return self.chat(&text, name).await,
+            RoomClientMessage::React { reaction } => return self.react(reaction).await,
+            RoomClientMessage::Permissions { control, add } => RoomOp::SetPermissions {
+                control: control.map(Into::into),
+                add: add.map(Into::into),
+            },
             RoomClientMessage::Play { position, at } => match position_ms(position) {
                 Some(position_ms) => {
                     now = position_time(at, now);
@@ -512,19 +604,10 @@ impl Connection {
                 return self.add_many(video_ids, name).await;
             }
             RoomClientMessage::Kick { participant } => {
-                if !is_owner {
-                    return self.reject(RoomErrorCode::Forbidden).await;
+                match self.kick_op(participant, is_owner, owner_id).await {
+                    Ok(op) => op,
+                    Err(code) => return self.reject(code).await,
                 }
-                let target = self.state.rooms.repo().snapshot(&self.room_id).await;
-                let target_is_owner = target.ok().flatten().is_some_and(|s| {
-                    s.participants
-                        .iter()
-                        .any(|p| p.id == participant && p.user_id == Some(owner_id))
-                });
-                if target_is_owner {
-                    return self.reject(RoomErrorCode::Invalid).await;
-                }
-                RoomOp::Kick { participant }
             }
             RoomClientMessage::Add { video_id, play } => {
                 match self.add_op(video_id, play, name).await {
@@ -533,13 +616,76 @@ impl Connection {
                 }
             }
         };
-        let result = self.state.rooms.repo().apply(&self.room_id, &op, now).await;
+        let result = self
+            .state
+            .rooms
+            .repo()
+            .apply_as(&self.room_id, &op, Some(&self.key), now)
+            .await;
         match result {
             Ok(OpOutcome::Stale) => self.reject(RoomErrorCode::Stale).await,
+            Ok(OpOutcome::Forbidden) => self.reject(RoomErrorCode::Forbidden).await,
             Ok(_) => {}
             Err(oxistream_db::Error::LimitReached) => self.reject(RoomErrorCode::QueueFull).await,
             Err(err) => {
                 tracing::warn!(error = ?err, "could not change watch room");
+                self.reject(RoomErrorCode::Internal).await;
+            }
+        }
+    }
+
+    async fn kick_op(
+        &mut self,
+        participant: Uuid,
+        is_owner: bool,
+        owner_id: Uuid,
+    ) -> Result<RoomOp, RoomErrorCode> {
+        if !is_owner {
+            return Err(RoomErrorCode::Forbidden);
+        }
+        let target = self.state.rooms.repo().snapshot(&self.room_id).await;
+        let target_is_owner = target.ok().flatten().is_some_and(|s| {
+            s.participants
+                .iter()
+                .any(|p| p.id == participant && p.user_id == Some(owner_id))
+        });
+        if target_is_owner {
+            return Err(RoomErrorCode::Invalid);
+        }
+        Ok(RoomOp::Kick { participant })
+    }
+
+    async fn react(&mut self, reaction: RoomReaction) {
+        if !self.limits.reactions.take() {
+            return self.reject(RoomErrorCode::RateLimited).await;
+        }
+        let repo = self.state.rooms.repo();
+        if let Err(err) = repo
+            .react(&self.room_id, self.participant, reaction.into())
+            .await
+        {
+            tracing::warn!(error = ?err, "could not send watch room reaction");
+        }
+    }
+
+    async fn chat(&mut self, text: &str, name: &str) {
+        let Some(body) = chat_text(text) else {
+            return self.reject(RoomErrorCode::Invalid).await;
+        };
+        if !self.limits.chat.take() {
+            return self.reject(RoomErrorCode::RateLimited).await;
+        }
+        let posted = self
+            .state
+            .rooms
+            .repo()
+            .post_message(&self.room_id, &self.key, name, &body)
+            .await;
+        match posted {
+            Ok(Some(_)) => {}
+            Ok(None) => self.reject(RoomErrorCode::NotFound).await,
+            Err(err) => {
+                tracing::warn!(error = ?err, "could not store watch room chat message");
                 self.reject(RoomErrorCode::Internal).await;
             }
         }
@@ -604,8 +750,13 @@ impl Connection {
                 max_queue: MAX_QUEUE,
             };
             let now = OffsetDateTime::now_utc();
-            match self.state.rooms.repo().apply(&self.room_id, &op, now).await {
+            let repo = self.state.rooms.repo();
+            match repo
+                .apply_as(&self.room_id, &op, Some(&self.key), now)
+                .await
+            {
                 Ok(OpOutcome::Added(added)) => added,
+                Ok(OpOutcome::Forbidden) => return self.reject(RoomErrorCode::Forbidden).await,
                 Ok(_) => 0,
                 Err(oxistream_db::Error::LimitReached) => {
                     return self.reject(RoomErrorCode::QueueFull).await;
@@ -656,6 +807,20 @@ mod tests {
         assert!(identity(None, Some("Ada"), Some("short")).is_none());
         assert!(identity(None, Some("Ada"), Some("abcdefghijklmno/")).is_none());
         assert!(identity(None, Some("Ada"), None).is_none());
+    }
+
+    #[test]
+    fn chat_text_is_normalized_and_bounded() {
+        assert_eq!(
+            chat_text("  hi \n\t there\u{7}  ").as_deref(),
+            Some("hi there")
+        );
+        assert_eq!(chat_text("a\u{202e}b \u{2066}c").as_deref(), Some("ab c"));
+        assert_eq!(chat_text(" \n "), None);
+        assert_eq!(chat_text("\u{202e}"), None);
+        assert!(chat_text(&"ä".repeat(500)).is_some());
+        assert_eq!(chat_text(&"ä".repeat(501)), None);
+        assert_eq!(chat_text("<b>x</b>").as_deref(), Some("<b>x</b>"));
     }
 
     #[test]

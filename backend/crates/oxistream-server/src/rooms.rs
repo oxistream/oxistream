@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use oxistream_db::{
-    ParticipantStatus, PgPool, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, Uuid,
-    VideoUpsert,
+    ChatMessage, ParticipantStatus, PgPool, Reaction, RoomEvent, RoomListener, RoomOp,
+    RoomRepository, RoomSnapshot, Uuid, VideoUpsert,
 };
 use rustypipe::model as rp;
 use rustypipe::param::Language;
@@ -30,8 +30,8 @@ const MAX_LISTEN_BACKOFF: Duration = Duration::from_mins(1);
 /// A failed autoplay pick is tried again after this.
 const PICK_RETRY: Duration = Duration::from_mins(1);
 const MAX_PICK_CANDIDATES: usize = 20;
-/// Status changes a slow connection may fall behind by; it skips older ones.
-const STATUS_BUFFER: usize = 256;
+/// Events a slow connection may fall behind by; it skips older ones.
+const EVENT_BUFFER: usize = 256;
 
 /// Videos autoplay may follow a video with, best first.
 #[async_trait]
@@ -97,22 +97,30 @@ struct Inner {
 
 struct Local {
     tx: watch::Sender<Update>,
-    statuses: broadcast::Sender<StatusChange>,
+    events: broadcast::Sender<Event>,
     participants: HashSet<Uuid>,
 }
 
-/// A participant reported a new status. Snapshots carry statuses too; the higher
-/// `status.revision` is the newer one.
-#[derive(Debug, Clone, Copy)]
-pub struct StatusChange {
-    pub participant: Uuid,
-    pub status: ParticipantStatus,
+/// What happens in a room besides changes of its state.
+#[derive(Debug, Clone)]
+pub enum Event {
+    /// A participant reported a new status. Snapshots carry statuses too; the higher
+    /// `status.revision` is the newer one.
+    Status {
+        participant: Uuid,
+        status: ParticipantStatus,
+    },
+    Chat(Arc<ChatMessage>),
+    Reaction {
+        participant: Uuid,
+        reaction: Reaction,
+    },
 }
 
-/// A local participant's view of the room and its members' statuses.
+/// A local participant's view of the room and what happens in it.
 pub struct Subscription {
     pub state: watch::Receiver<Update>,
-    pub statuses: broadcast::Receiver<StatusChange>,
+    pub events: broadcast::Receiver<Event>,
 }
 
 impl Rooms {
@@ -145,23 +153,23 @@ impl Rooms {
             let mut local = self.local();
             let entry = local.entry(room_id.to_owned()).or_insert_with(|| Local {
                 tx: watch::Sender::new(Update::Loading),
-                statuses: broadcast::Sender::new(STATUS_BUFFER),
+                events: broadcast::Sender::new(EVENT_BUFFER),
                 participants: HashSet::new(),
             });
             entry.participants.insert(participant);
             Subscription {
                 state: entry.tx.subscribe(),
-                statuses: entry.statuses.subscribe(),
+                events: entry.events.subscribe(),
             }
         };
         self.refresh(room_id).await;
         subscription
     }
 
-    /// Passes a status on to the room's local participants.
-    fn status(&self, room_id: &str, change: StatusChange) {
+    /// Passes an event on to the room's local participants.
+    fn event(&self, room_id: &str, event: Event) {
         if let Some(entry) = self.local().get(room_id) {
-            let _ = entry.statuses.send(change);
+            let _ = entry.events.send(event);
         }
     }
 
@@ -303,11 +311,26 @@ impl Rooms {
                             room,
                             participant,
                             status,
-                        } => self.status(
+                        } => self.event(
                             &room,
-                            StatusChange {
+                            Event::Status {
                                 participant,
                                 status,
+                            },
+                        ),
+                        RoomEvent::Chat(message) => {
+                            let room = message.room_id.clone();
+                            self.event(&room, Event::Chat(Arc::new(message)));
+                        }
+                        RoomEvent::Reaction {
+                            room,
+                            participant,
+                            reaction,
+                        } => self.event(
+                            &room,
+                            Event::Reaction {
+                                participant,
+                                reaction,
                             },
                         ),
                         RoomEvent::Reconnected => reconnected = true,

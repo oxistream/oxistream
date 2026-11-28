@@ -1,6 +1,9 @@
 //! Messages of the watch room WebSocket, JSON text frames tagged by `type`.
 
-use oxistream_db::{ParticipantStatus, Place, RoomEntry, RoomSnapshot, SyncState, Uuid};
+use oxistream_db::{
+    ChatMessage, ParticipantStatus, Permission, Place, Reaction, RoomEntry, RoomSnapshot,
+    SyncState, Uuid,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -83,6 +86,22 @@ pub enum RoomClientMessage {
     Kick {
         participant: Uuid,
     },
+    /// Owner only: who may control playback and the queue, and who may add videos. Omitted
+    /// fields keep their setting.
+    Permissions {
+        #[serde(default)]
+        control: Option<RoomPermission>,
+        #[serde(default)]
+        add: Option<RoomPermission>,
+    },
+    /// A chat message of up to 500 characters; whitespace is collapsed.
+    Chat {
+        text: String,
+    },
+    /// Shown briefly over everyone's player.
+    React {
+        reaction: RoomReaction,
+    },
     /// What this participant's player and page are doing, for everyone's member list. Send it
     /// on change; the server keeps the latest and passes it on at most once per second.
     Status {
@@ -91,6 +110,69 @@ pub enum RoomClientMessage {
         sync: Option<MemberSync>,
         place: MemberPlace,
     },
+}
+
+/// Who besides the owner may do something.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomPermission {
+    Everyone,
+    Host,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomReaction {
+    Heart,
+    Laugh,
+    Wow,
+    Sad,
+    Clap,
+    Fire,
+}
+
+impl From<RoomPermission> for Permission {
+    fn from(permission: RoomPermission) -> Self {
+        match permission {
+            RoomPermission::Everyone => Self::Everyone,
+            RoomPermission::Host => Self::Host,
+        }
+    }
+}
+
+impl From<Permission> for RoomPermission {
+    fn from(permission: Permission) -> Self {
+        match permission {
+            Permission::Everyone => Self::Everyone,
+            Permission::Host => Self::Host,
+        }
+    }
+}
+
+impl From<RoomReaction> for Reaction {
+    fn from(reaction: RoomReaction) -> Self {
+        match reaction {
+            RoomReaction::Heart => Self::Heart,
+            RoomReaction::Laugh => Self::Laugh,
+            RoomReaction::Wow => Self::Wow,
+            RoomReaction::Sad => Self::Sad,
+            RoomReaction::Clap => Self::Clap,
+            RoomReaction::Fire => Self::Fire,
+        }
+    }
+}
+
+impl From<Reaction> for RoomReaction {
+    fn from(reaction: Reaction) -> Self {
+        match reaction {
+            Reaction::Heart => Self::Heart,
+            Reaction::Laugh => Self::Laugh,
+            Reaction::Wow => Self::Wow,
+            Reaction::Sad => Self::Sad,
+            Reaction::Clap => Self::Clap,
+            Reaction::Fire => Self::Fire,
+        }
+    }
 }
 
 /// How well a participant's player keeps up with the room.
@@ -165,7 +247,7 @@ pub enum RoomErrorCode {
     Invalid,
     /// The video cannot be found or played.
     VideoUnavailable,
-    /// Only the owner may do this.
+    /// Only the owner may do this, always or by the room's permissions.
     Forbidden,
     RateLimited,
     /// The room changed since the state a `move` was based on.
@@ -205,6 +287,18 @@ pub enum RoomServerMessage {
         added: u32,
         skipped: u32,
     },
+    /// The room's latest chat messages, oldest first. Sent before the first `state`.
+    ChatHistory {
+        messages: Vec<RoomChatMessage>,
+    },
+    /// A new chat message.
+    Chat {
+        message: RoomChatMessage,
+    },
+    Reaction {
+        participant: Uuid,
+        reaction: RoomReaction,
+    },
     /// A participant's status changed. It replaces the one in `participants` if `revision` is
     /// higher than that one's `status_revision`.
     Status {
@@ -239,6 +333,30 @@ pub struct RoomState {
     pub autoplay: bool,
     /// What autoplay plays after `current`, once it is the last entry and a pick was found.
     pub up_next: Option<VideoSummary>,
+    pub permissions: RoomPermissions,
+}
+
+/// What participants other than the owner may do.
+#[derive(Debug, Clone, Copy, Serialize, ToSchema)]
+pub struct RoomPermissions {
+    /// Play, pause, seek, skip, pick, reorder, shuffle, toggle autoplay and remove others'
+    /// entries.
+    pub control: RoomPermission,
+    /// Queue videos; playing one now needs `control` too.
+    pub add: RoomPermission,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RoomChatMessage {
+    pub id: i64,
+    pub name: String,
+    pub is_owner: bool,
+    pub is_guest: bool,
+    /// Sent by this participant, or before with the same account or guest key.
+    pub own: bool,
+    pub text: String,
+    /// Milliseconds since the Unix epoch.
+    pub sent_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -250,6 +368,9 @@ pub struct QueueEntry {
     pub added_by: String,
     /// Appended by autoplay.
     pub autoplay: bool,
+    /// Queued by this participant, or before with the same account or guest key; they may
+    /// always remove it.
+    pub own: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -279,30 +400,54 @@ pub fn unix_ms(at: time::OffsetDateTime) -> i64 {
     i64::try_from(at.unix_timestamp_nanos() / 1_000_000).unwrap_or(i64::MAX)
 }
 
-fn queue_entry(e: &RoomEntry, img: &impl Fn(&str) -> String) -> QueueEntry {
+/// A chat message as seen by the participant with key `viewer`.
+pub fn chat_message(m: &ChatMessage, owner_id: Uuid, viewer: &str) -> RoomChatMessage {
+    RoomChatMessage {
+        id: m.id,
+        name: m.name.clone(),
+        is_owner: m.author_key == format!("u:{owner_id}"),
+        is_guest: m.author_key.starts_with("g:"),
+        own: m.author_key == viewer,
+        text: m.body.clone(),
+        sent_at: unix_ms(m.sent_at),
+    }
+}
+
+fn queue_entry(e: &RoomEntry, img: &impl Fn(&str) -> String, viewer: &str) -> QueueEntry {
     QueueEntry {
         id: e.entry_id,
         video: cached_video_summary(e.video.clone(), img),
         added_by: e.added_by.clone(),
         autoplay: e.autoplay,
+        own: e.added_key.as_deref() == Some(viewer),
     }
 }
 
-pub fn history(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Vec<QueueEntry> {
+/// Played entries as seen by the participant with key `viewer`.
+pub fn history(
+    snapshot: &RoomSnapshot,
+    img: &impl Fn(&str) -> String,
+    viewer: &str,
+) -> Vec<QueueEntry> {
     snapshot
         .history
         .iter()
-        .map(|e| queue_entry(e, img))
+        .map(|e| queue_entry(e, img, viewer))
         .collect()
 }
 
+/// The room as seen by the participant with key `viewer`.
 #[allow(clippy::cast_precision_loss)]
-pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> RoomState {
+pub fn room_state(
+    snapshot: &RoomSnapshot,
+    img: &impl Fn(&str) -> String,
+    viewer: &str,
+) -> RoomState {
     let room = &snapshot.room;
     let (current, queue): (Vec<_>, Vec<_>) = snapshot
         .queue
         .iter()
-        .map(|e| queue_entry(e, img))
+        .map(|e| queue_entry(e, img, viewer))
         .partition(|e| Some(e.id) == room.current_entry_id);
     RoomState {
         id: room.id.clone(),
@@ -331,5 +476,9 @@ pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Roo
             .up_next
             .clone()
             .map(|v| cached_video_summary(v, img)),
+        permissions: RoomPermissions {
+            control: room.control_permission.into(),
+            add: room.add_permission.into(),
+        },
     }
 }

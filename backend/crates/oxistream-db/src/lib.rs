@@ -41,8 +41,9 @@ pub use playlists::{
 };
 pub use queue::{PgQueueRepository, Queue, QueueEntry, QueueOp, QueuePosition, QueueRepository};
 pub use rooms::{
-    JoinOutcome, MAX_HISTORY, NewParticipant, OpOutcome, Participant, ParticipantStatus,
-    PgRoomRepository, Place, ROOM_CHANNEL, Room, RoomEntry, RoomEvent, RoomListener, RoomOp,
+    CHAT_CHANNEL, ChatMessage, JoinOutcome, MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_MESSAGES,
+    NewParticipant, OpOutcome, Participant, ParticipantStatus, Permission, PgRoomRepository, Place,
+    REACTION_CHANNEL, ROOM_CHANNEL, Reaction, Room, RoomEntry, RoomEvent, RoomListener, RoomOp,
     RoomRepository, RoomSnapshot, RoomSummary, STATUS_CHANNEL, SyncState,
 };
 pub use sessions::{

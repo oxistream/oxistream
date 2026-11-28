@@ -14,10 +14,10 @@ use tower::ServiceExt;
 use common::{isolated_test_pool, state_with_pool, unique_suffix};
 use futures_util::{SinkExt, StreamExt};
 use oxistream_db::{
-    Error, JoinOutcome, NewParticipant, NewSession, NewUser, OpOutcome, ParticipantStatus, PgPool,
-    PgRoomRepository, PgSessionRepository, PgUserRepository, PgVideoRepository, Place, RoomOp,
-    RoomRepository, SessionRepository, SyncState, User, UserRepository, Uuid, VideoRepository,
-    VideoUpsert,
+    Error, JoinOutcome, NewParticipant, NewSession, NewUser, OpOutcome, ParticipantStatus,
+    Permission, PgPool, PgRoomRepository, PgSessionRepository, PgUserRepository, PgVideoRepository,
+    Place, RoomOp, RoomRepository, SessionRepository, SyncState, User, UserRepository, Uuid,
+    VideoRepository, VideoUpsert,
 };
 use oxistream_server::auth::cookie;
 use oxistream_server::rooms::{RelatedSource, Rooms};
@@ -1320,4 +1320,315 @@ async fn statuses_reach_other_replicas_coalesced() {
         state["revision"].as_i64().unwrap(),
         revision.as_i64().unwrap() + 1
     );
+}
+
+fn guest_add(video_id: &str, play: bool) -> RoomOp {
+    RoomOp::Add {
+        video_id: video_id.to_owned(),
+        added_by: "Guest".into(),
+        max_queue: 10,
+        play,
+    }
+}
+
+fn set_permissions(control: Option<Permission>, add: Option<Permission>) -> RoomOp {
+    RoomOp::SetPermissions { control, add }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn permissions_limit_what_others_may_do() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    let host_key = format!("u:{}", owner.id);
+    let host = Some(host_key.as_str());
+    let (a, b) = (Some("g:a"), Some("g:b"));
+    repo.create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 10)
+        .await
+        .unwrap();
+    let apply =
+        async |op: RoomOp, actor: Option<&str>| repo.apply_as(ROOM, &op, actor, now).await.unwrap();
+
+    // By default everyone may do anything but change the permissions.
+    assert_eq!(
+        apply(RoomOp::Play { position_ms: 0 }, a).await,
+        OpOutcome::Applied
+    );
+    let change = set_permissions(Some(Permission::Host), None);
+    assert_eq!(apply(change.clone(), a).await, OpOutcome::Forbidden);
+    let room = repo.get(ROOM).await.unwrap().unwrap();
+    assert_eq!(room.control_permission, Permission::Everyone);
+    let revision = room.revision;
+    assert_eq!(apply(change.clone(), host).await, OpOutcome::Applied);
+    assert_eq!(apply(change, host).await, OpOutcome::Unchanged);
+    let room = repo.get(ROOM).await.unwrap().unwrap();
+    assert_eq!(room.control_permission, Permission::Host);
+    assert_eq!(room.add_permission, Permission::Everyone);
+    assert_eq!(room.revision, revision + 1);
+
+    // Playback is the host's now; others still queue, but not to play now.
+    for op in [
+        RoomOp::Pause { position_ms: 1000 },
+        RoomOp::Seek { position_ms: 1000 },
+        RoomOp::Shuffle,
+        RoomOp::SetAutoplay { enabled: true },
+        guest_add(VIDEOS[1], true),
+    ] {
+        assert_eq!(apply(op.clone(), a).await, OpOutcome::Forbidden, "{op:?}");
+    }
+    assert_eq!(
+        apply(guest_add(VIDEOS[1], false), a).await,
+        OpOutcome::Applied
+    );
+    assert_eq!(
+        apply(guest_add(VIDEOS[2], false), b).await,
+        OpOutcome::Applied
+    );
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    let current = s.room.current_entry_id.unwrap();
+    let (own, others) = (s.queue[1].entry_id, s.queue[2].entry_id);
+    assert_eq!(s.queue[1].added_key.as_deref(), Some("g:a"));
+    assert_eq!(s.queue[0].added_key, None);
+    assert_eq!(
+        apply(RoomOp::Select { entry: own }, a).await,
+        OpOutcome::Forbidden
+    );
+    assert_eq!(
+        apply(RoomOp::Remove { entry: others }, a).await,
+        OpOutcome::Forbidden
+    );
+    assert_eq!(
+        apply(RoomOp::Remove { entry: current }, a).await,
+        OpOutcome::Forbidden
+    );
+    assert_eq!(
+        apply(RoomOp::Remove { entry: own }, a).await,
+        OpOutcome::Applied
+    );
+
+    // Anyone may report the end of a video, but only once it got there.
+    let ended = RoomOp::Advance { from: current };
+    assert_eq!(apply(ended.clone(), a).await, OpOutcome::Forbidden);
+    let near_end = RoomOp::Play {
+        position_ms: 209_000,
+    };
+    assert_eq!(apply(near_end, host).await, OpOutcome::Applied);
+    assert_eq!(apply(ended, a).await, OpOutcome::Applied);
+
+    // Adding is the host's too; the server itself is not limited.
+    let change = set_permissions(None, Some(Permission::Host));
+    assert_eq!(apply(change, host).await, OpOutcome::Applied);
+    assert_eq!(
+        apply(guest_add(VIDEOS[3], false), a).await,
+        OpOutcome::Forbidden
+    );
+    let many = RoomOp::AddMany {
+        video_ids: vec![VIDEOS[3].to_owned()],
+        added_by: "Guest".into(),
+        max_queue: 10,
+    };
+    assert_eq!(apply(many, a).await, OpOutcome::Forbidden);
+    assert_eq!(
+        apply(guest_add(VIDEOS[3], false), host).await,
+        OpOutcome::Applied
+    );
+    assert_eq!(
+        apply(guest_add(VIDEOS[4], false), None).await,
+        OpOutcome::Applied
+    );
+    let pick = RoomOp::Pick {
+        source: current,
+        candidates: vec![related_video("vvvvvvvvvvM")],
+    };
+    assert_eq!(apply(pick, host).await, OpOutcome::Forbidden);
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn chat_keeps_the_latest_messages_while_the_room_lives() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    repo.create(owner.id, ROOM, None, 10).await.unwrap();
+    let revision = repo.get(ROOM).await.unwrap().unwrap().revision;
+
+    for i in 0..105 {
+        let message = repo
+            .post_message(ROOM, "g:a", "Grace", &format!("message {i}"))
+            .await
+            .unwrap()
+            .expect("the room exists");
+        assert_eq!(message.body, format!("message {i}"));
+        assert_eq!(message.author_key, "g:a");
+    }
+    let messages = repo.messages(ROOM).await.unwrap();
+    assert_eq!(messages.len(), 100);
+    assert_eq!(messages[0].body, "message 5");
+    assert_eq!(messages[99].body, "message 104");
+    assert!(messages.windows(2).all(|w| w[0].id < w[1].id));
+    assert_eq!(repo.get(ROOM).await.unwrap().unwrap().revision, revision);
+
+    assert!(
+        repo.post_message("rrrrrrrrrrrrrrrrrrrrrZ", "g:a", "Grace", "hi")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(repo.delete(owner.id, ROOM).await.unwrap());
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM watch_room_messages")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+}
+
+const GUEST_JOIN: &str =
+    r#"{ "type": "join", "name": "Grace", "guest_key": "guest-key-0123456789" }"#;
+
+/// A room with the owner on one replica and a guest on another, each having seen the other.
+async fn two_replica_room(pool: &PgPool) -> (Socket, Socket, Value, String, reqwest::Url) {
+    cache_videos(pool).await;
+    let owner = user(pool).await;
+    let token = session(pool, &owner).await;
+    let (app, a) = replica(pool).await;
+    let (_, b) = replica(pool).await;
+    // A random ID, so notifications of tests in other schemas do not reach this room.
+    let (_, created) = rest(
+        &app,
+        Method::POST,
+        "/api/v0/rooms",
+        &token,
+        Some(json!({ "video_id": VIDEOS[0] })),
+    )
+    .await;
+    let room = created["id"].as_str().unwrap().to_owned();
+
+    let mut host = connect(&a, &room, Some(&token)).await;
+    send(&mut host, json!({ "type": "join" })).await;
+    expect(&mut host, "welcome").await;
+    assert_eq!(
+        expect(&mut host, "chat_history").await["messages"],
+        json!([])
+    );
+    let mut guest = connect(&b, &room, None).await;
+    send(&mut guest, serde_json::from_str(GUEST_JOIN).unwrap()).await;
+    let guest_id = expect(&mut guest, "welcome").await["participant_id"].clone();
+    let state = state_where(&mut guest, |r| {
+        r["participants"].as_array().unwrap().len() == 2
+    })
+    .await;
+    assert_eq!(
+        state["permissions"],
+        json!({ "control": "everyone", "add": "everyone" })
+    );
+    state_where(&mut host, |r| {
+        r["participants"].as_array().unwrap().len() == 2
+    })
+    .await;
+    (host, guest, guest_id, room, a)
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn chat_and_reactions_reach_other_replicas() {
+    let db = isolated_test_pool().await;
+    let (mut host, mut guest, guest_id, room, a) = two_replica_room(&db.pool).await;
+
+    // Chat from replica B reaches replica A, collapsed and marked for each viewer.
+    let text = "  hello \n  <b>world</b> ";
+    send(&mut guest, json!({ "type": "chat", "text": text })).await;
+    let message = expect(&mut host, "chat").await["message"].clone();
+    assert_eq!(message["text"], "hello <b>world</b>");
+    assert_eq!(message["name"], "Grace");
+    assert_eq!(
+        [&message["own"], &message["is_guest"], &message["is_owner"]],
+        [&json!(false), &json!(true), &json!(false)]
+    );
+    assert_eq!(expect(&mut guest, "chat").await["message"]["own"], true);
+    send(&mut host, json!({ "type": "chat", "text": "hi" })).await;
+    assert_eq!(
+        expect(&mut guest, "chat").await["message"]["is_owner"],
+        true
+    );
+    let long = "x".repeat(501);
+    send(&mut guest, json!({ "type": "chat", "text": long })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "invalid");
+    send(&mut guest, json!({ "type": "chat", "text": " \n " })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "invalid");
+
+    // Reactions go to everyone without being stored.
+    send(&mut guest, json!({ "type": "react", "reaction": "clap" })).await;
+    let reaction = expect(&mut host, "reaction").await;
+    assert_eq!(reaction["participant"], guest_id);
+    assert_eq!(reaction["reaction"], "clap");
+    expect(&mut guest, "reaction").await;
+    send(&mut guest, json!({ "type": "react", "reaction": "poop" })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "invalid");
+
+    // Joining later brings the chat so far, as one's own where it was.
+    let mut again = connect(&a, &room, None).await;
+    send(&mut again, serde_json::from_str(GUEST_JOIN).unwrap()).await;
+    let messages = expect(&mut again, "chat_history").await["messages"].clone();
+    assert_eq!(messages.as_array().unwrap().len(), 2);
+    assert_eq!(messages[0]["own"], true);
+    assert_eq!(messages[1]["own"], false);
+
+    // Chat is rate limited per connection.
+    for i in 0..8 {
+        send(
+            &mut guest,
+            json!({ "type": "chat", "text": format!("spam {i}") }),
+        )
+        .await;
+    }
+    assert_eq!(expect(&mut guest, "error").await["code"], "rate_limited");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn permissions_are_enforced_across_replicas() {
+    let db = isolated_test_pool().await;
+    let (mut host, mut guest, _, _, _) = two_replica_room(&db.pool).await;
+
+    // Only the host changes permissions, which the server then enforces.
+    send(
+        &mut guest,
+        json!({ "type": "permissions", "control": "host" }),
+    )
+    .await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "forbidden");
+    send(
+        &mut host,
+        json!({ "type": "permissions", "control": "host" }),
+    )
+    .await;
+    state_where(&mut guest, |r| r["permissions"]["control"] == "host").await;
+    send(&mut guest, json!({ "type": "play", "position": 3.0 })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "forbidden");
+    send(&mut guest, json!({ "type": "add", "video_id": VIDEOS[1] })).await;
+    let state = state_where(&mut host, |r| r["queue"].as_array().unwrap().len() == 1).await;
+    assert_eq!(state["queue"][0]["own"], false);
+    let state = state_where(&mut guest, |r| r["queue"].as_array().unwrap().len() == 1).await;
+    assert_eq!(state["queue"][0]["own"], true);
+    let play_now = json!({ "type": "add", "video_id": VIDEOS[2], "play": true });
+    send(&mut guest, play_now).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "forbidden");
+
+    send(&mut host, json!({ "type": "permissions", "add": "host" })).await;
+    state_where(&mut guest, |r| {
+        r["permissions"] == json!({ "control": "host", "add": "host" })
+    })
+    .await;
+    send(&mut guest, json!({ "type": "add", "video_id": VIDEOS[3] })).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "forbidden");
+    let many = json!({ "type": "add_many", "video_ids": [VIDEOS[3]] });
+    send(&mut guest, many).await;
+    assert_eq!(expect(&mut guest, "error").await["code"], "forbidden");
+    // Their own entry is still theirs to remove.
+    let entry = state["queue"][0]["id"].clone();
+    send(&mut guest, json!({ "type": "remove", "entry": entry })).await;
+    state_where(&mut host, |r| r["queue"] == json!([])).await;
 }

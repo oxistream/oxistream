@@ -7300,7 +7300,8 @@
           "id",
           "video",
           "added_by",
-          "autoplay"
+          "autoplay",
+          "own"
         ],
         "properties": {
           "added_by": {
@@ -7314,6 +7315,10 @@
           "id": {
             "type": "integer",
             "format": "int64"
+          },
+          "own": {
+            "type": "boolean",
+            "description": "Queued by this participant, or before with the same account or guest key; they may\nalways remove it."
           },
           "video": {
             "$ref": "#/components/schemas/VideoSummary",
@@ -7366,6 +7371,45 @@
           "365d",
           "forever"
         ]
+      },
+      "RoomChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_owner",
+          "is_guest",
+          "own",
+          "text",
+          "sent_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "is_guest": {
+            "type": "boolean"
+          },
+          "is_owner": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "own": {
+            "type": "boolean",
+            "description": "Sent by this participant, or before with the same account or guest key."
+          },
+          "sent_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Milliseconds since the Unix epoch."
+          },
+          "text": {
+            "type": "string"
+          }
+        }
       },
       "RoomClientMessage": {
         "oneOf": [
@@ -7700,6 +7744,79 @@
           },
           {
             "type": "object",
+            "description": "Owner only: who may control playback and the queue, and who may add videos. Omitted\nfields keep their setting.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "add": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RoomPermission"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "control": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RoomPermission"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "permissions"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A chat message of up to 500 characters; whitespace is collapsed.",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chat"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Shown briefly over everyone's player.",
+            "required": [
+              "reaction",
+              "type"
+            ],
+            "properties": {
+              "reaction": {
+                "$ref": "#/components/schemas/RoomReaction"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "react"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "What this participant's player and page are doing, for everyone's member list. Send it\non change; the server keeps the latest and passes it on at most once per second.",
             "required": [
               "place",
@@ -7877,6 +7994,43 @@
           }
         }
       },
+      "RoomPermission": {
+        "type": "string",
+        "description": "Who besides the owner may do something.",
+        "enum": [
+          "everyone",
+          "host"
+        ]
+      },
+      "RoomPermissions": {
+        "type": "object",
+        "description": "What participants other than the owner may do.",
+        "required": [
+          "control",
+          "add"
+        ],
+        "properties": {
+          "add": {
+            "$ref": "#/components/schemas/RoomPermission",
+            "description": "Queue videos; playing one now needs `control` too."
+          },
+          "control": {
+            "$ref": "#/components/schemas/RoomPermission",
+            "description": "Play, pause, seek, skip, pick, reorder, shuffle, toggle autoplay and remove others'\nentries."
+          }
+        }
+      },
+      "RoomReaction": {
+        "type": "string",
+        "enum": [
+          "heart",
+          "laugh",
+          "wow",
+          "sad",
+          "clap",
+          "fire"
+        ]
+      },
       "RoomServerMessage": {
         "oneOf": [
           {
@@ -8022,6 +8176,70 @@
           },
           {
             "type": "object",
+            "description": "The room's latest chat messages, oldest first. Sent before the first `state`.",
+            "required": [
+              "messages",
+              "type"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoomChatMessage"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chat_history"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A new chat message.",
+            "required": [
+              "message",
+              "type"
+            ],
+            "properties": {
+              "message": {
+                "$ref": "#/components/schemas/RoomChatMessage"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chat"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "participant",
+              "reaction",
+              "type"
+            ],
+            "properties": {
+              "participant": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reaction": {
+                "$ref": "#/components/schemas/RoomReaction"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "reaction"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "A participant's status changed. It replaces the one in `participants` if `revision` is\nhigher than that one's `status_revision`.",
             "required": [
               "participant",
@@ -8109,7 +8327,8 @@
           "position",
           "position_at",
           "participants",
-          "autoplay"
+          "autoplay",
+          "permissions"
         ],
         "properties": {
           "autoplay": {
@@ -8138,6 +8357,9 @@
             "items": {
               "$ref": "#/components/schemas/RoomParticipant"
             }
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/RoomPermissions"
           },
           "playing": {
             "type": "boolean"
