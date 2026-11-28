@@ -113,6 +113,7 @@ Routes mirror YouTube so redirect tools work: `/watch?v=`, `/channel/UC…`, `/@
 
 - RustyPipe via `oxipipe`, our maintained fork (upstream is inactive), used as `rustypipe = { package = "oxipipe", git, rev }`. YouTube-side fixes (deobfuscation, clients, parsing) go into the fork, then bump the pinned `rev`.
 - `.unauthenticated()` only. Never use YouTube accounts or cookies.
+- Live YouTube tests (`tests/youtube_live.rs`, feature `live-tests`) run nightly and on demand (`live.yml`), not in PR checks.
 - Fixtures from live responses must be scrubbed before committing: no IP addresses (e.g. googlevideo `ip=`), `visitorData` set to `redacted`, tracking params dropped. Grep the diff for IPv4 patterns before every push.
 - Player clients: VisionOS first, TV as fallback; WEB is SABR-only. TV streams may only become valid after a pre-roll ad, so the proxy waits for `VideoPlayer::available_at`.
 - `rustypipe-botguard` provides PO tokens. Bundled in the image, path overridable via ENV.

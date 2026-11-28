@@ -1,4 +1,4 @@
-//! Talks to YouTube; run with `cargo test --test youtube_live -- --ignored`.
+//! Talks to YouTube; run with `cargo test --features live-tests --test youtube_live -- --ignored`.
 
 mod common;
 

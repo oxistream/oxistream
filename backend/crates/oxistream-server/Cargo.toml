@@ -11,6 +11,8 @@ publish.workspace = true
 [features]
 default = []
 embed-frontend = ["dep:rust-embed"]
+# Tests against live YouTube; run nightly, not on every PR.
+live-tests = []
 
 [dependencies]
 anyhow.workspace = true
@@ -61,3 +63,7 @@ tower.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "youtube_live"
+required-features = ["live-tests"]

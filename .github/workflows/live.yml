@@ -1,0 +1,31 @@
+name: Live YouTube
+
+# Talks to live YouTube, so results depend on what YouTube serves the runner. Kept out of PR checks.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  youtube:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: live
+      - name: cargo test
+        run: cargo test -p oxistream-server --features live-tests --test youtube_live -- --include-ignored
