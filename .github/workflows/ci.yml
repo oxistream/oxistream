@@ -26,6 +26,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
+      compose: ${{ steps.filter.outputs.compose }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -48,6 +49,9 @@ jobs:
               - '.dockerignore'
               - 'backend/**'
               - 'frontend/**'
+            compose:
+              - *ci
+              - 'deploy/compose/**'
 
   backend:
     needs: changes
@@ -225,8 +229,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  compose:
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deploy/compose
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - run: docker compose config --quiet
+
   ci-ok:
-    needs: [changes, backend, frontend, e2e, openapi, docker]
+    needs: [changes, backend, frontend, e2e, openapi, docker, compose]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30
