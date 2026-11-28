@@ -89,6 +89,17 @@ type ClientMessage = {
 	to?: number;
 	revision?: number;
 	enabled?: boolean;
+	sync?: string | null;
+	place?: string;
+};
+
+type FakeParticipant = {
+	id: string;
+	name: string;
+	owner: boolean;
+	sync: string | null;
+	place: string | null;
+	statusRevision: number;
 };
 
 type FakeEntry = {
@@ -100,7 +111,8 @@ type FakeEntry = {
 
 /** A party server in the test process, shared by both browsers. */
 class FakeRoom {
-	sockets = new Map<WebSocketRoute, { id: string; name: string; owner: boolean }>();
+	sockets = new Map<WebSocketRoute, FakeParticipant>();
+	joins = 0;
 	queue: FakeEntry[] = [];
 	/** Played entries, newest first, one per video. */
 	history: FakeEntry[] = [];
@@ -170,7 +182,10 @@ class FakeRoom {
 				id: p.id,
 				name: p.name,
 				is_owner: p.owner,
-				is_guest: !p.owner
+				is_guest: !p.owner,
+				sync: p.sync,
+				place: p.place,
+				status_revision: p.statusRevision
 			}))
 		};
 	}
@@ -196,8 +211,9 @@ class FakeRoom {
 		const message = JSON.parse(raw) as ClientMessage;
 		switch (message.type) {
 			case 'join': {
-				const id = `p${this.sockets.size + 1}`;
-				this.sockets.set(socket, { id, name: owner ? 'mara' : message.name!, owner });
+				const id = `p${++this.joins}`;
+				const name = owner ? 'mara' : message.name!;
+				this.sockets.set(socket, { id, name, owner, sync: null, place: null, statusRevision: 0 });
 				const at = Date.now();
 				socket.send(
 					JSON.stringify({ type: 'welcome', participant_id: id, is_owner: owner, server_time: at })
@@ -207,6 +223,23 @@ class FakeRoom {
 			}
 			case 'ping':
 				return socket.send(JSON.stringify({ type: 'pong', t: message.t, server_time: Date.now() }));
+			case 'status': {
+				// Passed on without a new revision, like the real server.
+				const person = this.sockets.get(socket);
+				if (!person) return;
+				person.sync = message.sync ?? null;
+				person.place = message.place ?? null;
+				person.statusRevision++;
+				const status = JSON.stringify({
+					type: 'status',
+					participant: person.id,
+					sync: person.sync,
+					place: person.place,
+					revision: person.statusRevision
+				});
+				for (const other of this.sockets.keys()) other.send(status);
+				return;
+			}
 			case 'play':
 			case 'pause':
 				this.setPosition(message.position!, message.type === 'play', message.at);
@@ -428,7 +461,9 @@ test('two people stay in sync and the queue plays in order', async ({ browser })
 	await hostPanel.getByTestId('party-tab-queue').click();
 	const guestPanel = await openPanel(guest);
 	await guestPanel.getByTestId('party-tab-members').click();
-	await expect(guestPanel.getByTestId('party-members').getByRole('button')).toHaveCount(0);
+	await expect(
+		guestPanel.getByTestId('party-members').getByRole('button', { name: /^Remove/ })
+	).toHaveCount(0);
 	await expect(await partyMenu(guest, 'Leave party')).toBeVisible();
 	await expect(guest.getByRole('menuitem', { name: 'End party' })).toHaveCount(0);
 	await guest.keyboard.press('Escape');
@@ -1154,4 +1189,73 @@ test('played videos stay in the history, to play or queue again', async ({ brows
 
 	await hostContext.close();
 	await guestContext.close();
+});
+
+test('members show how they keep up and where they are, and who comes and goes', async ({
+	browser
+}) => {
+	test.setTimeout(60_000);
+	const room = new FakeRoom(LONG);
+	const hostContext = await browser.newContext();
+	const guestContext = await browser.newContext();
+	await mockApi(hostContext, room, { signedIn: true });
+	await mockApi(guestContext, room, { signedIn: false });
+	const host = await hostContext.newPage();
+	const guest = await guestContext.newPage();
+
+	await openParty(host);
+	await expect(host).toHaveURL(watchUrl(LONG));
+	const hostPanel = await openPanel(host);
+	await hostPanel.getByTestId('party-tab-members').click();
+	const member = (panel: Locator, name: string) =>
+		panel.locator(`[data-testid="party-member"][data-name="${name}"]`);
+	await expect(member(hostPanel, 'mara')).toHaveAttribute('data-place', 'watching');
+	await expect(hostPanel.getByTestId('party-presence')).toBeHidden();
+
+	// Someone joining is announced; their own join is not.
+	await joinAsGuest(guest);
+	await expect(guest).toHaveURL(watchUrl(LONG));
+	await expect(hostPanel.getByTestId('party-presence')).toHaveText('Grace joined', {
+		timeout: 10_000
+	});
+	const guestPanel = await openPanel(guest);
+	await expect(guestPanel.getByTestId('party-presence')).toBeHidden();
+	const grace = member(hostPanel, 'Grace');
+	await expect(grace).toHaveAttribute('data-place', 'watching');
+	await expect(grace).toHaveAttribute('data-sync', 'synced', { timeout: 15_000 });
+	await expect(grace).toContainText('Watching');
+
+	// Only your own row can be resynced.
+	await expect(grace.getByTestId('party-resync')).toHaveCount(0);
+	await expect(member(hostPanel, 'mara').getByTestId('party-resync')).toBeVisible();
+	await guestPanel.getByTestId('party-tab-members').click();
+	await expect(member(guestPanel, 'mara').getByTestId('party-resync')).toHaveCount(0);
+	await expect.poll(() => hasMetadata(host)).toBe(true);
+	await expect.poll(() => hasMetadata(guest)).toBe(true);
+	await expect
+		.poll(async () => {
+			await media(host).evaluate((el: HTMLMediaElement) => void el.play().catch(() => {}));
+			return room.playing;
+		})
+		.toBe(true);
+	await expect.poll(() => isPaused(guest)).toBe(false);
+	await member(guestPanel, 'Grace').getByTestId('party-resync').click();
+	await expect
+		.poll(async () => Math.abs((await currentTime(guest)) - live(room)), { timeout: 10_000 })
+		.toBeLessThan(1);
+	await expect(grace).toHaveAttribute('data-sync', 'synced', { timeout: 15_000 });
+
+	// Browsing elsewhere shows for everyone.
+	await browseTo(guest, SECOND);
+	await expect(grace).toHaveAttribute('data-place', 'browsing');
+	await expect(grace).toContainText('Browsing');
+
+	// Leaving is announced once the reconnect grace is over.
+	await guestContext.close();
+	await expect(grace).toHaveCount(0);
+	await expect(hostPanel.getByTestId('party-presence')).toHaveText('Grace left', {
+		timeout: 15_000
+	});
+
+	await hostContext.close();
 });

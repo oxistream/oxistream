@@ -1505,6 +1505,16 @@ export interface components {
             /** @description Signed logout token (JWT) from the provider. */
             logout_token: string;
         };
+        /**
+         * @description Where a participant is in the app.
+         * @enum {string}
+         */
+        MemberPlace: "watching" | "browsing" | "shorts";
+        /**
+         * @description How well a participant's player keeps up with the room.
+         * @enum {string}
+         */
+        MemberSync: "synced" | "buffering" | "behind";
         MoveItem: {
             /**
              * Format: int32
@@ -1724,6 +1734,11 @@ export interface components {
             participant: string;
             /** @enum {string} */
             type: "kick";
+        } | {
+            place: components["schemas"]["MemberPlace"];
+            sync?: components["schemas"]["MemberSync"] | null;
+            /** @enum {string} */
+            type: "status";
         };
         /** @enum {string} */
         RoomErrorCode: "not_found" | "room_full" | "queue_full" | "invalid" | "video_unavailable" | "forbidden" | "rate_limited" | "stale" | "internal";
@@ -1769,6 +1784,13 @@ export interface components {
             is_guest: boolean;
             is_owner: boolean;
             name: string;
+            place?: components["schemas"]["MemberPlace"] | null;
+            /**
+             * Format: int64
+             * @description Grows with every status change.
+             */
+            status_revision: number;
+            sync?: components["schemas"]["MemberSync"] | null;
         };
         /** @description Sent by the server. */
         RoomServerMessage: {
@@ -1811,6 +1833,15 @@ export interface components {
             skipped: number;
             /** @enum {string} */
             type: "added";
+        } | {
+            /** Format: uuid */
+            participant: string;
+            place?: components["schemas"]["MemberPlace"] | null;
+            /** Format: int64 */
+            revision: number;
+            sync?: components["schemas"]["MemberSync"] | null;
+            /** @enum {string} */
+            type: "status";
         } | {
             /** @enum {string} */
             type: "kicked";

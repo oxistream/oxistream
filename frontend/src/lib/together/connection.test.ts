@@ -142,6 +142,60 @@ describe('RoomConnection', () => {
 		conn.disconnect();
 	});
 
+	it('keeps the newest status of each member and reports its own again after reconnecting', () => {
+		const conn = new RoomConnection('room', {});
+		conn.connect();
+		const socket = FakeSocket.instances[0];
+		socket.open();
+		socket.receive(welcome);
+		conn.reportStatus({ sync: 'synced', place: 'watching' });
+		expect(socket.sent.at(-1)).toEqual({ type: 'status', sync: 'synced', place: 'watching' });
+
+		const grace = (revision: number, sync: string | null) => ({
+			id: 'p2',
+			name: 'Grace',
+			is_owner: false,
+			is_guest: true,
+			sync,
+			place: 'browsing',
+			status_revision: revision
+		});
+		// A status may overtake the state that brings its member.
+		socket.receive({
+			type: 'status',
+			participant: 'p2',
+			sync: 'behind',
+			place: 'shorts',
+			revision: 4
+		});
+		socket.receive({ type: 'state', room: { ...room(1), participants: [grace(3, 'synced')] } });
+		expect(conn.room?.participants[0]).toMatchObject({ sync: 'behind', place: 'shorts' });
+		socket.receive({
+			type: 'status',
+			participant: 'p2',
+			sync: 'synced',
+			place: 'shorts',
+			revision: 2
+		});
+		expect(conn.room?.participants[0].sync).toBe('behind');
+		socket.receive({
+			type: 'status',
+			participant: 'p2',
+			sync: null,
+			place: 'watching',
+			revision: 5
+		});
+		expect(conn.room?.participants[0]).toMatchObject({ sync: null, place: 'watching' });
+
+		socket.close();
+		vi.advanceTimersByTime(1500);
+		const next = FakeSocket.instances[1];
+		next.open();
+		next.receive(welcome);
+		expect(next.sent).toContainEqual({ type: 'status', sync: 'synced', place: 'watching' });
+		conn.disconnect();
+	});
+
 	it('ignores a reorder that lost to a newer change', () => {
 		const conn = new RoomConnection('room', {});
 		conn.connect();

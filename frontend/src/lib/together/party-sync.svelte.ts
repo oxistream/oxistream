@@ -4,6 +4,8 @@ import {
 	type PlayerControls,
 	type PlayerEvents
 } from '#lib/player/app-player.svelte.js';
+import type { MemberSync } from './connection.svelte';
+import { syncHealth } from './presence';
 import {
 	DriftController,
 	PAUSED_DRIFT,
@@ -54,6 +56,8 @@ export type PartySyncOptions = {
 export class PartySync {
 	/** The browser refused to start playback without a click. */
 	blocked = $state(false);
+	/** How this player keeps up, for the members list; `null` until it is known. */
+	health = $state<MemberSync | null>(null);
 	stats = $state<SyncStats>({
 		offset: 0,
 		rtt: null,
@@ -143,6 +147,24 @@ export class PartySync {
 		this.#player()?.play();
 	}
 
+	/** Jumps to where the party is now instead of catching up, and stops holding off for input. */
+	resync() {
+		const player = this.#player();
+		if (!player) return;
+		const controller = this.#controller;
+		const now = localNow();
+		this.#pressedAt = null;
+		this.#userSeeking = null;
+		this.#reportedUntil = 0;
+		controller.reset();
+		player.setRate(1);
+		const playing = this.#playback.playing;
+		this.#seekTo(this.#target() + (playing ? controller.lead : 0));
+		if (playing) controller.seeked(now);
+		this.#controlledAt = now;
+		this.#sync();
+	}
+
 	destroy() {
 		this.#destroyed = true;
 		clearInterval(this.#timer);
@@ -175,6 +197,7 @@ export class PartySync {
 	}
 
 	#report(state: string, drift: number | null = null) {
+		this.health = syncHealth(state, drift) ?? this.health;
 		if (!this.#options.debug) return;
 		const clock = this.#options.clockStats?.();
 		const controller = this.#controller;

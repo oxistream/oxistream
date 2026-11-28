@@ -7,7 +7,11 @@ export type RoomQueueEntry = Schemas['QueueEntry'];
 export type RoomParticipant = Schemas['RoomParticipant'];
 export type RoomErrorCode = Schemas['RoomErrorCode'];
 export type RoomClientMessage = Schemas['RoomClientMessage'];
+export type MemberSync = Schemas['MemberSync'];
+export type MemberPlace = Schemas['MemberPlace'];
+export type MemberStatus = { sync: MemberSync | null; place: MemberPlace };
 type ServerMessage = Schemas['RoomServerMessage'];
+type KnownStatus = { sync: MemberSync | null; place: MemberPlace | null; revision: number };
 
 export type ConnectionStatus =
 	| 'connecting'
@@ -61,6 +65,10 @@ export class RoomConnection {
 	#stopped = false;
 	/** Videos cut off from the last batch sent, counted as skipped when its answer arrives. */
 	#overflow = 0;
+	/** What this client reported last, sent again after reconnecting. */
+	#status: MemberStatus | null = null;
+	/** The newest status heard of per participant, which may arrive before their state. */
+	#statuses: Partial<Record<string, KnownStatus>> = {};
 
 	constructor(roomId: string, join: JoinDetails) {
 		this.#roomId = roomId;
@@ -122,6 +130,37 @@ export class RoomConnection {
 		this.#overflow = Math.max(0, videoIds.length - MAX_BATCH);
 	}
 
+	/** Tells the room how this player keeps up and where this tab is. */
+	reportStatus(status: MemberStatus) {
+		this.#status = status;
+		this.#write({ type: 'status', ...status });
+	}
+
+	#applyStatus(id: string, status: KnownStatus) {
+		const known = this.#statuses[id];
+		if (known && known.revision >= status.revision) return;
+		this.#statuses[id] = status;
+		const person = this.room?.participants.find((p) => p.id === id);
+		if (person && person.status_revision < status.revision) {
+			person.sync = status.sync;
+			person.place = status.place;
+			person.status_revision = status.revision;
+		}
+	}
+
+	/** A state may be older than statuses already heard of. */
+	#withStatuses(room: RoomState): RoomState {
+		for (const person of room.participants) {
+			const known = this.#statuses[person.id];
+			if (known && known.revision > person.status_revision) {
+				person.sync = known.sync;
+				person.place = known.place;
+				person.status_revision = known.revision;
+			}
+		}
+		return room;
+	}
+
 	#write(message: RoomClientMessage): boolean {
 		if (this.#socket?.readyState !== WebSocket.OPEN) return false;
 		this.#socket.send(JSON.stringify(message));
@@ -151,9 +190,21 @@ export class RoomConnection {
 				for (const delay of PING_BURST) setTimeout(() => this.#sendPing(), delay);
 				clearInterval(this.#ping);
 				this.#ping = setInterval(() => this.#sendPing(), PING_INTERVAL);
+				// A new participant, with a new snapshot to come.
+				this.#statuses = {};
+				if (this.#status) this.#write({ type: 'status', ...this.#status });
 				break;
 			case 'state':
-				if (!this.room || message.room.revision >= this.room.revision) this.room = message.room;
+				if (!this.room || message.room.revision >= this.room.revision) {
+					this.room = this.#withStatuses(message.room);
+				}
+				break;
+			case 'status':
+				this.#applyStatus(message.participant, {
+					sync: message.sync ?? null,
+					place: message.place ?? null,
+					revision: message.revision
+				});
 				break;
 			case 'history':
 				this.history = message.entries;
