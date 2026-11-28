@@ -167,7 +167,10 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     )
     .spawn(feed_requests);
 
-    let rooms = rooms::Rooms::new(Arc::new(PgRoomRepository::new(db.clone())));
+    let rooms = rooms::Rooms::new(
+        Arc::new(PgRoomRepository::new(db.clone())),
+        Some(Arc::new(youtube.clone())),
+    );
     rooms.spawn(db.clone());
 
     let history: Arc<dyn HistoryRepository> = Arc::new(

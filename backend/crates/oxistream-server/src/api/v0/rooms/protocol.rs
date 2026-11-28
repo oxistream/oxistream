@@ -74,6 +74,11 @@ pub enum RoomClientMessage {
     },
     /// Puts the upcoming entries in a random order.
     Shuffle,
+    /// When the queue runs out, append a related video of the last entry that the room has not
+    /// queued before.
+    Autoplay {
+        enabled: bool,
+    },
     /// Owner only: removes a participant for the rest of the room's life.
     Kick {
         participant: Uuid,
@@ -151,6 +156,9 @@ pub struct RoomState {
     /// Milliseconds since the Unix epoch.
     pub position_at: i64,
     pub participants: Vec<RoomParticipant>,
+    pub autoplay: bool,
+    /// What autoplay plays after `current`, once it is the last entry and a pick was found.
+    pub up_next: Option<VideoSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -158,8 +166,10 @@ pub struct QueueEntry {
     pub id: i64,
     /// `channel` is always set; view counts and dates are not.
     pub video: VideoSummary,
-    /// Display name of whoever queued it.
+    /// Display name of whoever queued it; empty for `autoplay` entries.
     pub added_by: String,
+    /// Appended by autoplay.
+    pub autoplay: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -184,6 +194,7 @@ pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Roo
             id: e.entry_id,
             video: cached_video_summary(e.video.clone(), img),
             added_by: e.added_by.clone(),
+            autoplay: e.autoplay,
         })
         .partition(|e| Some(e.id) == room.current_entry_id);
     RoomState {
@@ -205,5 +216,10 @@ pub fn room_state(snapshot: &RoomSnapshot, img: &impl Fn(&str) -> String) -> Roo
                 is_guest: p.user_id.is_none(),
             })
             .collect(),
+        autoplay: room.autoplay,
+        up_next: snapshot
+            .up_next
+            .clone()
+            .map(|v| cached_video_summary(v, img)),
     }
 }

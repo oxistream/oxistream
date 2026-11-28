@@ -7046,12 +7046,17 @@
         "required": [
           "id",
           "video",
-          "added_by"
+          "added_by",
+          "autoplay"
         ],
         "properties": {
           "added_by": {
             "type": "string",
-            "description": "Display name of whoever queued it."
+            "description": "Display name of whoever queued it; empty for `autoplay` entries."
+          },
+          "autoplay": {
+            "type": "boolean",
+            "description": "Appended by autoplay."
           },
           "id": {
             "type": "integer",
@@ -7403,6 +7408,25 @@
           },
           {
             "type": "object",
+            "description": "When the queue runs out, append a related video of the last entry that the room has not\nqueued before.",
+            "required": [
+              "enabled",
+              "type"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "autoplay"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "Owner only: removes a participant for the rest of the room's life.",
             "required": [
               "participant",
@@ -7706,9 +7730,13 @@
           "playing",
           "position",
           "position_at",
-          "participants"
+          "participants",
+          "autoplay"
         ],
         "properties": {
+          "autoplay": {
+            "type": "boolean"
+          },
           "current": {
             "oneOf": [
               {
@@ -7757,6 +7785,17 @@
             "type": "integer",
             "format": "int64",
             "description": "Increases with every change."
+          },
+          "up_next": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VideoSummary",
+                "description": "What autoplay plays after `current`, once it is the last entry and a pick was found."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

@@ -3,10 +3,18 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use oxistream_db::{PgPool, RoomEvent, RoomListener, RoomRepository, RoomSnapshot, Uuid};
+use async_trait::async_trait;
+use oxistream_db::{
+    PgPool, RoomEvent, RoomListener, RoomOp, RoomRepository, RoomSnapshot, Uuid, VideoUpsert,
+};
+use rustypipe::model as rp;
+use rustypipe::param::Language;
+use time::OffsetDateTime;
 use tokio::sync::watch;
+
+use crate::youtube::{self, YouTube};
 
 pub const MAX_ROOMS_PER_USER: u32 = 10;
 pub const MAX_PARTICIPANTS: u32 = 50;
@@ -18,6 +26,50 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 const STALE_AFTER: Duration = Duration::from_mins(2);
 const CLEANUP_INTERVAL: Duration = Duration::from_mins(5);
 const MAX_LISTEN_BACKOFF: Duration = Duration::from_mins(1);
+/// A failed autoplay pick is tried again after this.
+const PICK_RETRY: Duration = Duration::from_mins(1);
+const MAX_PICK_CANDIDATES: usize = 20;
+
+/// Videos autoplay may follow a video with, best first.
+#[async_trait]
+pub trait RelatedSource: Send + Sync {
+    async fn related(&self, video_id: &str) -> youtube::Result<Vec<VideoUpsert>>;
+}
+
+#[async_trait]
+impl RelatedSource for YouTube {
+    async fn related(&self, video_id: &str) -> youtube::Result<Vec<VideoUpsert>> {
+        let details = self.video_details(video_id, Language::En).await?;
+        Ok(details
+            .recommended
+            .items
+            .into_iter()
+            .filter_map(playable)
+            .take(MAX_PICK_CANDIDATES)
+            .collect())
+    }
+}
+
+/// Regular videos only: no livestreams, premieres or shorts.
+fn playable(v: rp::VideoItem) -> Option<VideoUpsert> {
+    if v.is_live || v.is_upcoming || v.is_short {
+        return None;
+    }
+    let channel = v.channel?;
+    Some(VideoUpsert {
+        thumbnail_url: v
+            .thumbnail
+            .iter()
+            .max_by_key(|t| t.width * t.height)
+            .map(|t| t.url.clone()),
+        duration_seconds: Some(i32::try_from(v.duration?).ok()?),
+        published_at: v.publish_date,
+        channel_id: channel.id,
+        channel_name: channel.name,
+        id: v.id,
+        title: v.name,
+    })
+}
 
 /// The latest known state of a room.
 #[derive(Debug, Clone)]
@@ -34,7 +86,10 @@ pub struct Rooms {
 
 struct Inner {
     repo: Arc<dyn RoomRepository>,
+    related: Option<Arc<dyn RelatedSource>>,
     local: Mutex<HashMap<String, Local>>,
+    /// Autoplay picks started recently, by room and source entry.
+    picks: Mutex<HashMap<(String, i64), Instant>>,
 }
 
 struct Local {
@@ -43,11 +98,14 @@ struct Local {
 }
 
 impl Rooms {
-    pub fn new(repo: Arc<dyn RoomRepository>) -> Self {
+    /// Without `related`, autoplay never finds anything to append.
+    pub fn new(repo: Arc<dyn RoomRepository>, related: Option<Arc<dyn RelatedSource>>) -> Self {
         Self {
             inner: Arc::new(Inner {
                 repo,
+                related,
                 local: Mutex::default(),
+                picks: Mutex::default(),
             }),
         }
     }
@@ -101,23 +159,73 @@ impl Rooms {
                 return;
             }
         };
-        let local = self.local();
-        let Some(entry) = local.get(room_id) else {
+        {
+            let local = self.local();
+            let Some(entry) = local.get(room_id) else {
+                return;
+            };
+            // Loads may finish out of order; an older revision never replaces a newer one.
+            entry
+                .tx
+                .send_if_modified(|current| match (&*current, &snapshot) {
+                    (Update::Open(old), Update::Open(new))
+                        if new.room.revision < old.room.revision =>
+                    {
+                        false
+                    }
+                    (Update::Closed, _) => false,
+                    _ => {
+                        *current = snapshot.clone();
+                        true
+                    }
+                });
+        }
+        if let Update::Open(snapshot) = &snapshot {
+            self.pick(snapshot);
+        }
+    }
+
+    /// Picks what autoplay appends after the last entry. Every replica with participants
+    /// may try; the database keeps the first pick.
+    fn pick(&self, snapshot: &RoomSnapshot) {
+        let Some(related) = self.inner.related.clone() else {
             return;
         };
-        // Loads may finish out of order; an older revision never replaces a newer one.
-        entry
-            .tx
-            .send_if_modified(|current| match (&*current, &snapshot) {
-                (Update::Open(old), Update::Open(new)) if new.room.revision < old.room.revision => {
-                    false
+        let Some((source, video_id)) = snapshot.needs_pick() else {
+            return;
+        };
+        let room_id = snapshot.room.id.clone();
+        {
+            let mut picks = self
+                .inner
+                .picks
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let now = Instant::now();
+            picks.retain(|_, at| now.duration_since(*at) < PICK_RETRY);
+            if picks.contains_key(&(room_id.clone(), source)) {
+                return;
+            }
+            picks.insert((room_id.clone(), source), now);
+        }
+        let video_id = video_id.to_owned();
+        let rooms = self.clone();
+        tokio::spawn(async move {
+            match related.related(&video_id).await {
+                Ok(candidates) => {
+                    let op = RoomOp::Pick { source, candidates };
+                    let now = OffsetDateTime::now_utc();
+                    if let Err(err) = rooms.repo().apply(&room_id, &op, now).await {
+                        tracing::warn!(error = ?err, "could not store autoplay pick");
+                    }
                 }
-                (Update::Closed, _) => false,
-                _ => {
-                    *current = snapshot.clone();
-                    true
+                Err(err) => {
+                    tracing::warn!(%video_id, error = %err, "could not pick autoplay video");
+                    tokio::time::sleep(PICK_RETRY).await;
+                    rooms.refresh(&room_id).await;
                 }
-            });
+            }
+        });
     }
 
     fn local_rooms(&self) -> Vec<String> {

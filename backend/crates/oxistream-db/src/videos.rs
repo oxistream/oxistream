@@ -47,32 +47,39 @@ impl PgVideoRepository {
     }
 }
 
+pub(crate) async fn upsert<'e>(
+    executor: impl sqlx::PgExecutor<'e>,
+    video: &VideoUpsert,
+) -> Result<(), Error> {
+    sqlx::query(
+        "INSERT INTO videos \
+            (id, title, channel_id, channel_name, duration_seconds, published_at, thumbnail_url) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT (id) DO UPDATE SET \
+            title = EXCLUDED.title, \
+            channel_id = EXCLUDED.channel_id, \
+            channel_name = EXCLUDED.channel_name, \
+            duration_seconds = COALESCE(EXCLUDED.duration_seconds, videos.duration_seconds), \
+            published_at = COALESCE(EXCLUDED.published_at, videos.published_at), \
+            thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, videos.thumbnail_url), \
+            updated_at = now()",
+    )
+    .bind(&video.id)
+    .bind(&video.title)
+    .bind(&video.channel_id)
+    .bind(&video.channel_name)
+    .bind(video.duration_seconds)
+    .bind(video.published_at)
+    .bind(&video.thumbnail_url)
+    .execute(executor)
+    .await?;
+    Ok(())
+}
+
 #[async_trait::async_trait]
 impl VideoRepository for PgVideoRepository {
     async fn upsert(&self, video: &VideoUpsert) -> Result<(), Error> {
-        sqlx::query(
-            "INSERT INTO videos \
-                (id, title, channel_id, channel_name, duration_seconds, published_at, thumbnail_url) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
-             ON CONFLICT (id) DO UPDATE SET \
-                title = EXCLUDED.title, \
-                channel_id = EXCLUDED.channel_id, \
-                channel_name = EXCLUDED.channel_name, \
-                duration_seconds = COALESCE(EXCLUDED.duration_seconds, videos.duration_seconds), \
-                published_at = COALESCE(EXCLUDED.published_at, videos.published_at), \
-                thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, videos.thumbnail_url), \
-                updated_at = now()",
-        )
-        .bind(&video.id)
-        .bind(&video.title)
-        .bind(&video.channel_id)
-        .bind(&video.channel_name)
-        .bind(video.duration_seconds)
-        .bind(video.published_at)
-        .bind(&video.thumbnail_url)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+        upsert(&self.pool, video).await
     }
 
     async fn get(&self, id: &str) -> Result<Option<Video>, Error> {

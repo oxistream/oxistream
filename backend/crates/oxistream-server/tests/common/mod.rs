@@ -127,7 +127,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
         blocks: Arc::new(PgChannelBlockRepository::new(db.clone())),
         // Fetch requests go nowhere unless a test swaps in its own feed.
         feed: Feed::new(Arc::new(PgChannelRepository::new(db.clone()))).0,
-        rooms: Rooms::new(Arc::new(PgRoomRepository::new(db.clone()))),
+        rooms: Rooms::new(Arc::new(PgRoomRepository::new(db.clone())), None),
         metrics: telemetry::detached_metrics_handle(),
         youtube: YouTube::new(&YouTubeConfig::default()).expect("build YouTube client"),
         proxy: Proxy::new(&ProxyConfig::new(TEST_PROXY_SECRET)).expect("build proxy"),

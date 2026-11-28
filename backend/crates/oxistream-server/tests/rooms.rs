@@ -2,6 +2,7 @@
 
 mod common;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
@@ -18,6 +19,8 @@ use oxistream_db::{
     SessionRepository, User, UserRepository, Uuid, VideoRepository, VideoUpsert,
 };
 use oxistream_server::auth::cookie;
+use oxistream_server::rooms::{RelatedSource, Rooms};
+use oxistream_server::youtube;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 use tokio::net::TcpStream;
@@ -486,7 +489,15 @@ async fn state_where(socket: &mut Socket, check: impl Fn(&Value) -> bool) -> Val
 
 /// An instance of the server with its own room registry, as another replica would be.
 async fn replica(pool: &PgPool) -> (Router, reqwest::Url) {
-    let state = state_with_pool(pool.clone());
+    replica_with(pool, None).await
+}
+
+async fn replica_with(
+    pool: &PgPool,
+    related: Option<Arc<dyn RelatedSource>>,
+) -> (Router, reqwest::Url) {
+    let mut state = state_with_pool(pool.clone());
+    state.rooms = Rooms::new(Arc::new(PgRoomRepository::new(pool.clone())), related);
     state.rooms.spawn(pool.clone());
     let app = oxistream_server::app(state);
     (app.clone(), common::spawn_upstream(app).await)
@@ -757,4 +768,229 @@ async fn sockets_queue_batches_reorder_and_shuffle() {
     sorted.sort();
     assert_eq!(sorted, &VIDEOS[1..4]);
     assert_eq!(shuffled["current"]["video"]["id"], VIDEOS[0]);
+}
+
+fn related_video(id: &str) -> VideoUpsert {
+    VideoUpsert {
+        id: id.to_owned(),
+        title: format!("Related {id}"),
+        channel_id: "UCbbbbbbbbbbbbbbbbbbbbbb".into(),
+        channel_name: "Beta".into(),
+        duration_seconds: Some(95),
+        published_at: None,
+        thumbnail_url: None,
+    }
+}
+
+const RELATED: [&str; 2] = ["vvvvvvvvvvM", "vvvvvvvvvvQ"];
+
+fn pick(source: i64, ids: &[&str]) -> RoomOp {
+    RoomOp::Pick {
+        source,
+        candidates: ids.iter().map(|id| related_video(id)).collect(),
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn autoplay_appends_related_videos_without_repeats() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    let room = repo
+        .create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 1)
+        .await
+        .unwrap();
+    let first = room.current_entry_id.unwrap();
+    repo.apply(ROOM, &add(VIDEOS[1]), now).await.unwrap();
+
+    // Off, or with entries still to come, there is nothing to pick.
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(s.needs_pick(), None);
+    assert_eq!(
+        repo.apply(ROOM, &pick(first, &RELATED), now).await.unwrap(),
+        OpOutcome::Unchanged
+    );
+    let on = RoomOp::SetAutoplay { enabled: true };
+    assert_eq!(
+        repo.apply(ROOM, &on, now).await.unwrap(),
+        OpOutcome::Applied
+    );
+    assert_eq!(
+        repo.apply(ROOM, &on, now).await.unwrap(),
+        OpOutcome::Unchanged
+    );
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert!(s.room.autoplay);
+    assert_eq!(s.needs_pick(), None);
+    assert_eq!(
+        repo.apply(ROOM, &pick(first, &RELATED), now).await.unwrap(),
+        OpOutcome::Unchanged
+    );
+
+    // Once the last entry plays, the first related video the room has not queued is picked.
+    repo.apply(ROOM, &RoomOp::Advance { from: first }, now)
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    let second = s.room.current_entry_id.unwrap();
+    assert_eq!(s.needs_pick(), Some((second, VIDEOS[1])));
+    let picked = pick(second, &[VIDEOS[0], VIDEOS[1], RELATED[0], RELATED[1]]);
+    assert_eq!(
+        repo.apply(ROOM, &picked, now).await.unwrap(),
+        OpOutcome::Applied
+    );
+    assert_eq!(
+        repo.apply(ROOM, &pick(second, &[RELATED[1]]), now)
+            .await
+            .unwrap(),
+        OpOutcome::Unchanged,
+        "the first pick stays"
+    );
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(s.needs_pick(), None);
+    assert_eq!(s.up_next.as_ref().map(|v| v.id.as_str()), Some(RELATED[0]));
+
+    // Turned off, there is no preview; turned on again, the pick is still there.
+    let off = RoomOp::SetAutoplay { enabled: false };
+    repo.apply(ROOM, &off, now).await.unwrap();
+    assert_eq!(repo.snapshot(ROOM).await.unwrap().unwrap().up_next, None);
+    repo.apply(ROOM, &on, now).await.unwrap();
+
+    repo.apply(ROOM, &RoomOp::Advance { from: second }, now)
+        .await
+        .unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert!(s.room.playing);
+    assert_eq!(s.queue.len(), 1);
+    assert_eq!(s.queue[0].video.id, RELATED[0]);
+    assert!(s.queue[0].autoplay);
+    assert_eq!(s.needs_pick(), Some((s.queue[0].entry_id, RELATED[0])));
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn autoplay_never_repeats_a_queued_video() {
+    let db = isolated_test_pool().await;
+    let repo = PgRoomRepository::new(db.pool.clone());
+    let owner = user(&db.pool).await;
+    cache_videos(&db.pool).await;
+    let now = OffsetDateTime::now_utc();
+    let room = repo
+        .create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 1)
+        .await
+        .unwrap();
+    let third = room.current_entry_id.unwrap();
+    repo.apply(ROOM, &RoomOp::SetAutoplay { enabled: true }, now)
+        .await
+        .unwrap();
+
+    // Queueing the pick by hand drops it, so it is not played twice.
+    repo.apply(ROOM, &pick(third, &[RELATED[1]]), now)
+        .await
+        .unwrap();
+    let manual = RoomOp::Add {
+        video_id: RELATED[1].to_owned(),
+        added_by: "Ada".into(),
+        max_queue: 3,
+        play: false,
+    };
+    repo.apply(ROOM, &manual, now).await.unwrap();
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(s.room.autoplay_video_id, None);
+    repo.apply(
+        ROOM,
+        &RoomOp::Remove {
+            entry: s.queue[1].entry_id,
+        },
+        now,
+    )
+    .await
+    .unwrap();
+
+    // With every candidate queued before, nothing is picked and the queue runs out.
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!(s.needs_pick(), Some((third, VIDEOS[0])));
+    let seen = pick(third, &[VIDEOS[0], RELATED[1]]);
+    assert_eq!(
+        repo.apply(ROOM, &seen, now).await.unwrap(),
+        OpOutcome::Applied
+    );
+    let s = repo.snapshot(ROOM).await.unwrap().unwrap();
+    assert_eq!((s.needs_pick(), &s.up_next), (None, &None));
+    repo.apply(ROOM, &RoomOp::Advance { from: third }, now)
+        .await
+        .unwrap();
+    let (current, ids, _) = queue(&repo).await;
+    assert!(current.is_none() && ids.is_empty());
+}
+
+struct FakeRelated;
+
+#[async_trait::async_trait]
+impl RelatedSource for FakeRelated {
+    async fn related(&self, _video_id: &str) -> youtube::Result<Vec<VideoUpsert>> {
+        Ok([VIDEOS[0], RELATED[0], RELATED[1]]
+            .iter()
+            .map(|id| related_video(id))
+            .collect())
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Docker or OXISTREAM_TEST_DATABASE_URL"]
+async fn sockets_toggle_autoplay_and_play_the_preview() {
+    let db = isolated_test_pool().await;
+    cache_videos(&db.pool).await;
+    let owner = user(&db.pool).await;
+    let token = session(&db.pool, &owner).await;
+    PgRoomRepository::new(db.pool.clone())
+        .create(owner.id, ROOM, Some((VIDEOS[0], "Ada")), 10)
+        .await
+        .unwrap();
+    let (_, a) = replica_with(&db.pool, Some(Arc::new(FakeRelated))).await;
+    let (_, b) = replica_with(&db.pool, Some(Arc::new(FakeRelated))).await;
+
+    let mut host = connect(&a, ROOM, Some(&token)).await;
+    send(&mut host, json!({ "type": "join" })).await;
+    expect(&mut host, "welcome").await;
+    let mut guest = connect(&b, ROOM, None).await;
+    send(
+        &mut guest,
+        json!({ "type": "join", "name": "Grace", "guest_key": "guest-key-0123456789" }),
+    )
+    .await;
+    expect(&mut guest, "welcome").await;
+    let state = state_where(&mut guest, |r| {
+        r["participants"].as_array().unwrap().len() == 2
+    })
+    .await;
+    assert_eq!(
+        (state["autoplay"].clone(), state["up_next"].clone()),
+        (json!(false), Value::Null)
+    );
+
+    // Guests may turn it on too; both replicas see the same preview.
+    send(&mut guest, json!({ "type": "autoplay", "enabled": true })).await;
+    let state = state_where(&mut host, |r| !r["up_next"].is_null()).await;
+    assert_eq!(state["autoplay"], true);
+    assert_eq!(state["up_next"]["id"], RELATED[0]);
+    state_where(&mut guest, |r| r["up_next"]["id"] == RELATED[0]).await;
+
+    let entry = state["current"]["id"].clone();
+    send(&mut guest, json!({ "type": "ended", "entry": entry })).await;
+    let state = state_where(&mut host, |r| r["current"]["video"]["id"] == RELATED[0]).await;
+    assert_eq!(state["current"]["autoplay"], true);
+    assert_eq!(state["current"]["added_by"], "");
+    assert_eq!(state["playing"], true);
+    let state = state_where(&mut guest, |r| r["up_next"]["id"] == RELATED[1]).await;
+    assert_eq!(state["queue"], json!([]));
+
+    send(&mut host, json!({ "type": "autoplay", "enabled": false })).await;
+    state_where(&mut guest, |r| {
+        r["autoplay"] == false && r["up_next"].is_null()
+    })
+    .await;
 }
