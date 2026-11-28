@@ -4679,6 +4679,104 @@
         ]
       }
     },
+    "/api/v0/rooms/{id}/guest": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Confirm that a guest is in the room. Sets the `oxistream_party` cookie, with which the guest\nmay use the app like an anonymous user while `OXISTREAM_REQUIRE_LOGIN` is set, as long as it\nstays in the room. Clients call this after joining and every 30 s.",
+        "operationId": "admit_guest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Room ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCredential"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Cookie set"
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such room, or the guest is not in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Give up guest access, e.g. after leaving the room.",
+        "operationId": "release_guest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Room ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cookie cleared"
+          },
+          "403": {
+            "description": "Foreign origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/search": {
       "get": {
         "tags": [
@@ -7873,6 +7971,18 @@
             "format": "int64",
             "description": "As reported by YouTube.",
             "minimum": 0
+          }
+        }
+      },
+      "GuestCredential": {
+        "type": "object",
+        "required": [
+          "guest_key"
+        ],
+        "properties": {
+          "guest_key": {
+            "type": "string",
+            "description": "The key the guest joined the room's WebSocket with."
           }
         }
       },

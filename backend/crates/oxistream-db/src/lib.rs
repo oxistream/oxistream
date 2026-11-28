@@ -49,8 +49,8 @@ pub use queue::{PgQueueRepository, Queue, QueueEntry, QueueOp, QueuePosition, Qu
 pub use rooms::{
     CHAT_CHANNEL, ChatMessage, JoinOutcome, MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_MESSAGES,
     NewParticipant, OpOutcome, Participant, ParticipantStatus, Permission, PgRoomRepository, Place,
-    REACTION_CHANNEL, ROOM_CHANNEL, Reaction, Room, RoomEntry, RoomEvent, RoomListener, RoomOp,
-    RoomRepository, RoomSnapshot, RoomSummary, STATUS_CHANNEL, SyncState,
+    Presence, REACTION_CHANNEL, ROOM_CHANNEL, Reaction, Room, RoomEntry, RoomEvent, RoomListener,
+    RoomOp, RoomRepository, RoomSnapshot, RoomSummary, STATUS_CHANNEL, SyncState,
 };
 pub use sessions::{
     ActiveSession, BackchannelLogout, LogoutOutcome, NewSession, PgSessionRepository, Session,

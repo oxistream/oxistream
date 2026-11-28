@@ -259,6 +259,16 @@ pub enum JoinOutcome {
     Full,
 }
 
+/// Whether a participant key is in a room right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Presence {
+    Present,
+    /// Not connected now, but may rejoin.
+    Absent,
+    /// The room is gone or the owner removed the key.
+    Gone,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoomOp {
     Play {
@@ -370,6 +380,9 @@ pub trait RoomRepository: Send + Sync {
     ) -> Result<JoinOutcome, Error>;
 
     async fn leave(&self, participant_id: Uuid) -> Result<(), Error>;
+
+    /// Whether the participant key `key` is connected to the room.
+    async fn presence(&self, room_id: &str, key: &str) -> Result<Presence, Error>;
 
     /// Stores what a participant reports about itself, if it changed, and tells all replicas.
     /// Neither the room's revision nor its activity change.
@@ -1265,6 +1278,23 @@ impl RoomRepository for PgRoomRepository {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    async fn presence(&self, room_id: &str, key: &str) -> Result<Presence, Error> {
+        let row: Option<(bool, bool)> = sqlx::query_as(
+            "SELECT $2 = ANY (banned), EXISTS ( \
+                 SELECT 1 FROM watch_room_participants p WHERE p.room_id = r.id AND p.key = $2) \
+             FROM watch_rooms r WHERE id = $1",
+        )
+        .bind(room_id)
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(match row {
+            None | Some((true, _)) => Presence::Gone,
+            Some((false, true)) => Presence::Present,
+            Some((false, false)) => Presence::Absent,
+        })
     }
 
     async fn set_status(

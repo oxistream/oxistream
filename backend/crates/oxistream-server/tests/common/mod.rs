@@ -115,6 +115,7 @@ pub fn state_with_auth(db: PgPool, auth: AuthConfig) -> AppState {
             Arc::new(PgUserRepository::new(db.clone())),
             Arc::new(PgSessionRepository::new(db.clone())),
             None,
+            TEST_PROXY_SECRET,
         ),
         videos: Arc::new(PgVideoRepository::new(db.clone())),
         subscriptions: Arc::new(PgSubscriptionRepository::new(db.clone())),

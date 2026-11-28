@@ -144,23 +144,31 @@ fn identity(user: Option<&User>, name: Option<&str>, guest_key: Option<&str>) ->
     let name_ok = !name.is_empty()
         && name.chars().count() <= MAX_NAME_CHARS
         && !name.chars().any(char::is_control);
-    let key = guest_key?;
-    let key_ok = (16..=128).contains(&key.len())
-        && key
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-    if !name_ok || !key_ok {
+    if !name_ok {
         return None;
     }
-    let hash = Sha256::digest(key.as_bytes());
+    Some(Identity {
+        key: guest_participant_key(guest_key?)?,
+        name: name.to_owned(),
+    })
+}
+
+/// The participant key of a guest: a hash of the key the guest keeps, so it never leaves the
+/// server.
+pub fn guest_participant_key(guest_key: &str) -> Option<String> {
+    let key_ok = (16..=128).contains(&guest_key.len())
+        && guest_key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    if !key_ok {
+        return None;
+    }
+    let hash = Sha256::digest(guest_key.as_bytes());
     let hex = hash.iter().fold(String::new(), |mut hex, b| {
         let _ = write!(hex, "{b:02x}");
         hex
     });
-    Some(Identity {
-        key: format!("g:{hex}"),
-        name: name.to_owned(),
-    })
+    Some(format!("g:{hex}"))
 }
 
 /// Bidirectional formatting characters, which could reorder the text around a message.
