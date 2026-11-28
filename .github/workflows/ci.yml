@@ -25,6 +25,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      docker: ${{ steps.filter.outputs.docker }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -41,6 +42,12 @@ jobs:
               - 'frontend/**'
               # API types are generated from the backend spec.
               - 'backend/openapi.json'
+            docker:
+              - *ci
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'backend/**'
+              - 'frontend/**'
 
   backend:
     needs: changes
@@ -199,8 +206,27 @@ jobs:
       - name: Check generated API types are up to date
         run: git diff --exit-code src/lib/api/schema.d.ts
 
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            OXISTREAM_GIT_SHA=${{ github.sha }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   ci-ok:
-    needs: [changes, backend, frontend, e2e, openapi]
+    needs: [changes, backend, frontend, e2e, openapi, docker]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30
