@@ -1,9 +1,3 @@
----
-title: Home
-nav_order: 1
-permalink: /
----
-
 # Oxistream documentation
 
 Oxistream is a self-hosted YouTube frontend with accounts, subscriptions, playlists, history and watch parties. All media is streamed through the instance.

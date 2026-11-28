@@ -1,9 +1,3 @@
----
-title: API
-parent: Development
-nav_order: 2
----
-
 # API
 
 Every running instance documents its own HTTP API:
@@ -13,7 +7,7 @@ Every running instance documents its own HTTP API:
 | `/api/docs` | Scalar UI |
 | `/api/openapi.json` | OpenAPI document |
 
-The same document is committed as [`backend/openapi.json`](../backend/openapi.json), and `oxistream-server openapi` prints it. The frontend's types are generated from it, see [Development](development.md#api-types).
+The same document is committed as [`backend/openapi.json`](https://github.com/oxistream/oxistream/blob/main/backend/openapi.json), and `oxistream-server openapi` prints it. The frontend's types are generated from it, see [Development](development.md#api-types).
 
 ## Versioning
 

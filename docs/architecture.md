@@ -1,9 +1,3 @@
----
-title: Architecture
-parent: Development
-nav_order: 1
----
-
 # Architecture
 
 Oxistream is one binary. A Rust server (axum) serves an embedded SvelteKit SPA, a JSON API under `/api/v0`, and a media proxy under `/proxy`. All state lives in PostgreSQL, so replicas are interchangeable.

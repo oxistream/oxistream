@@ -1,8 +1,3 @@
----
-title: Operations
-nav_order: 8
----
-
 # Operations
 
 ## Upgrades

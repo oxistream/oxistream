@@ -1,8 +1,3 @@
----
-title: Privacy
-nav_order: 9
----
-
 # Privacy
 
 This page describes what leaves the server, what reaches third parties, and what is stored. It reflects the current code.

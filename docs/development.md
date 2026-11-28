@@ -1,12 +1,6 @@
----
-title: Development
-nav_order: 10
-has_children: true
----
-
 # Development
 
-[Architecture](architecture.md) explains how the pieces fit together. Project rules (commit format, branch naming, review gates) are in [`CLAUDE.md`](../CLAUDE.md).
+[Architecture](architecture.md) explains how the pieces fit together. Project rules (commit format, branch naming, review gates) are in [`CLAUDE.md`](https://github.com/oxistream/oxistream/blob/main/CLAUDE.md).
 
 ## Toolchain
 
@@ -172,3 +166,15 @@ git diff origin/main | grep -nE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b'
 ## RustyPipe fork
 
 YouTube access goes through `oxipipe`, a maintained fork of RustyPipe. It is pinned by git `rev` in `backend/Cargo.toml` as `rustypipe = { package = "oxipipe", ... }`. Fix YouTube-side breakage (deobfuscation, clients, parsing) in the fork, then bump the `rev`.
+
+## Documentation site
+
+The docs and the landing page are built with MkDocs and the Material theme (`mkdocs.yml`, landing page template in `overrides/home.html`). Pushes to `main` deploy them to GitHub Pages. To preview locally:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-docs.txt
+.venv/bin/mkdocs serve
+```
+
+CI runs `mkdocs build --strict`, which fails on broken links and anchors. Link to files outside `docs/` with absolute GitHub URLs.
