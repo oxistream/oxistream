@@ -28,6 +28,7 @@ jobs:
       docker: ${{ steps.filter.outputs.docker }}
       compose: ${{ steps.filter.outputs.compose }}
       helm: ${{ steps.filter.outputs.helm }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -56,6 +57,12 @@ jobs:
             helm:
               - *ci
               - 'deploy/helm/**'
+            docs:
+              - *ci
+              - 'docs/**'
+              - 'overrides/**'
+              - 'mkdocs.yml'
+              - 'requirements-docs.txt'
 
   backend:
     needs: changes
@@ -281,8 +288,25 @@ jobs:
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             rendered/*.yaml "$CHART"/examples/cnpg-cluster.yaml
 
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NO_MKDOCS_2_WARNING: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - run: pip install -r requirements-docs.txt
+      - run: mkdocs build --strict
+
   ci-ok:
-    needs: [changes, backend, frontend, e2e, openapi, docker, compose, helm]
+    needs: [changes, backend, frontend, e2e, openapi, docker, compose, helm, docs]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30
